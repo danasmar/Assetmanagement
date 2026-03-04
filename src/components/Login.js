@@ -16,6 +16,7 @@ const s = {
   inputFocus: { borderColor:'#003770' },
   btn: { width:'100%', padding:'0.85rem', background:'#003770', color:'#fff', border:'none', borderRadius:'10px', fontSize:'0.95rem', fontWeight:'600', cursor:'pointer', marginTop:'1rem', transition:'background 0.2s', fontFamily:'DM Sans, sans-serif' },
   error: { background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.75rem', color:'#c53030', fontSize:'0.85rem', marginTop:'1rem', textAlign:'center' },
+  
   footer: { textAlign:'center', marginTop:'2rem', fontSize:'0.75rem', color:'#adb5bd' }
 };
 
