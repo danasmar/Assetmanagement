@@ -390,20 +390,36 @@ function InvestorReports({ session }) {
 // ─── Distributions ────────────────────────────────────────────────────────────
 function InvestorDistributions({ session }) {
  const [distros, setDistros] = useState([]);
+ const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10 });
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
-   supabase.from('investor_distributions').select('*, distributions(*, deals(name))').eq('investor_id', session.user.id).order('created_at',{ascending:false})
-     .then(({data}) => { setDistros(data||[]); setLoading(false); });
+   const load = async () => {
+     const [dist, assump] = await Promise.all([
+       supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id).order('created_at', { ascending: false }),
+       supabase.from('assumptions').select('*').single(),
+     ]);
+     setDistros(dist.data || []);
+     if (assump.data) setFx(assump.data);
+     setLoading(false);
+   };
+   load();
  }, [session.user.id]);
  
- const total = distros.reduce((s,d)=>s+(d.amount||0),0);
+ const toSAR = (amount, currency) => {
+   if (!currency || currency === 'SAR') return amount;
+   if (currency === 'USD') return amount * (fx.usd_to_sar || 3.75);
+   if (currency === 'EUR') return amount * (fx.eur_to_sar || 4.10);
+   return amount;
+ };
+ 
+ const total = distros.reduce((s,d) => s + toSAR(d.amount||0, d.distributions?.deals?.currency), 0);
  
  return (
    <div>
      <PageHeader title="Distributions" subtitle="View income distributions across your investments" />
      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))', gap:'1rem', marginBottom:'1.5rem' }}>
-       <StatCard label="Total Distributions" value={fmt.currency(total)} color="#C9A84C" />
+       <StatCard label="Total Distributions (SAR)" value={fmt.currency(total)} color="#C9A84C" />
        <StatCard label="Total Payments" value={distros.length} />
        <StatCard label="Deals with Distributions" value={[...new Set(distros.map(d=>d.distributions?.deal_id))].filter(Boolean).length} />
      </div>
@@ -419,15 +435,18 @@ function InvestorDistributions({ session }) {
              </tr>
            </thead>
            <tbody>
-             {distros.map(d => (
-               <tr key={d.id} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                 <td style={{ padding:'0.75rem', fontWeight:'600', color:'#212529' }}>{d.distributions?.deals?.name || '—'}</td>
-                 <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.date(d.distributions?.distribution_date)}</td>
-                 <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.currency(d.distributions?.income_per_unit)}</td>
-                 <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.num(d.units)}</td>
-                 <td style={{ padding:'0.75rem', fontWeight:'700', color:'#2a9d5c' }}>{fmt.currency(d.amount)}</td>
-               </tr>
-             ))}
+             {distros.map(d => {
+               const cur = d.distributions?.deals?.currency || 'SAR';
+               return (
+                 <tr key={d.id} style={{ borderBottom:'1px solid #f1f3f5' }}>
+                   <td style={{ padding:'0.75rem', fontWeight:'600', color:'#212529' }}>{d.distributions?.deals?.name || '—'}</td>
+                   <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.date(d.distributions?.distribution_date)}</td>
+                   <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.currency(d.distributions?.income_per_unit, cur)}</td>
+                   <td style={{ padding:'0.75rem', color:'#6c757d' }}>{fmt.num(d.units)}</td>
+                   <td style={{ padding:'0.75rem', fontWeight:'700', color:'#2a9d5c' }}>{fmt.currency(d.amount, cur)}</td>
+                 </tr>
+               );
+             })}
            </tbody>
          </table></div></div></Card>
      }
