@@ -513,7 +513,7 @@ function DistributionMgmt() {
              Total Units: <strong style={{color:'#212529'}}>{fmt.num(deal?.total_units)}</strong>
            </div>
            <Input label={`Net Distributable Income (${deal?.currency||'SAR'})`} type="number" value={form.ndi||''} onChange={e=>setForm({...form,ndi:e.target.value})} />
-           {form.ndi && <div style={{background:'#f0fff4',borderRadius:'8px',padding:'0.65rem',marginBottom:'1rem',fontSize:'0.83rem',color:'#276749'}}>Income per Unit: <strong>{fmt.currency((parseFloat(form.ndi)||0)/(deal?.total_units||1))}</strong></div>}
+           {form.ndi && <div style={{background:'#f0fff4',borderRadius:'8px',padding:'0.65rem',marginBottom:'1rem',fontSize:'0.83rem',color:'#276749'}}>Income per Unit: <strong>{fmt.currency((parseFloat(form.ndi)||0)/(deal?.total_units||1), deal?.currency||'SAR')}</strong></div>}
            <Input label="Distribution Date" type="date" value={form.date||''} onChange={e=>setForm({...form,date:e.target.value})} />
            <Btn onClick={record} disabled={saving}>{saving?'Recording...':'Record Distribution'}</Btn>
          </>}
@@ -526,9 +526,9 @@ function DistributionMgmt() {
                <div key={h.id} style={{padding:'0.75rem 0',borderBottom:'1px solid #f1f3f5'}}>
                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.85rem'}}>
                    <span style={{fontWeight:'600'}}>{fmt.date(h.distribution_date)}</span>
-                   <span style={{color:'#2a9d5c',fontWeight:'700'}}>{fmt.currency(h.net_distributable_income)}</span>
+                   <span style={{color:'#2a9d5c',fontWeight:'700'}}>{fmt.currency(h.net_distributable_income, deal?.currency||'SAR')}</span>
                  </div>
-                 <div style={{fontSize:'0.75rem',color:'#6c757d',marginTop:'2px'}}>Income/Unit: {fmt.currency(h.income_per_unit)}</div>
+                 <div style={{fontSize:'0.75rem',color:'#6c757d',marginTop:'2px'}}>Income/Unit: {fmt.currency(h.income_per_unit, deal?.currency||'SAR')}</div>
                </div>
              ))
            }
