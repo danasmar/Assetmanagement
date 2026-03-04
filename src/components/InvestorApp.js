@@ -32,7 +32,7 @@ function InvestorDashboard({ session, onPage }) {
  useEffect(() => {
    const load = async () => {
      const [inv, dist, upd] = await Promise.all([
-       supabase.from('investments').select('*, deals(*)').eq('investor_id', session.user.id),
+       supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
        supabase.from('investor_distributions').select('*').eq('investor_id', session.user.id),
        supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
      ]);
@@ -65,7 +65,8 @@ function InvestorDashboard({ session, onPage }) {
            <p style={{color:'#adb5bd',fontSize:'0.85rem'}}>No active investments yet.</p> :
            investments.map(inv => {
              const navUpdates2 = inv.deals?.nav_updates || [];
-             const latestNav2 = navUpdates2.length > 0 ? navUpdates2.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date))[0].nav_per_unit : inv.deals?.nav_per_unit || 0;
+             const sortedNav2 = navUpdates2.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+             const latestNav2 = sortedNav2.length > 0 ? sortedNav2[0].nav_per_unit : (inv.deals?.nav_per_unit || 0);
              const nav = (inv.units||0) * latestNav2;
              const ret = totalInvested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
              return (
@@ -104,7 +105,7 @@ function InvestorPortfolio({ session }) {
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
-   supabase.from('investments').select('*, deals(*)').eq('investor_id', session.user.id)
+   supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id)
      .then(({data}) => { setInvestments(data||[]); setLoading(false); });
  }, [session.user.id]);
  
@@ -116,7 +117,10 @@ function InvestorPortfolio({ session }) {
        <div style={{ display:'grid', gap:'1rem' }}>
          {investments.map(inv => {
            const navUpdates = inv.deals?.nav_updates || [];
-           const latestNav = navUpdates.length > 0 ? navUpdates.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date))[0].nav_per_unit : inv.deals?.nav_per_unit || 0;
+           const sortedNavUpdates = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+           const latestNavEntry = sortedNavUpdates.length > 0 ? sortedNavUpdates[0] : null;
+           const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
+           const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
            const nav = (inv.units||0) * latestNav;
            const ret = inv.amount_invested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
            return (
@@ -129,7 +133,7 @@ function InvestorPortfolio({ session }) {
                  <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret>=0?'#2a9d5c':'#e63946' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
                </div>
                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
-                 {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
+                 {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
                    <div key={k}><div style={{fontSize:'0.72rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em'}}>{k}</div><div style={{fontSize:'0.95rem',fontWeight:'700',color:'#212529',marginTop:'2px'}}>{v}</div></div>
                  ))}
                </div>
