@@ -72,7 +72,7 @@ function InvestorDashboard({ session, onPage }) {
                    <span style={{ fontSize:'0.85rem', fontWeight:'600', color:'#212529' }}>{inv.deals?.name}</span>
                    <span style={{ fontSize:'0.8rem', color: ret>=0?'#2a9d5c':'#e63946', fontWeight:'600' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
                  </div>
-                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'2px' }}>Invested: {fmt.currency(inv.amount_invested)} · NAV: {fmt.currency(nav)}</div>
+                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'2px' }}>Invested: {fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')} · NAV: {fmt.currency(nav, inv.deals?.currency||'SAR')}</div>
                </div>
              );
            })
@@ -125,7 +125,7 @@ function InvestorPortfolio({ session }) {
                  <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret>=0?'#2a9d5c':'#e63946' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
                </div>
                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
-                 {[['Invested', fmt.currency(inv.amount_invested)], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav)], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
+                 {['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
                    <div key={k}><div style={{fontSize:'0.72rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em'}}>{k}</div><div style={{fontSize:'0.95rem',fontWeight:'700',color:'#212529',marginTop:'2px'}}>{v}</div></div>
                  ))}
                </div>
