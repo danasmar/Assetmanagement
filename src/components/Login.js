@@ -6,7 +6,7 @@ const LOGO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCMRXhpZgAATU0
 const s = {
  page: { minHeight: "100vh", background: "#091f58", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", fontFamily: "DM Sans, sans-serif", position: "relative", overflow: "hidden" },
  bgWrap: { position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" },
- bgImg: { position: "absolute", right: "166px", top: "50%", transform: "translateY(calc(-50% - 302px))", width: "480px", height: "480px", opacity: 0.22, objectFit: "contain", mixBlendMode: "lighten" },
+ bgImg: { position: "absolute", right: "317px", top: "50%", transform: "translateY(calc(-50% - 302px))", width: "480px", height: "480px", opacity: 0.22, objectFit: "contain", mixBlendMode: "lighten" },
  card: { background: "rgba(255,255,255,0.97)", borderRadius: "20px", padding: "clamp(1.5rem, 5vw, 2.5rem)", width: "100%", maxWidth: "400px", boxShadow: "0 24px 64px rgba(0,0,0,0.35)", position: "relative", zIndex: 1, boxSizing: "border-box", marginRight: "0" },
  logo: { textAlign: "center", marginBottom: "1.75rem" },
  logoText: { fontFamily: "DM Serif Display, serif", fontSize: "clamp(1.4rem, 4vw, 1.8rem)", color: "#091f58", display: "block" },
