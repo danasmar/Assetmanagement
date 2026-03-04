@@ -141,6 +141,7 @@ export const ADMIN_NAV = [
  { section: "Operations" },
  { key: "reporting", icon: "⊟", label: "Reporting" },
  { key: "distributions", icon: "◎", label: "Distributions" },
+ { key: "nav", icon: "◈", label: "NAV Management" },
  { key: "updates", icon: "✦", label: "Updates" },
  { section: "Settings" },
  { key: "admins", icon: "◯", label: "Admin Users" },
