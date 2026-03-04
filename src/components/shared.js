@@ -43,6 +43,7 @@ const icons = {
 
 export function Layout({ children, page, onPageChange, session, onLogout, navItems }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const isMobile = window.innerWidth < 900;
 
   const SidebarContent = () => (
