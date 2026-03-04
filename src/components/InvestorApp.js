@@ -231,7 +231,7 @@ function InvestorOpportunities({ session }) {
 function DealCard({ deal, onView, onInterest }) {
  const pct = deal.target_raise > 0 ? Math.min((deal.amount_raised||0)/deal.target_raise*100, 100) : 0;
  return (
-   <Card style={{ cursor:'default' }}>
+   <Card style={{ cursor:'default', display:'flex', flexDirection:'column' }}>
      <div style={{width:"100%",paddingTop:"100%",position:"relative",borderRadius:"10px",overflow:"hidden",marginBottom:"1rem",background:"#f1f3f5",flexShrink:0}}>
      {deal.image_url
        ? <img src={deal.image_url} alt={deal.name} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"cover"}} />
@@ -241,18 +241,20 @@ function DealCard({ deal, onView, onInterest }) {
          </div>
      }
    </div>
-     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.75rem' }}>
-       <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{deal.name}</h3>
-       <Badge label={deal.status || 'Open'} />
-     </div>
-     <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'0.75rem' }}>{deal.strategy}</div>
-     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem', marginBottom:'0.75rem' }}>
-       {[['Target IRR', deal.target_irr||'—'], ['Min. Ticket', fmt.currency(deal.min_investment, deal.currency||'SAR')], ['Fund Size', fmt.currency(deal.total_fund_size, deal.currency||'SAR')], ['Closing', deal.closing_date||'TBC']].map(([k,v]) => (
-         <div key={k} style={{background:'#f8f9fa',borderRadius:'6px',padding:'0.4rem 0.6rem'}}>
-           <div style={{fontSize:'0.65rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase'}}>{k}</div>
-           <div style={{fontSize:'0.8rem',fontWeight:'600',color:'#212529'}}>{v}</div>
-         </div>
-       ))}
+     <div style={{ flex:1 }}>
+       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.75rem' }}>
+         <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{deal.name}</h3>
+         <Badge label={deal.status || 'Open'} />
+       </div>
+       <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'0.75rem' }}>{deal.strategy}</div>
+       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem', marginBottom:'0.75rem' }}>
+         {[['Target IRR', deal.target_irr||'—'], ['Min. Ticket', fmt.currency(deal.min_investment, deal.currency||'SAR')], ['Fund Size', fmt.currency(deal.total_fund_size, deal.currency||'SAR')], ['Closing', deal.closing_date||'TBC']].map(([k,v]) => (
+           <div key={k} style={{background:'#f8f9fa',borderRadius:'6px',padding:'0.4rem 0.6rem'}}>
+             <div style={{fontSize:'0.65rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase'}}>{k}</div>
+             <div style={{fontSize:'0.8rem',fontWeight:'600',color:'#212529'}}>{v}</div>
+           </div>
+         ))}
+       </div>
      </div>
      {deal.status !== 'Closed' && (
        <div style={{ marginBottom:'0.75rem' }}>
