@@ -119,9 +119,25 @@ function InvestorPortfolio({ session }) {
  const [investments, setInvestments] = useState([]);
  const [loading, setLoading] = useState(true);
  
+ const [distByDeal, setDistByDeal] = useState({});
+ 
  useEffect(() => {
-   supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id)
-     .then(({data}) => { setInvestments(data||[]); setLoading(false); });
+   const load = async () => {
+     const [invRes, distRes] = await Promise.all([
+       supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
+       supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
+     ]);
+     setInvestments(invRes.data || []);
+     // Sum distributions per deal_id
+     const byDeal = {};
+     (distRes.data || []).forEach(d => {
+       const dealId = d.distributions?.deal_id;
+       if (dealId) byDeal[dealId] = (byDeal[dealId] || 0) + (d.amount || 0);
+     });
+     setDistByDeal(byDeal);
+     setLoading(false);
+   };
+   load();
  }, [session.user.id]);
  
  return (
@@ -137,7 +153,8 @@ function InvestorPortfolio({ session }) {
            const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
            const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
            const nav = (inv.units||0) * latestNav;
-           const ret = inv.amount_invested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
+           const dealDist = distByDeal[inv.deal_id] || 0;
+           const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
            return (
              <Card key={inv.id}>
                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem' }}>
