@@ -34,7 +34,7 @@ function InvestorDashboard({ session, onPage }) {
    const load = async () => {
      const [inv, dist, upd, assump] = await Promise.all([
        supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
-       supabase.from('investor_distributions').select('*, deals(currency)').eq('investor_id', session.user.id),
+       supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id),
        supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
        supabase.from('assumptions').select('*').single(),
      ]);
@@ -61,7 +61,7 @@ function InvestorDashboard({ session, onPage }) {
    const latestNavPerUnit = sorted.length > 0 ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
    return s + toSAR((i.units||0) * latestNavPerUnit, i.deals?.currency);
  }, 0);
- const totalDist = distributions.reduce((s,d) => s + toSAR(d.amount||0, d.deals?.currency), 0);
+ const totalDist = distributions.reduce((s,d) => s + toSAR(d.amount||0, d.distributions?.deals?.currency), 0);
  const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
  
  return (
