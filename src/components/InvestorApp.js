@@ -27,26 +27,41 @@ function InvestorDashboard({ session, onPage }) {
  const [investments, setInvestments] = useState([]);
  const [distributions, setDistributions] = useState([]);
  const [updates, setUpdates] = useState([]);
+ const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10 });
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
    const load = async () => {
-     const [inv, dist, upd] = await Promise.all([
+     const [inv, dist, upd, assump] = await Promise.all([
        supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
-       supabase.from('investor_distributions').select('*').eq('investor_id', session.user.id),
+       supabase.from('investor_distributions').select('*, deals(currency)').eq('investor_id', session.user.id),
        supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
+       supabase.from('assumptions').select('*').single(),
      ]);
      setInvestments(inv.data || []);
      setDistributions(dist.data || []);
      setUpdates(upd.data || []);
+     if (assump.data) setFx(assump.data);
      setLoading(false);
    };
    load();
  }, [session.user.id]);
  
- const totalInvested = investments.reduce((s,i) => s + (i.amount_invested||0), 0);
- const portfolioNAV = investments.reduce((s,i) => s + ((i.units||0) * (i.deals?.nav_per_unit||0)), 0);
- const totalDist = distributions.reduce((s,d) => s + (d.amount||0), 0);
+ const toSAR = (amount, currency) => {
+   if (!currency || currency === "SAR") return amount;
+   if (currency === "USD") return amount * (fx.usd_to_sar || 3.75);
+   if (currency === "EUR") return amount * (fx.eur_to_sar || 4.10);
+   return amount;
+ };
+ 
+ const totalInvested = investments.reduce((s,i) => s + toSAR(i.amount_invested||0, i.deals?.currency), 0);
+ const portfolioNAV = investments.reduce((s,i) => {
+   const navUpdates = i.deals?.nav_updates || [];
+   const sorted = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+   const latestNavPerUnit = sorted.length > 0 ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
+   return s + toSAR((i.units||0) * latestNavPerUnit, i.deals?.currency);
+ }, 0);
+ const totalDist = distributions.reduce((s,d) => s + toSAR(d.amount||0, d.deals?.currency), 0);
  const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
  
  return (
