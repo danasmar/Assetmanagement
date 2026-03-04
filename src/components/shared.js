@@ -62,15 +62,33 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
               </button>
         ))}
       </nav>
-      <div style={navStyle.bottom}>
-        <div style={navStyle.userBox}>
+<div style={navStyle.bottom}>
+  <div style={{ position:'relative' }}>
+    <div style={{ ...navStyle.userBox, cursor:'pointer', transition:'background 0.15s' }}
+      onClick={() => setUserMenuOpen(o => !o)}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
           <span style={navStyle.userName}>{session.user.full_name}</span>
           <span style={navStyle.userRole}>{session.role === 'admin' ? (session.user.role || 'Admin') : (session.user.investor_type || 'Investor')}</span>
         </div>
-        <button style={navStyle.signOut} onClick={onLogout}>
+        <span style={{ color:'rgba(255,255,255,0.4)', fontSize:'0.75rem' }}>{userMenuOpen ? '▲' : '▼'}</span>
+      </div>
+    </div>
+    {userMenuOpen && (
+      <div style={{ position:'absolute', bottom:'100%', left:0, right:0, background:'#fff', borderRadius:'10px', boxShadow:'0 8px 24px rgba(0,0,0,0.2)', marginBottom:'6px', overflow:'hidden', zIndex:200 }}>
+        <button onClick={() => { onPageChange('profile'); setUserMenuOpen(false); setMobileOpen(false); }}
+          style={{ display:'flex', alignItems:'center', gap:'0.6rem', width:'100%', padding:'0.75rem 1rem', border:'none', background:'none', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', color:'#003770', fontFamily:'DM Sans,sans-serif', borderBottom:'1px solid #f1f3f5' }}>
+          <span>◯</span><span>My Profile</span>
+        </button>
+        <button onClick={() => { onLogout(); setUserMenuOpen(false); }}
+          style={{ display:'flex', alignItems:'center', gap:'0.6rem', width:'100%', padding:'0.75rem 1rem', border:'none', background:'none', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', color:'#e63946', fontFamily:'DM Sans,sans-serif' }}>
           <span>→</span><span>Sign Out</span>
         </button>
       </div>
+    )}
+  </div>
+</div>
+
     </>
   );
 
