@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const s = {
-  page: { minHeight:'100vh', background:'linear-gradient(135deg, #002555 0%, #003770 60%, #004d9e 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem', fontFamily:'DM Sans, sans-serif' },
+  page: { Height:'100vh', overflow:'hidden', background:'linear-gradient(135deg, #002555 0%, #003770 60%, #004d9e 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem', fontFamily:'DM Sans, sans-serif' },
   card: { background:'#fff', borderRadius:'20px', padding:'2.5rem', width:'100%', maxWidth:'420px', boxShadow:'0 24px 64px rgba(0,0,0,0.25)', boxSizing:'border-box' },
   logo: { textAlign:'center', marginBottom:'2rem' },
   logoText: { fontFamily:'DM Serif Display, serif', fontSize:'1.8rem', color:'#003770', display:'block' },
