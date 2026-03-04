@@ -64,7 +64,9 @@ function InvestorDashboard({ session, onPage }) {
          {loading ? <p style={{color:'#adb5bd',fontSize:'0.85rem'}}>Loading...</p> : investments.length === 0 ?
            <p style={{color:'#adb5bd',fontSize:'0.85rem'}}>No active investments yet.</p> :
            investments.map(inv => {
-             const nav = (inv.units||0) * (inv.deals?.nav_per_unit||0);
+             const navUpdates2 = inv.deals?.nav_updates || [];
+             const latestNav2 = navUpdates2.length > 0 ? navUpdates2.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date))[0].nav_per_unit : inv.deals?.nav_per_unit || 0;
+             const nav = (inv.units||0) * latestNav2;
              const ret = totalInvested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
              return (
                <div key={inv.id} style={{ padding:'0.75rem 0', borderBottom:'1px solid #f1f3f5' }}>
@@ -113,7 +115,9 @@ function InvestorPortfolio({ session }) {
        <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No investments yet.</p></Card> :
        <div style={{ display:'grid', gap:'1rem' }}>
          {investments.map(inv => {
-           const nav = (inv.units||0) * (inv.deals?.nav_per_unit||0);
+           const navUpdates = inv.deals?.nav_updates || [];
+           const latestNav = navUpdates.length > 0 ? navUpdates.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date))[0].nav_per_unit : inv.deals?.nav_per_unit || 0;
+           const nav = (inv.units||0) * latestNav;
            const ret = inv.amount_invested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
            return (
              <Card key={inv.id}>
