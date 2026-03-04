@@ -4,12 +4,19 @@ import Login from './components/Login';
 import InvestorApp from './components/InvestorApp';
 import AdminApp from './components/AdminApp';
 
+// Safe storage that works even if localStorage is blocked
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  remove: (k) => { try { localStorage.removeItem(k); } catch {} },
+};
+
 export default function App() {
-  const [session, setSession] = useState(null); // { user, role: 'investor'|'admin' }
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('ac_session');
+    const stored = store.get('ac_session');
     if (stored) {
       try { setSession(JSON.parse(stored)); } catch {}
     }
@@ -17,12 +24,12 @@ export default function App() {
   }, []);
 
   const handleLogin = (sessionData) => {
-    localStorage.setItem('ac_session', JSON.stringify(sessionData));
+    store.set('ac_session', JSON.stringify(sessionData));
     setSession(sessionData);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('ac_session');
+    store.remove('ac_session');
     setSession(null);
   };
 
