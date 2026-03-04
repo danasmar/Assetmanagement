@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from ‘react’;
-import { supabase } from ‘../supabaseClient’;
-import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from ‘./shared’;
+import React, { useState, useEffect } from “react”;
+import { supabase } from “../supabaseClient”;
+import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from “./shared”;
 
 export default function AdminApp({ session, onLogout }) {
 const [page, setPage] = useState(‘dashboard’);
