@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const s = {
-  page: { Height:'100vh', overflow:'hidden', background:'linear-gradient(135deg, #002555 0%, #003770 60%, #004d9e 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem', fontFamily:'DM Sans, sans-serif' },
-  card: { background:'#fff', borderRadius:'20px', padding:'2.5rem', width:'100%', maxWidth:'420px', boxShadow:'0 24px 64px rgba(0,0,0,0.25)', boxSizing:'border-box' },
+  page: { Height:'100vh', background:'linear-gradient(135deg, #002555 0%, #003770 60%, #004d9e 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem', fontFamily:'DM Sans, sans-serif' },
+  card: { background:'#fff', borderRadius:'20px', padding:'clamp(1.25rem, 5vw, 2.5rem)', width:'100%', maxWidth:'420px',
   logo: { textAlign:'center', marginBottom:'2rem' },
-  logoText: { fontFamily:'DM Serif Display, serif', fontSize:'1.8rem', color:'#003770', display:'block' },
+  logoText: { fontFamily:'DM Serif Display, serif', fontSize:'clamp(1.3rem, 4vw, 1.8rem)', color:'#003770', display:'block' },
   logoSub: { fontSize:'0.78rem', color:'#6c757d', letterSpacing:'0.12em', textTransform:'uppercase', display:'block', marginTop:'4px' },
   tabs: { display:'flex', background:'#f1f3f5', borderRadius:'10px', padding:'4px', marginBottom:'1.5rem' },
   tab: { flex:1, padding:'0.5rem', border:'none', borderRadius:'7px', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', transition:'all 0.2s' },
