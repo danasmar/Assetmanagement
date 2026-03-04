@@ -270,6 +270,11 @@ function DealCard({ deal, onView, onInterest }) {
        <Btn variant="outline" style={{flex:1}} onClick={onView}>View Details</Btn>
        {deal.status !== 'Closed' && <Btn style={{flex:1}} onClick={onInterest}>Show Interest</Btn>}
      </div>
+     {deal.status !== 'Closed' && (
+       <div style={{ marginTop:'0.5rem' }}>
+         <Btn onClick={() => onInterest()} style={{ width:'100%', background:'#2a9d5c', border:'none', color:'#fff' }}>Invest Now</Btn>
+       </div>
+     )}
    </Card>
  );
 }
