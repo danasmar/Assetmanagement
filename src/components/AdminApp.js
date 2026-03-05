@@ -504,9 +504,9 @@ function Reporting() {
    if (file.size > 50 * 1024 * 1024) { alert('File must be under 50MB'); return; }
    setFileUploading(true);
    const path = 'reports/' + Date.now() + '_' + file.name.replace(/\s+/g, '_');
-   const { error } = await supabase.storage.from('deal-documents').upload(path, file, { upsert: true });
+   const { error } = await supabase.storage.from('reports').upload(path, file, { upsert: true });
    if (error) { alert('Upload failed: ' + error.message); setFileUploading(false); return; }
-   const { data: urlData } = supabase.storage.from('deal-documents').getPublicUrl(path);
+   const { data: urlData } = supabase.storage.from('reports').getPublicUrl(path);
    setUploadedFile({ name: file.name, url: urlData.publicUrl });
    setForm(f => ({ ...f, file_url: urlData.publicUrl }));
    setFileUploading(false);
