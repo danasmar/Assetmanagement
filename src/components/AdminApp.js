@@ -90,6 +90,48 @@ function AdminDashboard() {
  );
 }
  
+// ─── Document Uploader ─────────────────────────────────────────────────────────
+function DocUploader({ onUploaded }) {
+ const [uploading, setUploading] = useState(false);
+ const [docName, setDocName] = useState('');
+ 
+ const handleFile = async (e) => {
+   const file = e.target.files[0];
+   if (!file) return;
+   if (file.size > 20 * 1024 * 1024) { alert('File must be under 20MB'); return; }
+   const name = docName.trim() || file.name.replace(/\.[^.]+$/, '');
+   setUploading(true);
+   const ext = file.name.split('.').pop();
+   const path = 'deal-docs/' + Date.now() + '_' + file.name.replace(/\s+/g, '_');
+   const { error } = await supabase.storage.from('deal-documents').upload(path, file, { upsert: true });
+   if (error) { alert('Upload failed: ' + error.message); setUploading(false); return; }
+   const { data: urlData } = supabase.storage.from('deal-documents').getPublicUrl(path);
+   onUploaded({ name, url: urlData.publicUrl });
+   setDocName('');
+   e.target.value = '';
+   setUploading(false);
+ };
+ 
+ return (
+   <div style={{border:'1.5px dashed #dee2e6',borderRadius:'10px',padding:'1rem',marginTop:'4px',background:'#fafafa'}}>
+     <div style={{fontSize:'0.78rem',fontWeight:'600',color:'#6c757d',marginBottom:'8px'}}>Upload a document</div>
+     <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap',alignItems:'center'}}>
+       <input
+         placeholder="Display name (optional)"
+         value={docName}
+         onChange={e=>setDocName(e.target.value)}
+         style={{padding:'0.45rem 0.7rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',flex:'1',minWidth:'140px'}}
+       />
+       <label style={{background: uploading ? '#adb5bd' : '#003770',color:'#fff',padding:'0.45rem 1rem',borderRadius:'8px',fontSize:'0.82rem',fontWeight:'600',cursor: uploading ? 'not-allowed' : 'pointer',fontFamily:'DM Sans,sans-serif',whiteSpace:'nowrap',flexShrink:0}}>
+         {uploading ? 'Uploading…' : '📎 Choose File'}
+         <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" onChange={handleFile} style={{display:'none'}} disabled={uploading} />
+       </label>
+     </div>
+     <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'6px'}}>PDF, Word, Excel, PowerPoint or image · Max 20MB</div>
+   </div>
+ );
+}
+ 
 // ─── Deal Management ──────────────────────────────────────────────────────────
 function DealManagement() {
  const [deals, setDeals] = useState([]);
@@ -259,14 +301,16 @@ function DealManagement() {
          <div style={{marginBottom:'1rem'}}>
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Documents</label>
            {(form.documents||[]).map((d,i) => (
-             <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
-               <span style={{flexShrink:0}}>📄</span>
-               <input placeholder="Document name" value={d.name||''} onChange={e=>{const arr=[...(form.documents||[])];arr[i]={...arr[i],name:e.target.value};setForm({...form,documents:arr});}} style={{width:'160px',flexShrink:0,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <input placeholder="https://..." value={d.url||''} onChange={e=>{const arr=[...(form.documents||[])];arr[i]={...arr[i],url:e.target.value};setForm({...form,documents:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
+             <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.5rem',alignItems:'center',background:'#f8f9fa',borderRadius:'8px',padding:'0.5rem 0.75rem'}}>
+               <span style={{flexShrink:0,fontSize:'1.1rem'}}>📄</span>
+               <div style={{flex:1,minWidth:0}}>
+                 <div style={{fontWeight:'600',fontSize:'0.88rem',color:'#212529',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.name||'Unnamed document'}</div>
+                 <div style={{fontSize:'0.75rem',color:'#6c757d',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.url}</div>
+               </div>
                <button onClick={()=>{const arr=(form.documents||[]).filter((_,j)=>j!==i);setForm({...form,documents:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
              </div>
            ))}
-           <button onClick={()=>setForm({...form,documents:[...(form.documents||[]),{name:'',url:''}] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Document</button>
+           <DocUploader onUploaded={doc=>setForm(f=>({...f,documents:[...(f.documents||[]),doc]}))} />
          </div>
  
          <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
@@ -842,4 +886,3 @@ function NAVManagement() {
    </div>
  );
 }
- 
