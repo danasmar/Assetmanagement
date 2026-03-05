@@ -370,9 +370,29 @@ function InvestorReports({ session }) {
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
-   supabase.from('reports').select('*, deals(name)').order('created_at',{ascending:false})
-     .then(({data}) => { setReports(data||[]); setLoading(false); });
- }, []);
+   const load = async () => {
+     // First get the deals this investor is invested in
+     const { data: investments } = await supabase
+       .from('investments')
+       .select('deal_id')
+       .eq('investor_id', session.user.id);
+ 
+     const dealIds = (investments||[]).map(i => i.deal_id).filter(Boolean);
+ 
+     if (dealIds.length === 0) { setReports([]); setLoading(false); return; }
+ 
+     // Then fetch reports only for those deals
+     const { data } = await supabase
+       .from('reports')
+       .select('*, deals(name)')
+       .in('deal_id', dealIds)
+       .order('created_at', { ascending: false });
+ 
+     setReports(data||[]);
+     setLoading(false);
+   };
+   load();
+ }, [session.user.id]);
  
  const tabs = ['All Reports','Quarterly Reports','NAV Statements','Annual Reports'];
  const filtered = tab==='All Reports' ? reports : reports.filter(r=>r.report_type===tab.replace(' Reports','').replace('Quarterly','Quarterly Report').replace('NAV Statements','NAV Statement').replace('Annual Reports','Annual Report'));
