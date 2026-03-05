@@ -519,12 +519,7 @@ function Reporting() {
    setMsg('Report uploaded successfully.'); setForm({}); setUploadedFile(null); setSaving(false);
  };
  
- const updateNAV = async () => {
-   setSaving(true);
-   await supabase.from('deals').update({ nav_per_unit: parseFloat(form.nav_value)||0 }).eq('id', form.nav_deal);
-   await supabase.from('nav_updates').insert({ deal_id:form.nav_deal, nav_per_unit:parseFloat(form.nav_value)||0, effective_date:form.nav_date });
-   setMsg('NAV updated successfully.'); setSaving(false);
- };
+ 
  
  const sendAnnouncement = async () => {
    setSaving(true);
@@ -536,7 +531,7 @@ function Reporting() {
    <div>
      <PageHeader title="Reporting" subtitle="Upload reports, update NAV, and send notifications" />
      <div style={{display:'flex',gap:'0.5rem',marginBottom:'1.5rem'}}>
-       {[['reports','Upload Report'],['nav','Update NAV'],['announce','Send Announcement']].map(([k,l])=>(
+       {[['reports','Upload Report'],['announce','Send Announcement']].map(([k,l])=>(
          <button key={k} onClick={()=>{setTab(k);setMsg('');}} style={{padding:'0.5rem 1rem',borderRadius:'8px',border:'none',cursor:'pointer',fontWeight:'600',fontSize:'0.82rem',fontFamily:'DM Sans,sans-serif',background:tab===k?'#003770':'#f1f3f5',color:tab===k?'#fff':'#6c757d'}}>{l}</button>
        ))}
      </div>
@@ -576,15 +571,7 @@ function Reporting() {
          </div>
          <Btn onClick={uploadReport} disabled={saving||fileUploading}>{saving?'Saving...':'Upload Report'}</Btn>
        </>}
-       {tab==='nav' && <>
-         <Select label="Select Fund" value={form.nav_deal||''} onChange={e=>setForm({...form,nav_deal:e.target.value})}>
-           <option value="">Select Fund</option>
-           {deals.map(d=><option key={d.id} value={d.id}>{d.name} (current: {d.nav_per_unit})</option>)}
-         </Select>
-         <Input label="New NAV Per Unit" type="number" value={form.nav_value||''} onChange={e=>setForm({...form,nav_value:e.target.value})} />
-         <Input label="Effective Date" type="date" value={form.nav_date||''} onChange={e=>setForm({...form,nav_date:e.target.value})} />
-         <Btn onClick={updateNAV} disabled={saving}>{saving?'Publishing...':'Publish NAV Update'}</Btn>
-       </>}
+ 
        {tab==='announce' && <>
          <Input label="Subject" value={form.subject||''} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Notification subject" />
          <div style={{marginBottom:'1rem'}}>
