@@ -507,7 +507,9 @@ function InvestorMessages({ session }) {
  useEffect(() => {
    const load = () => supabase.from('messages').select('*').eq('investor_id', session.user.id).order('created_at',{ascending:true}).then(({data})=>setMessages(data||[]));
    load();
-   const sub = supabase.channel('messages').on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},load).subscribe();
+   const sub = supabase.channel('investor-messages-' + session.user.id)
+     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages', filter:`investor_id=eq.${session.user.id}`},load)
+     .subscribe();
    return () => supabase.removeChannel(sub);
  }, [session.user.id]);
  
@@ -538,7 +540,7 @@ function InvestorMessages({ session }) {
        </div>
        <div style={{ borderTop:'1px solid #e9ecef', paddingTop:'1rem', display:'flex', gap:'0.75rem' }}>
          <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendReply()} placeholder="Type your reply..." style={{ flex:1, padding:'0.65rem 1rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', outline:'none', fontFamily:'DM Sans, sans-serif' }} />
-         <Btn onClick={sendReply} disabled={sending||!reply.trim()}>Send Reply</Btn>
+         <Btn onClick={sendReply} disabled={sending||!reply.trim()}>Send</Btn>
        </div>
      </Card>
    </div>
