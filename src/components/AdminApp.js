@@ -513,9 +513,13 @@ function Reporting() {
  };
  
  const uploadReport = async () => {
+   if (!form.deal_id) { alert('Please select a fund.'); return; }
+   if (!form.title) { alert('Please enter a report title.'); return; }
    if (!form.file_url) { alert('Please upload a file first.'); return; }
    setSaving(true);
-   await supabase.from('reports').insert({ deal_id:form.deal_id, report_type:form.report_type||'Quarterly Report', title:form.title, file_url:form.file_url });
+   const payload = { deal_id: form.deal_id, report_type: form.report_type||'Quarterly Report', title: form.title, file_url: form.file_url };
+   const { error } = await supabase.from('reports').insert(payload);
+   if (error) { alert('Save failed: ' + error.message); setSaving(false); return; }
    setMsg('Report uploaded successfully.'); setForm({}); setUploadedFile(null); setSaving(false);
  };
  
