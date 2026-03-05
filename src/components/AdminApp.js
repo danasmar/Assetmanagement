@@ -493,13 +493,30 @@ function Reporting() {
  const [form, setForm] = useState({});
  const [msg, setMsg] = useState('');
  const [saving, setSaving] = useState(false);
+ const [fileUploading, setFileUploading] = useState(false);
+ const [uploadedFile, setUploadedFile] = useState(null);
  
  useEffect(()=>{ supabase.from('deals').select('id,name,nav_per_unit').then(({data})=>setDeals(data||[])); },[]);
  
+ const handleReportFile = async (e) => {
+   const file = e.target.files[0];
+   if (!file) return;
+   if (file.size > 50 * 1024 * 1024) { alert('File must be under 50MB'); return; }
+   setFileUploading(true);
+   const path = 'reports/' + Date.now() + '_' + file.name.replace(/\s+/g, '_');
+   const { error } = await supabase.storage.from('deal-documents').upload(path, file, { upsert: true });
+   if (error) { alert('Upload failed: ' + error.message); setFileUploading(false); return; }
+   const { data: urlData } = supabase.storage.from('deal-documents').getPublicUrl(path);
+   setUploadedFile({ name: file.name, url: urlData.publicUrl });
+   setForm(f => ({ ...f, file_url: urlData.publicUrl }));
+   setFileUploading(false);
+ };
+ 
  const uploadReport = async () => {
+   if (!form.file_url) { alert('Please upload a file first.'); return; }
    setSaving(true);
    await supabase.from('reports').insert({ deal_id:form.deal_id, report_type:form.report_type||'Quarterly Report', title:form.title, file_url:form.file_url });
-   setMsg('Report uploaded successfully.'); setForm({}); setSaving(false);
+   setMsg('Report uploaded successfully.'); setForm({}); setUploadedFile(null); setSaving(false);
  };
  
  const updateNAV = async () => {
@@ -535,8 +552,29 @@ function Reporting() {
            <option>Quarterly Report</option><option>NAV Statement</option><option>Annual Report</option>
          </Select>
          <Input label="Report Title" value={form.title||''} onChange={e=>setForm({...form,title:e.target.value})} />
-         <Input label="File URL" type="url" placeholder="https://..." value={form.file_url||''} onChange={e=>setForm({...form,file_url:e.target.value})} />
-         <Btn onClick={uploadReport} disabled={saving}>{saving?'Uploading...':'Upload Report'}</Btn>
+         <div style={{marginBottom:'1rem'}}>
+           <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Report File</label>
+           {uploadedFile ? (
+             <div style={{display:'flex',alignItems:'center',gap:'0.75rem',background:'#f0fff4',border:'1px solid #c6f6d5',borderRadius:'8px',padding:'0.65rem 0.9rem'}}>
+               <span style={{fontSize:'1.2rem'}}>📄</span>
+               <div style={{flex:1,minWidth:0}}>
+                 <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#276749',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{uploadedFile.name}</div>
+                 <div style={{fontSize:'0.72rem',color:'#68a57a'}}>Uploaded successfully</div>
+               </div>
+               <button onClick={()=>{setUploadedFile(null);setForm(f=>({...f,file_url:''}));}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+             </div>
+           ) : (
+             <label style={{display:'flex',alignItems:'center',gap:'0.75rem',border:'1.5px dashed #dee2e6',borderRadius:'10px',padding:'1rem',background:'#fafafa',cursor:fileUploading?'not-allowed':'pointer'}}>
+               <span style={{fontSize:'1.5rem'}}>📎</span>
+               <div>
+                 <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#495057'}}>{fileUploading?'Uploading…':'Choose file to upload'}</div>
+                 <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'2px'}}>PDF, Word, Excel · Max 50MB</div>
+               </div>
+               <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={handleReportFile} style={{display:'none'}} disabled={fileUploading} />
+             </label>
+           )}
+         </div>
+         <Btn onClick={uploadReport} disabled={saving||fileUploading}>{saving?'Saving...':'Upload Report'}</Btn>
        </>}
        {tab==='nav' && <>
          <Select label="Select Fund" value={form.nav_deal||''} onChange={e=>setForm({...form,nav_deal:e.target.value})}>
