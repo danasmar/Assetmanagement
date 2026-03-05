@@ -66,7 +66,7 @@ function AdminDashboard() {
                <div style={{ background:'#e9ecef', borderRadius:'99px', height:'5px' }}>
                  <div style={{ background:'#C9A84C', borderRadius:'99px', height:'5px', width:`${pct}%` }} />
                </div>
-               <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{fmt.currency(d.amount_raised)} / {fmt.currency(d.target_raise)}</div>
+               <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{fmt.currency(d.amount_raised, d.currency||'SAR')} / {fmt.currency(d.target_raise, d.currency||'SAR')}</div>
              </div>
            );
          })}
@@ -203,7 +203,7 @@ function DealManagement() {
                <td style={{padding:'0.75rem'}}><div style={{fontWeight:'600',color:'#212529'}}>{d.name}</div></td>
                <td style={{padding:'0.75rem',color:'#6c757d'}}>{d.strategy}</td>
                <td style={{padding:'0.75rem'}}><Badge label={d.status||'Open'}/></td>
-               <td style={{padding:'0.75rem',color:'#6c757d'}}>{fmt.currency(d.amount_raised)} / {fmt.currency(d.target_raise)}</td>
+               <td style={{padding:'0.75rem',color:'#6c757d'}}>{fmt.currency(d.amount_raised, d.currency||'SAR')} / {fmt.currency(d.target_raise, d.currency||'SAR')}</td>
                <td style={{padding:'0.75rem'}}>
                  <div style={{display:'flex',gap:'0.5rem'}}>
                    <Btn variant="outline" style={{padding:'0.3rem 0.7rem',fontSize:'0.78rem'}} onClick={()=>openEdit(d)}>Edit</Btn>
@@ -886,3 +886,4 @@ function NAVManagement() {
    </div>
  );
 }
+ 
