@@ -516,8 +516,12 @@ function InvestorMessages({ session }) {
  const sendReply = async () => {
    if (!reply.trim()) return;
    setSending(true);
-   await supabase.from('messages').insert({ investor_id:session.user.id, sender:session.user.full_name, content:reply.trim(), is_admin:false });
+   const content = reply.trim();
+   const optimistic = { id: 'temp-' + Date.now(), investor_id: session.user.id, sender: session.user.full_name, content, is_admin: false, created_at: new Date().toISOString() };
+   setMessages(prev => [...prev, optimistic]);
    setReply('');
+   const { data } = await supabase.from('messages').insert({ investor_id:session.user.id, sender:session.user.full_name, content, is_admin:false }).select().single();
+   if (data) setMessages(prev => prev.map(m => m.id === optimistic.id ? data : m));
    setSending(false);
  };
  
