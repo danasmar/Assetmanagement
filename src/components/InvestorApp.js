@@ -283,8 +283,8 @@ function DealCard({ deal, onView, onInterest }) {
  
 function DealDetail({ deal, session, onBack, onInterest }) {
  const [tab, setTab] = useState('summary');
- const tabs = ['summary','thesis','highlights','risks','timeline','documents'];
- const tabLabels = { summary:'Executive Summary', thesis:'Investment Thesis', highlights:'Financial Highlights', risks:'Risk Factors', timeline:'Investment Timeline', documents:'Documents' };
+ const tabs = ['summary','thesis','photos','highlights','risks','timeline','documents'];
+ const tabLabels = { summary:'Executive Summary', thesis:'Investment Thesis', photos:'Photos', highlights:'Financial Highlights', risks:'Risk Factors', timeline:'Investment Timeline', documents:'Documents' };
  
  return (
    <div>
@@ -317,6 +317,21 @@ function DealDetail({ deal, session, onBack, onInterest }) {
      <Card>
        {tab === 'summary' && <div style={{ fontSize:'0.9rem', color:'#495057', lineHeight:1.7 }}>{deal.description || 'Details to be added.'}</div>}
        {tab === 'thesis' && <div style={{ fontSize:'0.9rem', color:'#495057', lineHeight:1.7 }}>{deal.investment_thesis || 'Details to be added.'}</div>}
+       {tab === 'photos' && (
+         <div>
+           {(!deal.photos || deal.photos.length === 0) ? (
+             <p style={{color:'#adb5bd', textAlign:'center', padding:'2rem 0'}}>No photos available.</p>
+           ) : (
+             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'0.75rem'}}>
+               {(deal.photos||[]).map((p,i) => (
+                 <div key={i} style={{borderRadius:'10px', overflow:'hidden', aspectRatio:'4/3', background:'#f1f3f5'}}>
+                   <img src={p.url} alt={p.caption||'Photo'} style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}} />
+                 </div>
+               ))}
+             </div>
+           )}
+         </div>
+       )}
        {tab === 'highlights' && (
          <div>
            {(Array.isArray(deal.highlights) ? deal.highlights : []).map((h,i) => (
