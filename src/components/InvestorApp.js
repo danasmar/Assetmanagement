@@ -394,8 +394,9 @@ function InvestorReports({ session }) {
    load();
  }, [session.user.id]);
  
- const tabs = ['All Reports','Quarterly Reports','NAV Statements','Annual Reports'];
- const filtered = tab==='All Reports' ? reports : reports.filter(r=>r.report_type===tab.replace(' Reports','').replace('Quarterly','Quarterly Report').replace('NAV Statements','NAV Statement').replace('Annual Reports','Annual Report'));
+ const tabs = ['All Reports','Quarterly Reports','Monthly Reports','Annual Reports','Fact Sheets'];
+ const typeMap = { 'Quarterly Reports':'Quarterly Report', 'Monthly Reports':'Monthly Report', 'Annual Reports':'Annual Report', 'Fact Sheets':'Fact Sheet' };
+ const filtered = tab==='All Reports' ? reports : reports.filter(r=>r.report_type===typeMap[tab]);
  
  return (
    <div>
