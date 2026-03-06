@@ -561,7 +561,7 @@ function Reporting() {
          </Select>
          <Select label="Report Type" value={form.report_type||''} onChange={e=>setForm({...form,report_type:e.target.value})}>
            <option value="">Select type</option>
-           <option>Quarterly Report</option><option>NAV Statement</option><option>Annual Report</option>
+           <option>Quarterly Report</option><option>Monthly Report</option><option>Annual Report</option><option>Fact Sheet</option>
          </Select>
          <Input label="Report Title" value={form.title||''} onChange={e=>setForm({...form,title:e.target.value})} />
          <div style={{marginBottom:'1rem'}}>
