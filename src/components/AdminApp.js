@@ -377,7 +377,7 @@ function InvestorManagement() {
    if (!window.confirm(`Delete ${inv.full_name}? This cannot be undone.`)) return;
    await supabase.from('investors').delete().eq('id', inv.id);
    load();
- };
+ const addInvestment = async () => {
    setSaving(true);
    const deal = deals.find(d=>d.id===invForm.deal_id);
    const nav = deal?.nav_per_unit||1;
@@ -1183,4 +1183,3 @@ function AdminMessages() {
    </div>
  );
 }
- 
