@@ -36,12 +36,12 @@ function InvestorDashboard({ session, onPage }) {
        supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
        supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id),
        supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
-       supabase.from('assumptions').select('*').single(),
+       supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
      ]);
      setInvestments(inv.data || []);
      setDistributions(dist.data || []);
      setUpdates(upd.data || []);
-     if (assump.data) setFx(assump.data);
+     if (assump.data && assump.data[0]) setFx(assump.data[0]);
      setLoading(false);
    };
    load();
@@ -444,10 +444,10 @@ function InvestorDistributions({ session }) {
    const load = async () => {
      const [dist, assump] = await Promise.all([
        supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id).order('created_at', { ascending: false }),
-       supabase.from('assumptions').select('*').single(),
+       supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
      ]);
      setDistros(dist.data || []);
-     if (assump.data) setFx(assump.data);
+     if (assump.data && assump.data[0]) setFx(assump.data[0]);
      setLoading(false);
    };
    load();
@@ -681,4 +681,3 @@ function InvestorProfile({ session, onLogout }) {
    </div>
  );
 }
- 
