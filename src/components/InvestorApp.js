@@ -27,7 +27,7 @@ function InvestorDashboard({ session, onPage }) {
  const [investments, setInvestments] = useState([]);
  const [distributions, setDistributions] = useState([]);
  const [updates, setUpdates] = useState([]);
- const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10 });
+ const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
@@ -51,6 +51,8 @@ function InvestorDashboard({ session, onPage }) {
    if (!currency || currency === "SAR") return amount;
    if (currency === "USD") return amount * (fx.usd_to_sar || 3.75);
    if (currency === "EUR") return amount * (fx.eur_to_sar || 4.10);
+   if (currency === "GBP") return amount * (fx.gbp_to_sar || 4.73);
+   if (currency === "AED") return amount * (fx.aed_to_sar || 1.02);
    return amount;
  };
  
@@ -435,7 +437,7 @@ function InvestorReports({ session }) {
 // ─── Distributions ────────────────────────────────────────────────────────────
 function InvestorDistributions({ session }) {
  const [distros, setDistros] = useState([]);
- const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10 });
+ const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
  const [loading, setLoading] = useState(true);
  
  useEffect(() => {
@@ -455,6 +457,8 @@ function InvestorDistributions({ session }) {
    if (!currency || currency === 'SAR') return amount;
    if (currency === 'USD') return amount * (fx.usd_to_sar || 3.75);
    if (currency === 'EUR') return amount * (fx.eur_to_sar || 4.10);
+   if (currency === 'GBP') return amount * (fx.gbp_to_sar || 4.73);
+   if (currency === 'AED') return amount * (fx.aed_to_sar || 1.02);
    return amount;
  };
  
