@@ -23,7 +23,7 @@ export default function AdminApp({ session, onLogout }) {
  );
 }
  
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+//  Dashboard
 function AdminDashboard() {
  const [stats, setStats] = useState({ aum:0, funds:0, investors:0 });
  const [deals, setDeals] = useState([]);
@@ -91,7 +91,7 @@ function AdminDashboard() {
  );
 }
  
-// ─── Document Uploader ─────────────────────────────────────────────────────────
+//  Document Uploader
 function DocUploader({ onUploaded }) {
  const [uploading, setUploading] = useState(false);
  const [docName, setDocName] = useState('');
@@ -124,16 +124,16 @@ function DocUploader({ onUploaded }) {
          style={{padding:'0.45rem 0.7rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',flex:'1',minWidth:'140px'}}
        />
        <label style={{background: uploading ? '#adb5bd' : '#003770',color:'#fff',padding:'0.45rem 1rem',borderRadius:'8px',fontSize:'0.82rem',fontWeight:'600',cursor: uploading ? 'not-allowed' : 'pointer',fontFamily:'DM Sans,sans-serif',whiteSpace:'nowrap',flexShrink:0}}>
-         {uploading ? 'Uploading…' : '📎 Choose File'}
+         {uploading ? 'Uploading' : ' Choose File'}
          <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" onChange={handleFile} style={{display:'none'}} disabled={uploading} />
        </label>
      </div>
-     <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'6px'}}>PDF, Word, Excel, PowerPoint or image · Max 20MB</div>
+     <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'6px'}}>PDF, Word, Excel, PowerPoint or image  Max 20MB</div>
    </div>
  );
 }
  
-// ─── Deal Management ──────────────────────────────────────────────────────────
+//  Deal Management
 function DealManagement() {
  const [deals, setDeals] = useState([]);
  const [modal, setModal] = useState(null);
@@ -264,9 +264,9 @@ function DealManagement() {
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Financial Highlights</label>
            {(form.highlights||[]).map((h,i) => (
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
-               <span style={{color:'#C9A84C',fontWeight:'700',flexShrink:0}}>✓</span>
+               <span style={{color:'#C9A84C',fontWeight:'700',flexShrink:0}}></span>
                <input value={h} onChange={e=>{const arr=[...(form.highlights||[])];arr[i]=e.target.value;setForm({...form,highlights:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.highlights||[]).filter((_,j)=>j!==i);setForm({...form,highlights:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+               <button onClick={()=>{const arr=(form.highlights||[]).filter((_,j)=>j!==i);setForm({...form,highlights:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,highlights:[...(form.highlights||[]),''] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Highlight</button>
@@ -277,9 +277,9 @@ function DealManagement() {
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Risk Factors</label>
            {(form.risks||[]).map((r,i) => (
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
-               <span style={{color:'#e63946',flexShrink:0}}>⚠</span>
+               <span style={{color:'#e63946',flexShrink:0}}></span>
                <input value={r} onChange={e=>{const arr=[...(form.risks||[])];arr[i]=e.target.value;setForm({...form,risks:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.risks||[]).filter((_,j)=>j!==i);setForm({...form,risks:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+               <button onClick={()=>{const arr=(form.risks||[]).filter((_,j)=>j!==i);setForm({...form,risks:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,risks:[...(form.risks||[]),''] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Risk</button>
@@ -292,7 +292,7 @@ function DealManagement() {
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
                <input placeholder="e.g. Q1 2026" value={t.period||''} onChange={e=>{const arr=[...(form.timeline||[])];arr[i]={...arr[i],period:e.target.value};setForm({...form,timeline:arr});}} style={{width:'110px',flexShrink:0,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
                <input placeholder="Event description" value={t.event||''} onChange={e=>{const arr=[...(form.timeline||[])];arr[i]={...arr[i],event:e.target.value};setForm({...form,timeline:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.timeline||[]).filter((_,j)=>j!==i);setForm({...form,timeline:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+               <button onClick={()=>{const arr=(form.timeline||[]).filter((_,j)=>j!==i);setForm({...form,timeline:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,timeline:[...(form.timeline||[]),{period:'',event:''}] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Milestone</button>
@@ -303,12 +303,12 @@ function DealManagement() {
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Documents</label>
            {(form.documents||[]).map((d,i) => (
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.5rem',alignItems:'center',background:'#f8f9fa',borderRadius:'8px',padding:'0.5rem 0.75rem'}}>
-               <span style={{flexShrink:0,fontSize:'1.1rem'}}>📄</span>
+               <span style={{flexShrink:0,fontSize:'1.1rem'}}></span>
                <div style={{flex:1,minWidth:0}}>
                  <div style={{fontWeight:'600',fontSize:'0.88rem',color:'#212529',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.name||'Unnamed document'}</div>
                  <div style={{fontSize:'0.75rem',color:'#6c757d',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.url}</div>
                </div>
-               <button onClick={()=>{const arr=(form.documents||[]).filter((_,j)=>j!==i);setForm({...form,documents:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+               <button onClick={()=>{const arr=(form.documents||[]).filter((_,j)=>j!==i);setForm({...form,documents:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
              </div>
            ))}
            <DocUploader onUploaded={doc=>setForm(f=>({...f,documents:[...(f.documents||[]),doc]}))} />
@@ -324,7 +324,7 @@ function DealManagement() {
  );
 }
  
-// ─── Investor Management ──────────────────────────────────────────────────────
+//  Investor Management
 function InvestorManagement() {
  const [investors, setInvestors] = useState([]);
  const [search, setSearch] = useState('');
@@ -388,7 +388,7 @@ function InvestorManagement() {
  
  if (selected) return (
    <div>
-     <button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:'0.5rem',border:'none',background:'none',cursor:'pointer',color:'#003770',fontWeight:'600',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',marginBottom:'1rem',padding:0}}>← Back to Investors</button>
+     <button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:'0.5rem',border:'none',background:'none',cursor:'pointer',color:'#003770',fontWeight:'600',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',marginBottom:'1rem',padding:0}}> Back to Investors</button>
      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'1rem'}}>
        <Card>
          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem'}}>
@@ -401,7 +401,7 @@ function InvestorManagement() {
              {selected.status!=='Suspended' && <Btn variant="danger" style={{fontSize:'0.78rem',padding:'0.35rem 0.7rem'}} onClick={()=>updateStatus(selected.id,'Suspended')}>Suspend</Btn>}
            </div>
          </div>
-         {[['Email',selected.email],['Username',selected.username],['Mobile',selected.mobile||'—'],['Country',selected.country||'—'],['Investor Type',selected.investor_type||'—'],['Member Since',fmt.date(selected.created_at)]].map(([k,v])=>(
+         {[['Email',selected.email],['Username',selected.username],['Mobile',selected.mobile||''],['Country',selected.country||''],['Investor Type',selected.investor_type||''],['Member Since',fmt.date(selected.created_at)]].map(([k,v])=>(
            <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'0.6rem 0',borderBottom:'1px solid #f1f3f5',fontSize:'0.85rem'}}>
              <span style={{color:'#6c757d'}}>{k}</span><span style={{fontWeight:'600',color:'#212529'}}>{v}</span>
            </div>
@@ -532,7 +532,7 @@ function InvestorInvestments({ investorId }) {
  );
 }
  
-// ─── Reporting ─────────────────────────────────────────────────────────────────
+//  Reporting
 function Reporting() {
  const [deals, setDeals] = useState([]);
  const [form, setForm] = useState({});
@@ -597,7 +597,7 @@ function Reporting() {
    <div>
      <PageHeader title="Reporting" subtitle="Upload reports and manage existing reports" />
      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start'}}>
-       {/* Left — upload form */}
+       {/* Left  upload form */}
        <Card>
          {msg && <div style={{background:'#f0fff4',border:'1px solid #c6f6d5',borderRadius:'8px',padding:'0.65rem',color:'#276749',fontSize:'0.85rem',marginBottom:'1rem'}}>{msg}</div>}
          <Select label="Assign to Fund" value={form.deal_id||''} onChange={handleDealChange}>
@@ -613,19 +613,19 @@ function Reporting() {
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Report File</label>
            {uploadedFile ? (
              <div style={{display:'flex',alignItems:'center',gap:'0.75rem',background:'#f0fff4',border:'1px solid #c6f6d5',borderRadius:'8px',padding:'0.65rem 0.9rem'}}>
-               <span style={{fontSize:'1.2rem'}}>📄</span>
+               <span style={{fontSize:'1.2rem'}}></span>
                <div style={{flex:1,minWidth:0}}>
                  <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#276749',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{uploadedFile.name}</div>
                  <div style={{fontSize:'0.72rem',color:'#68a57a'}}>Uploaded successfully</div>
                </div>
-               <button onClick={()=>{setUploadedFile(null);setForm(f=>({...f,file_url:''}));}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
+               <button onClick={()=>{setUploadedFile(null);setForm(f=>({...f,file_url:''}));}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
              </div>
            ) : (
              <label style={{display:'flex',alignItems:'center',gap:'0.75rem',border:'1.5px dashed #dee2e6',borderRadius:'10px',padding:'1rem',background:'#fafafa',cursor:fileUploading?'not-allowed':'pointer'}}>
-               <span style={{fontSize:'1.5rem'}}>📎</span>
+               <span style={{fontSize:'1.5rem'}}></span>
                <div>
-                 <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#495057'}}>{fileUploading?'Uploading…':'Choose file to upload'}</div>
-                 <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'2px'}}>PDF, Word, Excel · Max 50MB</div>
+                 <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#495057'}}>{fileUploading?'Uploading':'Choose file to upload'}</div>
+                 <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'2px'}}>PDF, Word, Excel  Max 50MB</div>
                </div>
                <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={handleReportFile} style={{display:'none'}} disabled={fileUploading} />
              </label>
@@ -634,10 +634,10 @@ function Reporting() {
          <Btn onClick={uploadReport} disabled={saving||fileUploading}>{saving?'Saving...':'Upload Report'}</Btn>
        </Card>
  
-       {/* Right — reports for selected deal */}
+       {/* Right  reports for selected deal */}
        <Card>
          <div style={{fontWeight:'700',color:'#003770',fontSize:'0.9rem',marginBottom:'1rem'}}>
-           {form.deal_id ? `Reports — ${deals.find(d=>d.id===form.deal_id)?.name||''}` : 'Select a fund to view reports'}
+           {form.deal_id ? `Reports  ${deals.find(d=>d.id===form.deal_id)?.name||''}` : 'Select a fund to view reports'}
          </div>
          {!form.deal_id ? (
            <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'2rem 0'}}>Select a fund from the left to see its reports.</p>
@@ -647,10 +647,10 @@ function Reporting() {
            <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'2rem 0'}}>No reports uploaded for this fund yet.</p>
          ) : dealReports.map(r => (
            <div key={r.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem',background:'#f8f9fa',borderRadius:'8px',marginBottom:'0.5rem'}}>
-             <span style={{fontSize:'1.2rem',flexShrink:0}}>📄</span>
+             <span style={{fontSize:'1.2rem',flexShrink:0}}></span>
              <div style={{flex:1,minWidth:0}}>
                <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#212529',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.title||'Untitled'}</div>
-               <div style={{fontSize:'0.72rem',color:'#6c757d',marginTop:'2px'}}>{r.report_type} · {fmt.date(r.created_at)}</div>
+               <div style={{fontSize:'0.72rem',color:'#6c757d',marginTop:'2px'}}>{r.report_type}  {fmt.date(r.created_at)}</div>
              </div>
              <div style={{display:'flex',gap:'0.4rem',flexShrink:0}}>
                {r.file_url && <a href={r.file_url} target="_blank" rel="noreferrer" style={{textDecoration:'none'}}><Btn variant="outline" style={{padding:'0.3rem 0.6rem',fontSize:'0.75rem'}}>View</Btn></a>}
@@ -664,7 +664,7 @@ function Reporting() {
  );
 }
  
-// ─── Distribution Management ──────────────────────────────────────────────────
+//  Distribution Management
 function DistributionMgmt() {
  const [deals, setDeals] = useState([]);
  const [selected, setSelected] = useState('');
@@ -741,7 +741,7 @@ function DistributionMgmt() {
  );
 }
  
-// ─── Updates ──────────────────────────────────────────────────────────────────
+//  Updates
 function UpdatesMgmt() {
  const [updates, setUpdates] = useState([]);
  const [modal, setModal] = useState(null);
@@ -794,7 +794,7 @@ function UpdatesMgmt() {
  );
 }
  
-// ─── Admin Users ──────────────────────────────────────────────────────────────
+//  Admin Users
 function AdminUsers({ session }) {
  const [admins, setAdmins] = useState([]);
  const [modal, setModal] = useState(null);
@@ -860,7 +860,7 @@ function AdminUsers({ session }) {
  );
 }
  
-// ─── Assumptions ─────────────────────────────────────────────────────────────
+//  Assumptions
 function Assumptions() {
  const [current, setCurrent] = useState({ usd_to_sar:'', eur_to_sar:'', gbp_to_sar:'', aed_to_sar:'' });
  const [form, setForm] = useState({ usd_to_sar:'', eur_to_sar:'', gbp_to_sar:'', aed_to_sar:'' });
@@ -891,10 +891,10 @@ function Assumptions() {
  };
  
  const rates = [
-   { key:'usd_to_sar', label:'USD → SAR', flag:'🇺🇸' },
-   { key:'eur_to_sar', label:'EUR → SAR', flag:'🇪🇺' },
-   { key:'gbp_to_sar', label:'GBP → SAR', flag:'🇬🇧' },
-   { key:'aed_to_sar', label:'AED → SAR', flag:'🇦🇪' },
+   { key:'usd_to_sar', label:'USD  SAR', flag:'' },
+   { key:'eur_to_sar', label:'EUR  SAR', flag:'' },
+   { key:'gbp_to_sar', label:'GBP  SAR', flag:'' },
+   { key:'aed_to_sar', label:'AED  SAR', flag:'' },
  ];
  
  return (
@@ -902,7 +902,7 @@ function Assumptions() {
      <PageHeader title="Assumptions" subtitle="Platform-wide financial assumptions used across all calculations" />
      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.25rem', alignItems:'start'}}>
  
-       {/* Left — current rates display */}
+       {/* Left  current rates display */}
        <Card>
          <div style={{fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem'}}>Current Exchange Rates</div>
          {rates.map(r => (
@@ -920,11 +920,11 @@ function Assumptions() {
            onClick={()=>{ setEditing(true); setMsg(''); }}
            style={{marginTop:'0.75rem', width:'100%', padding:'0.6rem', background:'#003770', color:'#fff', border:'none', borderRadius:'8px', fontWeight:'600', fontSize:'0.85rem', cursor:'pointer', fontFamily:'DM Sans, sans-serif'}}
          >
-           ✏️ Update Rates
+            Update Rates
          </button>
        </Card>
  
-       {/* Right — edit form */}
+       {/* Right  edit form */}
        <Card>
          <div style={{fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem'}}>
            {editing ? 'Update Exchange Rates' : 'Exchange Rate Settings'}
@@ -950,7 +950,7 @@ function Assumptions() {
 }
  
  
-// ─── NAV Management ─────────────────────────────────────────────────────────
+//  NAV Management
 function NAVManagement() {
  const [deals, setDeals] = useState([]);
  const [history, setHistory] = useState([]);
@@ -1049,7 +1049,7 @@ function NAVManagement() {
  );
 }
  
-// ─── Admin Messages ───────────────────────────────────────────────────────────
+//  Admin Messages
 function AdminMessages() {
  const [conversations, setConversations] = useState([]);
  const [selectedInvestor, setSelectedInvestor] = useState(null);
@@ -1137,7 +1137,7 @@ function AdminMessages() {
                {conv.investors?.full_name || 'Unknown Investor'}
              </div>
              <div style={{ fontSize: '0.75rem', color: '#6c757d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-               {conv.is_admin ? '↩ You: ' : ''}{conv.content}
+               {conv.is_admin ? ' You: ' : ''}{conv.content}
              </div>
              <div style={{ fontSize: '0.7rem', color: '#adb5bd', marginTop: '3px' }}>{fmt.date(conv.created_at)}</div>
            </div>
