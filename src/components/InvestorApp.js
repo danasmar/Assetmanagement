@@ -283,6 +283,7 @@ function DealCard({ deal, onView, onInterest }) {
  
 function DealDetail({ deal, session, onBack, onInterest }) {
  const [tab, setTab] = useState('summary');
+ const [lightbox, setLightbox] = useState(null); // index of open photo
  const tabs = ['summary','thesis','photos','highlights','risks','timeline','documents'];
  const tabLabels = { summary:'Executive Summary', thesis:'Investment Thesis', photos:'Photos', highlights:'Financial Highlights', risks:'Risk Factors', timeline:'Investment Timeline', documents:'Documents' };
  
@@ -324,12 +325,37 @@ function DealDetail({ deal, session, onBack, onInterest }) {
            ) : (
              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'0.75rem'}}>
                {(deal.photos||[]).map((p,i) => (
-                 <div key={i} style={{borderRadius:'10px', overflow:'hidden', aspectRatio:'4/3', background:'#f1f3f5'}}>
+                 <div key={i} onClick={()=>setLightbox(i)} style={{borderRadius:'10px', overflow:'hidden', aspectRatio:'4/3', background:'#f1f3f5', cursor:'pointer', transition:'transform 0.15s', transform:'scale(1)'}}
+                   onMouseEnter={e=>e.currentTarget.style.transform='scale(1.02)'}
+                   onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
                    <img src={p.url} alt={p.caption||'Photo'} style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}} />
                  </div>
                ))}
              </div>
            )}
+           {lightbox !== null && (() => {
+             const photos = deal.photos || [];
+             const prev = () => setLightbox(i => (i - 1 + photos.length) % photos.length);
+             const next = () => setLightbox(i => (i + 1) % photos.length);
+             const onKey = (e) => { if (e.key==='ArrowLeft') prev(); if (e.key==='ArrowRight') next(); if (e.key==='Escape') setLightbox(null); };
+             return (
+               <div onClick={()=>setLightbox(null)} onKeyDown={onKey} tabIndex={0} ref={el=>el&&el.focus()}
+                 style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(6px)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                 {/* Prev */}
+                 <button onClick={e=>{e.stopPropagation();prev();}} style={{position:'absolute', left:'1.25rem', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', borderRadius:'50%', width:'44px', height:'44px', fontSize:'1.4rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'}}>‹</button>
+                 {/* Image */}
+                 <div onClick={e=>e.stopPropagation()} style={{maxWidth:'90vw', maxHeight:'85vh', borderRadius:'12px', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.5)'}}>
+                   <img src={photos[lightbox]?.url} alt={photos[lightbox]?.caption||'Photo'} style={{display:'block', maxWidth:'90vw', maxHeight:'85vh', objectFit:'contain'}} />
+                 </div>
+                 {/* Next */}
+                 <button onClick={e=>{e.stopPropagation();next();}} style={{position:'absolute', right:'1.25rem', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', borderRadius:'50%', width:'44px', height:'44px', fontSize:'1.4rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'}}>›</button>
+                 {/* Close */}
+                 <button onClick={()=>setLightbox(null)} style={{position:'absolute', top:'1.25rem', right:'1.25rem', background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', borderRadius:'50%', width:'36px', height:'36px', fontSize:'1.1rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'}}>×</button>
+                 {/* Counter */}
+                 <div style={{position:'absolute', bottom:'1.25rem', left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.7)', fontSize:'0.82rem', fontWeight:'600', fontFamily:'DM Sans, sans-serif'}}>{lightbox+1} / {photos.length}</div>
+               </div>
+             );
+           })()}
          </div>
        )}
        {tab === 'highlights' && (
