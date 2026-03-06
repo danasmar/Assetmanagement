@@ -824,7 +824,7 @@ function Assumptions() {
  const [editing, setEditing] = useState(false);
  
  useEffect(()=>{
-   supabase.from('assumptions').select('*').single().then(({data})=>{ if(data){ setCurrent(data); setForm(data); } });
+   supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1).then(({data})=>{ if(data && data[0]){ setCurrent(data[0]); setForm(data[0]); } });
  },[]);
  
  const save = async () => {
@@ -834,9 +834,10 @@ function Assumptions() {
      eur_to_sar: parseFloat(form.eur_to_sar)||0,
      gbp_to_sar: parseFloat(form.gbp_to_sar)||0,
      aed_to_sar: parseFloat(form.aed_to_sar)||0,
+     updated_at: new Date().toISOString(),
    };
-   const existing = await supabase.from('assumptions').select('id').single();
-   if (existing.data) await supabase.from('assumptions').update(payload).eq('id', existing.data.id);
+   const { data: existing } = await supabase.from('assumptions').select('id').order('updated_at', { ascending: false }).limit(1);
+   if (existing && existing[0]) await supabase.from('assumptions').update(payload).eq('id', existing[0].id);
    else await supabase.from('assumptions').insert(payload);
    setCurrent(form);
    setMsg('Assumptions saved successfully.');
