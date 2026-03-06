@@ -133,6 +133,38 @@ function DocUploader({ onUploaded }) {
  );
 }
  
+function PhotoUploader({ onUploaded }) {
+ const [uploading, setUploading] = useState(false);
+ 
+ const handleFile = async (e) => {
+   const files = Array.from(e.target.files);
+   if (!files.length) return;
+   setUploading(true);
+   for (const file of files) {
+     if (file.size > 10 * 1024 * 1024) { alert(`${file.name} must be under 10MB`); continue; }
+     const ext = file.name.split('.').pop();
+     const path = 'deal-photos/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.' + ext;
+     const { error } = await supabase.storage.from('deal-images').upload(path, file, { upsert: true });
+     if (error) { alert('Upload failed: ' + error.message); continue; }
+     const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(path);
+     onUploaded({ url: urlData.publicUrl, caption: file.name.replace(/\.[^.]+$/, '') });
+   }
+   e.target.value = '';
+   setUploading(false);
+ };
+ 
+ return (
+   <label style={{display:'flex',alignItems:'center',gap:'0.75rem',border:'1.5px dashed #dee2e6',borderRadius:'10px',padding:'0.75rem 1rem',background:'#fafafa',cursor: uploading ? 'not-allowed' : 'pointer'}}>
+     <span style={{fontSize:'1.4rem'}}>🖼️</span>
+     <div>
+       <div style={{fontWeight:'600',fontSize:'0.85rem',color:'#495057'}}>{uploading ? 'Uploading…' : 'Add Photos'}</div>
+       <div style={{fontSize:'0.72rem',color:'#adb5bd',marginTop:'2px'}}>JPG, PNG · Max 10MB each · Multiple allowed</div>
+     </div>
+     <input type="file" accept="image/*" multiple onChange={handleFile} style={{display:'none'}} disabled={uploading} />
+   </label>
+ );
+}
+ 
 //  Deal Management
 function DealManagement() {
  const [deals, setDeals] = useState([]);
@@ -303,15 +335,29 @@ function DealManagement() {
            <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Documents</label>
            {(form.documents||[]).map((d,i) => (
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.5rem',alignItems:'center',background:'#f8f9fa',borderRadius:'8px',padding:'0.5rem 0.75rem'}}>
-               <span style={{flexShrink:0,fontSize:'1.1rem'}}></span>
+               <span style={{flexShrink:0,fontSize:'1.1rem'}}>📄</span>
                <div style={{flex:1,minWidth:0}}>
                  <div style={{fontWeight:'600',fontSize:'0.88rem',color:'#212529',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.name||'Unnamed document'}</div>
                  <div style={{fontSize:'0.75rem',color:'#6c757d',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.url}</div>
                </div>
-               <button onClick={()=>{const arr=(form.documents||[]).filter((_,j)=>j!==i);setForm({...form,documents:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
+               <button onClick={()=>{const arr=(form.documents||[]).filter((_,j)=>j!==i);setForm({...form,documents:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
              </div>
            ))}
            <DocUploader onUploaded={doc=>setForm(f=>({...f,documents:[...(f.documents||[]),doc]}))} />
+         </div>
+ 
+         {/* Photos */}
+         <div style={{marginBottom:'1rem'}}>
+           <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'8px'}}>Photos</label>
+           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:'0.5rem',marginBottom:'0.5rem'}}>
+             {(form.photos||[]).map((p,i) => (
+               <div key={i} style={{position:'relative',borderRadius:'8px',overflow:'hidden',aspectRatio:'1',background:'#f1f3f5'}}>
+                 <img src={p.url} alt={p.caption||'Photo'} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                 <button onClick={()=>{const arr=(form.photos||[]).filter((_,j)=>j!==i);setForm({...form,photos:arr});}} style={{position:'absolute',top:'4px',right:'4px',background:'rgba(230,57,70,0.85)',border:'none',color:'#fff',borderRadius:'50%',width:'22px',height:'22px',cursor:'pointer',fontSize:'0.85rem',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
+               </div>
+             ))}
+           </div>
+           <PhotoUploader onUploaded={photo=>setForm(f=>({...f,photos:[...(f.photos||[]),photo]}))} />
          </div>
  
          <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
