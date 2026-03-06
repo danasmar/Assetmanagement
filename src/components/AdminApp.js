@@ -357,7 +357,27 @@ function InvestorManagement() {
    if (selected?.id===id) setSelected({...selected,status});
  };
  
- const addInvestment = async () => {
+ const editInvestor = async () => {
+   setSaving(true);
+   await supabase.from('investors').update({
+     full_name: form.full_name,
+     email: form.email,
+     mobile: form.mobile,
+     country: form.country,
+     address: form.address,
+     city: form.city,
+     investor_type: form.investor_type,
+     status: form.status,
+   }).eq('id', form.id);
+   setSaving(false); setModal(null); setForm({}); load();
+   if (selected?.id === form.id) setSelected(prev => ({...prev, ...form}));
+ };
+ 
+ const deleteInvestor = async (inv) => {
+   if (!window.confirm(`Delete ${inv.full_name}? This cannot be undone.`)) return;
+   await supabase.from('investors').delete().eq('id', inv.id);
+   load();
+ };
    setSaving(true);
    const deal = deals.find(d=>d.id===invForm.deal_id);
    const nav = deal?.nav_per_unit||1;
@@ -431,7 +451,11 @@ function InvestorManagement() {
                <td style={{padding:'0.75rem'}}><Badge label={inv.investor_type||'Individual'}/></td>
                <td style={{padding:'0.75rem'}}><Badge label={inv.status}/></td>
                <td style={{padding:'0.75rem'}} onClick={e=>e.stopPropagation()}>
-                 {inv.status==='Pending' && <Btn variant="gold" style={{fontSize:'0.75rem',padding:'0.3rem 0.6rem'}} onClick={()=>updateStatus(inv.id,'Approved')}>Approve</Btn>}
+                 <div style={{display:'flex',gap:'0.4rem',flexWrap:'wrap'}}>
+                   {inv.status==='Pending' && <Btn variant="gold" style={{fontSize:'0.75rem',padding:'0.3rem 0.6rem'}} onClick={()=>updateStatus(inv.id,'Approved')}>Approve</Btn>}
+                   <Btn variant="outline" style={{fontSize:'0.75rem',padding:'0.3rem 0.6rem'}} onClick={()=>{setForm({...inv});setModal('edit');}}>Edit</Btn>
+                   <Btn variant="danger" style={{fontSize:'0.75rem',padding:'0.3rem 0.6rem'}} onClick={()=>deleteInvestor(inv)}>Delete</Btn>
+                 </div>
                </td>
              </tr>
            ))}
@@ -455,6 +479,27 @@ function InvestorManagement() {
          <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
            <Btn variant="ghost" onClick={()=>{setModal(null);setForm({})}}>Cancel</Btn>
            <Btn onClick={addInvestor} disabled={saving}>{saving?'Adding...':'Add Investor'}</Btn>
+         </div>
+       </Modal>
+     )}
+     {modal==='edit' && (
+       <Modal title="Edit Investor" onClose={()=>{setModal(null);setForm({})}}>
+         <Input label="Full Name" value={form.full_name||''} onChange={e=>setForm({...form,full_name:e.target.value})} />
+         <Input label="Email Address" type="email" value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} />
+         <Input label="Mobile Number" value={form.mobile||''} onChange={e=>setForm({...form,mobile:e.target.value})} />
+         <Input label="Address" value={form.address||''} onChange={e=>setForm({...form,address:e.target.value})} />
+         <Input label="City" value={form.city||''} onChange={e=>setForm({...form,city:e.target.value})} />
+         <Input label="Country" value={form.country||''} onChange={e=>setForm({...form,country:e.target.value})} />
+         <Select label="Investor Type" value={form.investor_type||''} onChange={e=>setForm({...form,investor_type:e.target.value})}>
+           <option value="">Select type...</option>
+           <option>Qualified</option><option>Institutional</option><option>Individual</option>
+         </Select>
+         <Select label="Status" value={form.status||'Pending'} onChange={e=>setForm({...form,status:e.target.value})}>
+           <option>Pending</option><option>Approved</option><option>Suspended</option>
+         </Select>
+         <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
+           <Btn variant="ghost" onClick={()=>{setModal(null);setForm({})}}>Cancel</Btn>
+           <Btn onClick={editInvestor} disabled={saving}>{saving?'Saving...':'Save Changes'}</Btn>
          </div>
        </Modal>
      )}
