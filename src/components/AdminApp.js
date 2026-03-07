@@ -486,6 +486,127 @@ function DealManagement() {
 }
  
 //  Investor Management
+function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit }) {
+ const [investments, setInvestments] = useState([]);
+ const [distributions, setDistributions] = useState([]);
+ const [loading, setLoading] = useState(true);
+ 
+ useEffect(() => {
+   const load = async () => {
+     setLoading(true);
+     const [{ data: inv }, { data: dist }] = await Promise.all([
+       supabase.from('investments').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('created_at', { ascending: false }),
+       supabase.from('investor_distributions').select('*,distributions(distribution_date,deals(name,currency))').eq('investor_id', investor.id).order('created_at', { ascending: false }),
+     ]);
+     setInvestments(inv || []);
+     setDistributions(dist || []);
+     setLoading(false);
+   };
+   load();
+ }, [investor.id]);
+ 
+ const totalInvested = investments.reduce((s, i) => s + (parseFloat(i.amount_invested) || 0), 0);
+ const totalCurrentNAV = investments.reduce((s, i) => s + ((i.units || 0) * (i.deals?.nav_per_unit || 0)), 0);
+ const totalDistributed = distributions.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+ 
+ return (
+   <div>
+     {/* Header */}
+     <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:'0.4rem',border:'none',background:'none',cursor:'pointer',color:'#003770',fontWeight:'600',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',marginBottom:'1rem',padding:0}}>
+       ← Back to Investors
+     </button>
+     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1.25rem',flexWrap:'wrap',gap:'0.75rem'}}>
+       <div>
+         <h2 style={{margin:'0 0 4px',color:'#003770',fontFamily:'DM Serif Display,serif',fontSize:'1.4rem'}}>{investor.full_name}</h2>
+         <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+           <Badge label={investor.status} />
+           <span style={{fontSize:'0.8rem',color:'#6c757d'}}>{investor.email}</span>
+         </div>
+       </div>
+       <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap'}}>
+         <Btn variant="outline" style={{fontSize:'0.78rem',padding:'0.35rem 0.8rem'}} onClick={onEdit}>Edit Profile</Btn>
+         {investor.status !== 'Approved' && <Btn variant="gold" style={{fontSize:'0.78rem',padding:'0.35rem 0.7rem'}} onClick={()=>onUpdateStatus(investor.id,'Approved')}>Approve</Btn>}
+         {investor.status !== 'Suspended' && <Btn variant="danger" style={{fontSize:'0.78rem',padding:'0.35rem 0.7rem'}} onClick={()=>onUpdateStatus(investor.id,'Suspended')}>Suspend</Btn>}
+       </div>
+     </div>
+ 
+     {/* Stat strip */}
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'0.75rem',marginBottom:'1.25rem'}}>
+       {[
+         ['Total Invested', fmt.currency(totalInvested)],
+         ['Current NAV', fmt.currency(totalCurrentNAV)],
+         ['Total Distributed', fmt.currency(totalDistributed)],
+         ['# Investments', investments.length],
+       ].map(([k,v])=>(
+         <Card key={k} style={{padding:'0.85rem 1rem'}}>
+           <div style={{fontSize:'0.68rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:'4px'}}>{k}</div>
+           <div style={{fontSize:'1.1rem',fontWeight:'700',color:'#003770'}}>{v}</div>
+         </Card>
+       ))}
+     </div>
+ 
+     {/* Two columns */}
+     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem',alignItems:'start'}}>
+ 
+       {/* LEFT — Investments */}
+       <Card>
+         <h3 style={{margin:'0 0 1rem',fontSize:'0.95rem',fontWeight:'700',color:'#003770',borderBottom:'2px solid #f1f3f5',paddingBottom:'0.6rem'}}>Investment Summary</h3>
+         {loading ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>Loading...</p> :
+          investments.length === 0 ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>No investments yet.</p> :
+          investments.map((inv, i) => {
+            const nav = (inv.units||0) * (inv.deals?.nav_per_unit||0);
+            const gain = nav - (inv.amount_invested||0);
+            const gainPct = inv.amount_invested ? (gain/inv.amount_invested*100).toFixed(1) : 0;
+            return (
+              <div key={inv.id} style={{padding:'0.75rem 0',borderBottom: i < investments.length-1 ? '1px solid #f1f3f5' : 'none'}}>
+                <div style={{fontWeight:'700',color:'#212529',fontSize:'0.9rem',marginBottom:'0.4rem'}}>{inv.deals?.name || '—'}</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.3rem 1rem'}}>
+                  {[['Amount Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')],
+                    ['Units', fmt.num(inv.units)],
+                    ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR')],
+                    ['Gain / Loss', <span style={{color: gain >= 0 ? '#2a9d5c' : '#e63946', fontWeight:'700'}}>{gain >= 0 ? '+' : ''}{fmt.currency(gain, inv.deals?.currency||'SAR')} ({gainPct}%)</span>],
+                    ['Date', fmt.date(inv.created_at)],
+                  ].map(([k,v])=>(
+                    <div key={k}>
+                      <div style={{fontSize:'0.68rem',color:'#adb5bd',fontWeight:'600',textTransform:'uppercase'}}>{k}</div>
+                      <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#212529'}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+       </Card>
+ 
+       {/* RIGHT — Distributions */}
+       <Card>
+         <h3 style={{margin:'0 0 1rem',fontSize:'0.95rem',fontWeight:'700',color:'#003770',borderBottom:'2px solid #f1f3f5',paddingBottom:'0.6rem'}}>Distribution Summary</h3>
+         {loading ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>Loading...</p> :
+          distributions.length === 0 ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>No distributions yet.</p> :
+          distributions.map((d, i) => (
+            <div key={d.id} style={{padding:'0.75rem 0',borderBottom: i < distributions.length-1 ? '1px solid #f1f3f5' : 'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'0.3rem'}}>
+                <div style={{fontWeight:'700',color:'#212529',fontSize:'0.9rem'}}>{d.distributions?.deals?.name || '—'}</div>
+                <div style={{fontWeight:'700',color:'#2a9d5c',fontSize:'0.9rem'}}>{fmt.currency(d.amount, d.distributions?.deals?.currency||'SAR')}</div>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.78rem',color:'#6c757d'}}>
+                <span>Per unit: {fmt.currency(d.amount_per_unit, d.distributions?.deals?.currency||'SAR')}</span>
+                <span>{fmt.date(d.distributions?.distribution_date)}</span>
+              </div>
+            </div>
+          ))}
+         {distributions.length > 0 && (
+           <div style={{marginTop:'1rem',paddingTop:'0.75rem',borderTop:'2px solid #f1f3f5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+             <span style={{fontSize:'0.82rem',fontWeight:'700',color:'#495057'}}>Total Received</span>
+             <span style={{fontSize:'1rem',fontWeight:'700',color:'#2a9d5c'}}>{fmt.currency(totalDistributed)}</span>
+           </div>
+         )}
+       </Card>
+     </div>
+   </div>
+ );
+}
+ 
 function InvestorManagement() {
  const [investors, setInvestors] = useState([]);
  const [search, setSearch] = useState('');
@@ -550,49 +671,13 @@ function InvestorManagement() {
  };
  
  if (selected) return (
-   <div>
-     <button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:'0.5rem',border:'none',background:'none',cursor:'pointer',color:'#003770',fontWeight:'600',fontSize:'0.85rem',fontFamily:'DM Sans,sans-serif',marginBottom:'1rem',padding:0}}> Back to Investors</button>
-     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'1rem'}}>
-       <Card>
-         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem'}}>
-           <div>
-             <h2 style={{margin:'0 0 4px',color:'#003770',fontFamily:'DM Serif Display,serif'}}>{selected.full_name}</h2>
-             <Badge label={selected.status} />
-           </div>
-           <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap'}}>
-             {selected.status!=='Approved' && <Btn variant="gold" style={{fontSize:'0.78rem',padding:'0.35rem 0.7rem'}} onClick={()=>updateStatus(selected.id,'Approved')}>Approve</Btn>}
-             {selected.status!=='Suspended' && <Btn variant="danger" style={{fontSize:'0.78rem',padding:'0.35rem 0.7rem'}} onClick={()=>updateStatus(selected.id,'Suspended')}>Suspend</Btn>}
-           </div>
-         </div>
-         {[['Email',selected.email],['Username',selected.username],['Mobile',selected.mobile||''],['Country',selected.country||''],['Investor Type',selected.investor_type||''],['Member Since',fmt.date(selected.created_at)]].map(([k,v])=>(
-           <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'0.6rem 0',borderBottom:'1px solid #f1f3f5',fontSize:'0.85rem'}}>
-             <span style={{color:'#6c757d'}}>{k}</span><span style={{fontWeight:'600',color:'#212529'}}>{v}</span>
-           </div>
-         ))}
-       </Card>
-       <div>
-         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}}>
-           <h3 style={{margin:0,fontSize:'0.95rem',fontWeight:'700',color:'#003770'}}>Investments</h3>
-           <Btn style={{fontSize:'0.78rem',padding:'0.35rem 0.8rem'}} onClick={()=>setModal('investment')}>+ Add Investment</Btn>
-         </div>
-         <InvestorInvestments investorId={selected.id} />
-       </div>
-     </div>
-     {modal==='investment' && (
-       <Modal title="Add Investment" onClose={()=>{setModal(null);setInvForm({})}}>
-         <Select label="Deal" value={invForm.deal_id||''} onChange={e=>setInvForm({...invForm,deal_id:e.target.value})}>
-           <option value="">Select deal...</option>
-           {deals.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-         </Select>
-         <Input label="Amount Invested (SAR)" type="number" value={invForm.amount_invested||''} onChange={e=>setInvForm({...invForm,amount_invested:e.target.value})} />
-         <Input label="Investment Date" type="date" value={invForm.created_at||''} onChange={e=>setInvForm({...invForm,created_at:e.target.value})} />
-         <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
-           <Btn variant="ghost" onClick={()=>{setModal(null);setInvForm({})}}>Cancel</Btn>
-           <Btn onClick={addInvestment} disabled={saving}>{saving?'Saving...':'Add Investment'}</Btn>
-         </div>
-       </Modal>
-     )}
-   </div>
+   <InvestorDetailPage
+     investor={selected}
+     deals={deals}
+     onBack={()=>setSelected(null)}
+     onUpdateStatus={updateStatus}
+     onEdit={()=>{setForm({...selected});setModal('edit');}}
+   />
  );
  
  return (
@@ -1346,3 +1431,4 @@ function AdminMessages() {
    </div>
  );
 }
+ 
