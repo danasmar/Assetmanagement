@@ -383,17 +383,17 @@ function DealManagement() {
                  : <span style={{fontSize:"2rem",color:"#dee2e6"}}>&#128247;</span>
                }
              </div>
-             <div style={{display:"flex",flexDirection:"column",gap:"0.5rem"}}>
-               <label style={{background:"#003770",color:"#fff",padding:"0.5rem 1rem",borderRadius:"8px",fontSize:"0.82rem",fontWeight:"600",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+             <div style={{display:"flex",flexDirection:"column",gap:"0.5rem",alignItems:"center"}}>
+               <label style={{background:"#003770",color:"#fff",padding:"0.5rem 1rem",borderRadius:"8px",fontSize:"0.82rem",fontWeight:"600",cursor:"pointer",fontFamily:"DM Sans,sans-serif",textAlign:"center",display:"block"}}>
                  {imageUploading ? "Uploading..." : imagePreview ? "Replace Image" : "Upload Image"}
                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}} disabled={imageUploading} />
                </label>
                {imagePreview && (
-                 <button onClick={handleImageRemove} style={{background:"transparent",border:"1px solid #e63946",color:"#e63946",padding:"0.5rem 1rem",borderRadius:"8px",fontSize:"0.82rem",fontWeight:"600",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                 <button onClick={handleImageRemove} style={{background:"transparent",border:"1px solid #e63946",color:"#e63946",padding:"0.5rem 1rem",borderRadius:"8px",fontSize:"0.82rem",fontWeight:"600",cursor:"pointer",fontFamily:"DM Sans,sans-serif",textAlign:"center",display:"block"}}>
                    Remove Image
                  </button>
                )}
-               <span style={{fontSize:"0.75rem",color:"#adb5bd"}}>Max 5MB. Square images work best.</span>
+               <span style={{fontSize:"0.75rem",color:"#adb5bd",textAlign:"center"}}>Max 5MB. Square images work best.</span>
              </div>
            </div>
          </div>
@@ -413,7 +413,7 @@ function DealManagement() {
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
                <span style={{color:'#C9A84C',fontWeight:'700',flexShrink:0}}></span>
                <input value={h} onChange={e=>{const arr=[...(form.highlights||[])];arr[i]=e.target.value;setForm({...form,highlights:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.highlights||[]).filter((_,j)=>j!==i);setForm({...form,highlights:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
+               <button onClick={()=>{const arr=(form.highlights||[]).filter((_,j)=>j!==i);setForm({...form,highlights:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,highlights:[...(form.highlights||[]),''] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Highlight</button>
@@ -426,7 +426,7 @@ function DealManagement() {
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
                <span style={{color:'#e63946',flexShrink:0}}></span>
                <input value={r} onChange={e=>{const arr=[...(form.risks||[])];arr[i]=e.target.value;setForm({...form,risks:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.risks||[]).filter((_,j)=>j!==i);setForm({...form,risks:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
+               <button onClick={()=>{const arr=(form.risks||[]).filter((_,j)=>j!==i);setForm({...form,risks:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,risks:[...(form.risks||[]),''] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Risk</button>
@@ -439,7 +439,7 @@ function DealManagement() {
              <div key={i} style={{display:'flex',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}}>
                <input placeholder="e.g. Q1 2026" value={t.period||''} onChange={e=>{const arr=[...(form.timeline||[])];arr[i]={...arr[i],period:e.target.value};setForm({...form,timeline:arr});}} style={{width:'110px',flexShrink:0,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
                <input placeholder="Event description" value={t.event||''} onChange={e=>{const arr=[...(form.timeline||[])];arr[i]={...arr[i],event:e.target.value};setForm({...form,timeline:arr});}} style={{flex:1,padding:'0.5rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif'}} />
-               <button onClick={()=>{const arr=(form.timeline||[]).filter((_,j)=>j!==i);setForm({...form,timeline:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}></button>
+               <button onClick={()=>{const arr=(form.timeline||[]).filter((_,j)=>j!==i);setForm({...form,timeline:arr});}} style={{background:'transparent',border:'none',color:'#e63946',cursor:'pointer',fontSize:'1.1rem',padding:'0 4px',flexShrink:0}}>×</button>
              </div>
            ))}
            <button onClick={()=>setForm({...form,timeline:[...(form.timeline||[]),{period:'',event:''}] })} style={{background:'#f1f3f5',border:'1.5px dashed #dee2e6',borderRadius:'8px',padding:'0.4rem 1rem',fontSize:'0.82rem',color:'#6c757d',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:'600',marginTop:'4px'}}>+ Add Milestone</button>
