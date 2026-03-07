@@ -250,8 +250,8 @@ function DealCard({ deal, onView, onInterest }) {
        </div>
        <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'0.75rem', minHeight:'2.4rem', display:'flex', alignItems:'flex-start' }}>{deal.strategy}</div>
        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem', marginBottom:'0.75rem' }}>
-         {[['Target IRR', deal.target_irr||'—'], ['Min. Ticket', fmt.currency(deal.min_investment, deal.currency||'SAR')], ['Fund Size', fmt.currency(deal.total_fund_size, deal.currency||'SAR')], ['Closing', deal.closing_date||'TBC']].map(([k,v]) => (
-           <div key={k} style={{background:'#f8f9fa',borderRadius:'6px',padding:'0.4rem 0.6rem',minHeight:'68px',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
+         {[['Target IRR', deal.target_irr ? `${deal.target_irr}%` : '—'], ['Min. Ticket', fmt.currency(deal.min_investment, deal.currency||'SAR')], ['Fund Size', fmt.currency(deal.total_fund_size, deal.currency||'SAR')], ['Closing', deal.closing_date||'TBC']].map(([k,v]) => (
+           <div key={k} style={{background:'#f8f9fa',borderRadius:'6px',padding:'0.4rem 0.6rem',minHeight:'54px',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
              <div style={{fontSize:'0.65rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase'}}>{k}</div>
              <div style={{fontSize:'0.8rem',fontWeight:'600',color:'#212529'}}>{v}</div>
            </div>
@@ -722,4 +722,3 @@ function InvestorProfile({ session, onLogout }) {
    </div>
  );
 }
- 
