@@ -359,7 +359,7 @@ function DealManagement() {
      {modal && (
        <Modal title={modal==='new'?'Create New Deal':'Edit Deal'} onClose={()=>setModal(null)} wide>
          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 1rem'}}>
-           {f('name','Deal Name')} {f('strategy','Strategy')}
+           {f('name','Deal Name')} {f('strategy','Strategy','select',['Venture Capital','Growth Equity','Small Buyouts','Mid-Market Buyouts','Large Buyouts','Direct Lending (Private Credit)','Mezzanine Debt','Distressed Debt','Special Situations','Infrastructure – Core','Infrastructure – Value Add / Opportunistic','Real Estate – Core','Real Estate – Core Plus','Real Estate – Value Add','Real Estate – Opportunistic','Secondaries (LP stake purchases)','GP-Led Secondaries / Continuation Funds','Fund of Funds'])}
            {f('status','Status','select',['Open','Closing Soon','Closed'])}
            {f('currency','Currency','select',['SAR','USD','EUR','GBP','AED'])}
          </div>
@@ -1346,4 +1346,3 @@ function AdminMessages() {
    </div>
  );
 }
- 
