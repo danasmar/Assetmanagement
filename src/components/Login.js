@@ -33,6 +33,7 @@ export default function Login({ onLogin }) {
  const [newPassword, setNewPassword] = useState("");
  const [confirmPassword, setConfirmPassword] = useState("");
  const [forceReset, setForceReset] = useState(null);
+ const [showDisclaimer, setShowDisclaimer] = useState(false);
  
  const handleLogin = async (e) => {
    e.preventDefault();
@@ -140,8 +141,44 @@ export default function Login({ onLogin }) {
            {loading ? "Authenticating..." : "Sign In as " + (role === "investor" ? "Investor" : "Admin")}
          </button>
        </form>
-       <div style={s.footer}>Copyright {new Date().getFullYear()} Audi Capital. All rights reserved.</div>
+       <div style={s.footer}>
+         Copyright {new Date().getFullYear()} Audi Capital. All rights reserved.
+         <br />
+         <button onClick={() => setShowDisclaimer(true)} style={{ background: 'none', border: 'none', color: '#C9A84C', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'DM Sans, sans-serif', marginTop: '6px', padding: 0 }}>
+           Disclaimer
+         </button>
+       </div>
      </div>
+     {showDisclaimer && (
+       <div onClick={() => setShowDisclaimer(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+         <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', maxWidth: '700px', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '2rem', position: 'relative', fontFamily: 'DM Sans, sans-serif' }}>
+           <button onClick={() => setShowDisclaimer(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#6c757d', lineHeight: 1 }}>×</button>
+           <h2 style={{ color: '#091f58', fontFamily: 'DM Serif Display, serif', marginTop: 0, marginBottom: '1.5rem', fontSize: '1.25rem' }}>Important Disclosures & Terms of Access</h2>
+           {[
+             ['1. Regulatory Status', 'Audi Capital is a financial institution licensed and regulated by the Capital Market Authority (CMA) of the Kingdom of Saudi Arabia under License Number 06017-37. All investment activities, products, and services offered through this portal are conducted in accordance with the Capital Market Law, its Implementing Regulations, and all applicable CMA rules and guidelines.'],
+             ['2. Restricted Access — Qualified Investors Only', 'Access to this portal is strictly limited to existing clients of Audi Capital who have been formally onboarded and classified as Qualified Investors in accordance with the CMA\'s definition under the Investment Funds Regulations and the Capital Market Institutions Regulations. By logging in, you confirm that you are an authorized and onboarded client of Audi Capital, that you have satisfied all applicable Know-Your-Customer (KYC) and Anti-Money Laundering (AML) requirements, and that you are accessing this portal solely to review your existing investments or to act upon investment opportunities made available to you by Audi Capital in accordance with your investor profile.\n\nUnauthorized access to this portal is strictly prohibited. If you have received access credentials in error, please contact Audi Capital immediately and do not proceed further.'],
+             ['3. Nature of Information', 'The information, data, and materials presented within this portal are provided exclusively for informational purposes and are intended solely for the use of the authorized investor to whom access has been granted. The content of this portal does not constitute a public offering, a solicitation, or an invitation to invest and should not be construed as such. Nothing contained herein constitutes investment, legal, tax, or regulatory advice.\n\nInvestment opportunities displayed on this platform are made available only to eligible clients based on their individually assessed risk profile, investment objectives, and financial circumstances as determined during the onboarding process.'],
+             ['4. Investment Risks', 'Investing involves risk. The value of investments and the income derived from them may go down as well as up, and you may not recover the full amount originally invested. Certain investment products, including but not limited to private equity, real estate funds, and alternative asset funds, carry a higher degree of risk, are illiquid in nature, and may not be suitable for all investors. Past performance is not a reliable indicator of future results, and any projections, targets, or estimates presented are not guaranteed.\n\nPrior to making any investment decision, you are strongly advised to review the relevant offering documents, fund prospectus, and terms and conditions, and to seek independent professional advice where appropriate.'],
+             ['5. Confidentiality of Information', 'All information contained within this portal, including deal details, fund performance data, investor reports, and any other materials, is strictly confidential. By accessing this portal, you agree not to disclose, reproduce, distribute, or transmit any such information to any third party without the prior written consent of Audi Capital, except as required by applicable law or regulation.'],
+             ['6. Security & Account Responsibility', 'You are solely responsible for maintaining the strict confidentiality of your login credentials, including your username, password, and any one-time passcodes or authentication codes. You must not share, disclose, or otherwise permit any other person to use your access credentials under any circumstances.\n\nAudi Capital accepts no liability for any losses, damages, unauthorized transactions, or any other adverse consequences arising from the sharing, disclosure, compromise, or misuse of your account credentials. You agree to notify Audi Capital immediately upon becoming aware of any unauthorized use of your account or any other breach of security.'],
+             ['7. No Warranty', 'While Audi Capital endeavors to ensure the accuracy and completeness of the information presented on this portal, no representation or warranty, express or implied, is made as to the accuracy, reliability, or completeness of such information. Audi Capital shall not be liable for any errors, omissions, interruptions, or delays in the provision of information through this portal.'],
+             ['8. Governing Law', 'This portal and all information contained herein are governed by and construed in accordance with the laws of the Kingdom of Saudi Arabia. Any disputes arising in connection with this portal shall be subject to the exclusive jurisdiction of the competent courts and regulatory authorities of the Kingdom of Saudi Arabia, including the CMA.'],
+           ].map(([title, body]) => (
+             <div key={title} style={{ marginBottom: '1.25rem' }}>
+               <div style={{ fontWeight: '700', color: '#091f58', fontSize: '0.9rem', marginBottom: '0.4rem' }}>{title}</div>
+               {body.split('\n\n').map((para, i) => (
+                 <p key={i} style={{ fontSize: '0.85rem', color: '#495057', lineHeight: 1.7, margin: '0 0 0.5rem' }}>{para}</p>
+               ))}
+             </div>
+           ))}
+           <div style={{ borderTop: '1px solid #dee2e6', paddingTop: '1rem', marginTop: '0.5rem' }}>
+             <p style={{ fontSize: '0.85rem', color: '#495057', lineHeight: 1.7, margin: 0 }}>By clicking <strong>'Login'</strong>, you confirm that you have read, understood, and agree to all of the above disclosures and terms of access.</p>
+             <p style={{ fontSize: '0.82rem', color: '#6c757d', marginTop: '0.5rem' }}>For queries, contact: <strong>compliance@audicapital.com</strong> | CMA License No. 06017-37</p>
+           </div>
+           <button onClick={() => setShowDisclaimer(false)} style={{ marginTop: '1.25rem', width: '100%', padding: '0.75rem', background: '#091f58', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Close</button>
+         </div>
+       </div>
+     )}
    </div>
  );
 }
