@@ -165,6 +165,115 @@ function PhotoUploader({ onUploaded }) {
  );
 }
  
+// Shared helpers for deal form inputs
+function fmtNum(val) {
+ if (val === '' || val === null || val === undefined) return '';
+ const n = String(val).replace(/[^0-9.]/g, '');
+ const parts = n.split('.');
+ parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+ return parts.join('.');
+}
+ 
+function CurrencyInput({ fieldKey, label, form, setForm }) {
+ const cur = form.currency || 'SAR';
+ const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
+ React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey], form.currency]);
+ return (
+   <div style={{marginBottom:'1rem'}}>
+     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
+     <div style={{display:'flex',alignItems:'center',border:'1.5px solid #dee2e6',borderRadius:'8px',overflow:'hidden',background:'#fff'}}>
+       <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color:'#6c757d',fontSize:'0.82rem',fontWeight:'700',borderRight:'1.5px solid #dee2e6',whiteSpace:'nowrap',flexShrink:0}}>{cur}</span>
+       <input type="text" inputMode="numeric" value={display}
+         onChange={e => {
+           const raw = e.target.value.replace(/[^0-9.]/g,'');
+           setDisplay(fmtNum(raw));
+           setForm(f => ({...f, [fieldKey]: raw}));
+         }}
+         style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent'}}
+       />
+     </div>
+   </div>
+ );
+}
+ 
+function NumberInput({ fieldKey, label, form, setForm }) {
+ const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
+ React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey]]);
+ return (
+   <div style={{marginBottom:'1rem'}}>
+     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
+     <input type="text" inputMode="numeric" value={display}
+       onChange={e => {
+         const raw = e.target.value.replace(/[^0-9]/g,'');
+         setDisplay(fmtNum(raw));
+         setForm(f => ({...f, [fieldKey]: raw}));
+       }}
+       style={{width:'100%',padding:'0.6rem 0.75rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',outline:'none',boxSizing:'border-box'}}
+     />
+   </div>
+ );
+}
+ 
+function DistributionPctInput({ form, setForm }) {
+ const noDistrib = (form.distribution_frequency || '') === 'No Distributions';
+ return (
+   <div style={{marginBottom:'1rem'}}>
+     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color: noDistrib ? '#adb5bd' : '#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Distribution %</label>
+     <div style={{display:'flex',alignItems:'center',border:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6',borderRadius:'8px',overflow:'hidden',background: noDistrib ? '#f8f9fa' : '#fff'}}>
+       <input type="text" inputMode="decimal" disabled={noDistrib}
+         value={noDistrib ? '' : (form.distribution_pct||'')}
+         onChange={e => {
+           const raw = e.target.value.replace(/[^0-9.]/g,'');
+           const parts = raw.split('.');
+           const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
+           setForm(f => ({...f, distribution_pct: formatted}));
+         }}
+         placeholder={noDistrib ? 'N/A' : '0.00'}
+         style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent',color: noDistrib ? '#adb5bd' : '#212529'}}
+       />
+       <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color: noDistrib ? '#adb5bd' : '#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6'}}>%</span>
+     </div>
+   </div>
+ );
+}
+ 
+function IrrInput({ form, setForm }) {
+ return (
+   <div style={{marginBottom:'1rem'}}>
+     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Target IRR</label>
+     <div style={{display:'flex',alignItems:'center',border:'1.5px solid #dee2e6',borderRadius:'8px',overflow:'hidden',background:'#fff'}}>
+       <input type="text" inputMode="decimal"
+         value={form.target_irr||''}
+         onChange={e => {
+           const raw = e.target.value.replace(/[^0-9.]/g,'');
+           const parts = raw.split('.');
+           const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
+           setForm(f => ({...f, target_irr: formatted}));
+         }}
+         placeholder="0.00"
+         style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent'}}
+       />
+       <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color:'#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid #dee2e6'}}>%</span>
+     </div>
+   </div>
+ );
+}
+ 
+function DateInput({ fieldKey, label, form, setForm }) {
+ return (
+   <div style={{marginBottom:'1rem'}}>
+     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
+     <div style={{width:'100%',overflow:'hidden',borderRadius:'8px',border:'1.5px solid #dee2e6',boxSizing:'border-box'}}>
+       <input type="date"
+         value={form[fieldKey]||''}
+         onChange={e => setForm(f => ({...f, [fieldKey]: e.target.value}))}
+         style={{width:'100%',padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box',color:'#212529',background:'#fff',display:'block'}}
+       />
+     </div>
+   </div>
+ );
+}
+ 
 //  Deal Management
 function DealManagement() {
  const [deals, setDeals] = useState([]);
@@ -216,121 +325,6 @@ function DealManagement() {
    await supabase.from('deals').delete().eq('id', id); load();
  };
  
- // Format number with commas for display
- const fmtNum = (val) => {
-   if (val === '' || val === null || val === undefined) return '';
-   const n = String(val).replace(/[^0-9.]/g, '');
-   const parts = n.split('.');
-   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-   return parts.join('.');
- };
- const parseNum = (val) => String(val).replace(/,/g, '');
- 
- const CurrencyInput = ({ fieldKey, label }) => {
-   const cur = form.currency || 'SAR';
-   const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
-   React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey], form.currency]);
-   return (
-     <div style={{marginBottom:'1rem'}}>
-       <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
-       <div style={{display:'flex',alignItems:'center',border:'1.5px solid #dee2e6',borderRadius:'8px',overflow:'hidden',background:'#fff'}}>
-         <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color:'#6c757d',fontSize:'0.82rem',fontWeight:'700',borderRight:'1.5px solid #dee2e6',whiteSpace:'nowrap',flexShrink:0}}>{cur}</span>
-         <input
-           type="text"
-           inputMode="numeric"
-           value={display}
-           onChange={e => {
-             const raw = e.target.value.replace(/[^0-9.]/g,'');
-             setDisplay(fmtNum(raw));
-             setForm(f => ({...f, [fieldKey]: raw}));
-           }}
-           style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent'}}
-         />
-       </div>
-     </div>
-   );
- };
- 
- const NumberInput = ({ fieldKey, label }) => {
-   const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
-   React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey]]);
-   return (
-     <div style={{marginBottom:'1rem'}}>
-       <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
-       <input
-         type="text" inputMode="numeric"
-         value={display}
-         onChange={e => {
-           const raw = e.target.value.replace(/[^0-9]/g,'');
-           setDisplay(fmtNum(raw));
-           setForm(f => ({...f, [fieldKey]: raw}));
-         }}
-         style={{width:'100%',padding:'0.6rem 0.75rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',outline:'none',boxSizing:'border-box'}}
-       />
-     </div>
-   );
- };
- 
- const DistributionPctInput = () => {
-   const noDistrib = (form.distribution_frequency || '') === 'No Distributions';
-   return (
-     <div style={{marginBottom:'1rem'}}>
-       <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color: noDistrib ? '#adb5bd' : '#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Distribution %</label>
-       <div style={{display:'flex',alignItems:'center',border:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6',borderRadius:'8px',overflow:'hidden',background: noDistrib ? '#f8f9fa' : '#fff'}}>
-         <input
-           type="text" inputMode="decimal"
-           disabled={noDistrib}
-           value={noDistrib ? '' : (form.distribution_pct||'')}
-           onChange={e => {
-             const raw = e.target.value.replace(/[^0-9.]/g,'');
-             const parts = raw.split('.');
-             const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
-             setForm(f => ({...f, distribution_pct: formatted}));
-           }}
-           placeholder={noDistrib ? 'N/A' : '0.00'}
-           style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent',color: noDistrib ? '#adb5bd' : '#212529'}}
-         />
-         <span style={{padding:'0.6rem 0.75rem',background: noDistrib ? '#f1f3f5' : '#f1f3f5',color: noDistrib ? '#adb5bd' : '#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6'}}>%</span>
-       </div>
-     </div>
-   );
- };
- 
- const IrrInput = () => (
-   <div style={{marginBottom:'1rem'}}>
-     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Target IRR</label>
-     <div style={{display:'flex',alignItems:'center',border:'1.5px solid #dee2e6',borderRadius:'8px',overflow:'hidden',background:'#fff'}}>
-       <input
-         type="text" inputMode="decimal"
-         value={form.target_irr||''}
-         onChange={e => {
-           const raw = e.target.value.replace(/[^0-9.]/g,'');
-           const parts = raw.split('.');
-           const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
-           setForm(f => ({...f, target_irr: formatted}));
-         }}
-         placeholder="0.00"
-         style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent'}}
-       />
-       <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color:'#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid #dee2e6'}}>%</span>
-     </div>
-   </div>
- );
- 
- const DateInput = ({ fieldKey, label }) => (
-   <div style={{marginBottom:'1rem'}}>
-     <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
-     <div style={{width:'100%',overflow:'hidden',borderRadius:'8px',border:'1.5px solid #dee2e6',boxSizing:'border-box'}}>
-       <input
-         type="date"
-         value={form[fieldKey]||''}
-         onChange={e => setForm(f => ({...f, [fieldKey]: e.target.value}))}
-         style={{width:'100%',padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box',color:'#212529',background:'#fff',display:'block'}}
-       />
-     </div>
-   </div>
- );
- 
  const f = (k, label, type='text', opts) => (
    type==='select' ?
      <Select key={k} label={label} value={form[k]||''} onChange={e=>setForm({...form,[k]:e.target.value})}>
@@ -370,19 +364,19 @@ function DealManagement() {
            {f('currency','Currency','select',['SAR','USD','EUR','GBP','AED'])}
          </div>
          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 1rem'}}>
-           <CurrencyInput fieldKey="target_raise" label="Target Raise" />
-           <CurrencyInput fieldKey="total_fund_size" label="Total Fund Size" />
-           <CurrencyInput fieldKey="amount_raised" label="Amount Raised" />
-           <CurrencyInput fieldKey="min_investment" label="Minimum Investment" />
-           <CurrencyInput fieldKey="nav_per_unit" label="NAV Per Unit" />
-           <NumberInput fieldKey="total_units" label="Total Fund Units" />
-           <DistributionPctInput />
+           <CurrencyInput fieldKey="target_raise" label="Target Raise" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="total_fund_size" label="Total Fund Size" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="amount_raised" label="Amount Raised" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="min_investment" label="Minimum Investment" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="nav_per_unit" label="NAV Per Unit" form={form} setForm={setForm} />
+           <NumberInput fieldKey="total_units" label="Total Fund Units" form={form} setForm={setForm} />
+           <DistributionPctInput form={form} setForm={setForm} />
            {f('distribution_frequency','Distribution Frequency','select',['Monthly','Quarterly','Semi-Annually','Yearly','No Distributions'])}
-           <IrrInput /> <DateInput fieldKey="closing_date" label="Closing Date" />
+           <IrrInput form={form} setForm={setForm} /> <DateInput fieldKey="closing_date" label="Closing Date" form={form} setForm={setForm} />
          </div>
          <div style={{marginBottom:"1rem"}}>
            <label style={{display:"block",fontSize:"0.78rem",fontWeight:"600",color:"#495057",marginBottom:"5px",letterSpacing:"0.04em"}}>Deal Image</label>
-           <div style={{display:"flex",gap:"1rem",alignItems:"flex-start",flexWrap:"wrap"}}>
+           <div style={{display:"flex",gap:"1rem",alignItems:"center",flexWrap:"wrap"}}>
              <div style={{width:"120px",height:"120px",borderRadius:"10px",border:"2px dashed #dee2e6",overflow:"hidden",flexShrink:0,background:"#f8f9fa",display:"flex",alignItems:"center",justifyContent:"center"}}>
                {imagePreview
                  ? <img src={imagePreview} alt="Deal" style={{width:"100%",height:"100%",objectFit:"cover"}} />
