@@ -505,9 +505,25 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
    load();
  }, [investor.id]);
  
- const totalInvested = investments.reduce((s, i) => s + (parseFloat(i.amount_invested) || 0), 0);
- const totalCurrentNAV = investments.reduce((s, i) => s + ((i.units || 0) * (i.deals?.nav_per_unit || 0)), 0);
- const totalDistributed = distributions.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+ // Group totals by currency
+ const investedByCurrency = investments.reduce((acc, i) => {
+   const cur = i.deals?.currency || 'SAR';
+   acc[cur] = (acc[cur] || 0) + (parseFloat(i.amount_invested) || 0);
+   return acc;
+ }, {});
+ const navByCurrency = investments.reduce((acc, i) => {
+   const cur = i.deals?.currency || 'SAR';
+   acc[cur] = (acc[cur] || 0) + ((i.units || 0) * (i.deals?.nav_per_unit || 0));
+   return acc;
+ }, {});
+ const distByCurrency = distributions.reduce((acc, d) => {
+   const cur = d.distributions?.deals?.currency || 'SAR';
+   acc[cur] = (acc[cur] || 0) + (parseFloat(d.amount) || 0);
+   return acc;
+ }, {});
+ const totalDistributed = Object.values(distByCurrency).reduce((s,v)=>s+v,0); // kept for footer fallback
+ const formatByCurrency = (map) => Object.entries(map).length === 0 ? '—' :
+   Object.entries(map).map(([cur, val]) => fmt.currency(val, cur)).join(' + ');
  
  return (
    <div>
@@ -533,14 +549,14 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
      {/* Stat strip */}
      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'0.75rem',marginBottom:'1.25rem'}}>
        {[
-         ['Total Invested', fmt.currency(totalInvested)],
-         ['Current NAV', fmt.currency(totalCurrentNAV)],
-         ['Total Distributed', fmt.currency(totalDistributed)],
+         ['Total Invested', formatByCurrency(investedByCurrency)],
+         ['Current NAV', formatByCurrency(navByCurrency)],
+         ['Total Distributed', formatByCurrency(distByCurrency)],
          ['# Investments', investments.length],
        ].map(([k,v])=>(
          <Card key={k} style={{padding:'0.85rem 1rem'}}>
            <div style={{fontSize:'0.68rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:'4px'}}>{k}</div>
-           <div style={{fontSize:'1.1rem',fontWeight:'700',color:'#003770'}}>{v}</div>
+           <div style={{fontSize:'0.95rem',fontWeight:'700',color:'#003770',lineHeight:1.3}}>{v}</div>
          </Card>
        ))}
      </div>
@@ -598,7 +614,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
          {distributions.length > 0 && (
            <div style={{marginTop:'1rem',paddingTop:'0.75rem',borderTop:'2px solid #f1f3f5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
              <span style={{fontSize:'0.82rem',fontWeight:'700',color:'#495057'}}>Total Received</span>
-             <span style={{fontSize:'1rem',fontWeight:'700',color:'#2a9d5c'}}>{fmt.currency(totalDistributed)}</span>
+             <span style={{fontSize:'1rem',fontWeight:'700',color:'#2a9d5c'}}>{formatByCurrency(distByCurrency)}</span>
            </div>
          )}
        </Card>
@@ -1434,4 +1450,3 @@ function AdminMessages() {
    </div>
  );
 }
- 
