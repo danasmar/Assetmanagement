@@ -245,10 +245,10 @@ function DealCard({ deal, onView, onInterest }) {
    </div>
      <div style={{ flex:1 }}>
        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.75rem' }}>
-         <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{deal.name}</h3>
+         <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3, minHeight:'2.5rem' }}>{deal.name}</h3>
          <Badge label={deal.status || 'Open'} />
        </div>
-       <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'0.75rem' }}>{deal.strategy}</div>
+       <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'0.75rem', minHeight:'2.4rem', display:'flex', alignItems:'flex-start' }}>{deal.strategy}</div>
        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem', marginBottom:'0.75rem' }}>
          {[['Target IRR', deal.target_irr||'—'], ['Min. Ticket', fmt.currency(deal.min_investment, deal.currency||'SAR')], ['Fund Size', fmt.currency(deal.total_fund_size, deal.currency||'SAR')], ['Closing', deal.closing_date||'TBC']].map(([k,v]) => (
            <div key={k} style={{background:'#f8f9fa',borderRadius:'6px',padding:'0.4rem 0.6rem',minHeight:'68px',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
@@ -722,3 +722,4 @@ function InvestorProfile({ session, onLogout }) {
    </div>
  );
 }
+ 
