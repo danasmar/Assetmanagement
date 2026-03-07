@@ -320,12 +320,14 @@ function DealManagement() {
  const DateInput = ({ fieldKey, label }) => (
    <div style={{marginBottom:'1rem'}}>
      <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
-     <input
-       type="date"
-       value={form[fieldKey]||''}
-       onChange={e => setForm(f => ({...f, [fieldKey]: e.target.value}))}
-       style={{width:'100%',padding:'0.6rem 0.75rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',outline:'none',boxSizing:'border-box',color:'#212529'}}
-     />
+     <div style={{width:'100%',overflow:'hidden',borderRadius:'8px',border:'1.5px solid #dee2e6',boxSizing:'border-box'}}>
+       <input
+         type="date"
+         value={form[fieldKey]||''}
+         onChange={e => setForm(f => ({...f, [fieldKey]: e.target.value}))}
+         style={{width:'100%',padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box',color:'#212529',background:'#fff',display:'block'}}
+       />
+     </div>
    </div>
  );
  
@@ -1350,3 +1352,4 @@ function AdminMessages() {
    </div>
  );
 }
+ 
