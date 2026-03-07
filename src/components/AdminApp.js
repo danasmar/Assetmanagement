@@ -1,5 +1,3 @@
-AdminApp.js — Currency Input Fields
-Paste into: src/components/AdminApp.js
  
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
