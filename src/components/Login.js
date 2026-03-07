@@ -41,10 +41,11 @@ export default function Login({ onLogin }) {
    setLoading(true);
    try {
      if (role === "investor") {
+       const id = identifier.toLowerCase().trim();
        const { data, error: err } = await supabase
          .from("investors")
          .select("*")
-         .or("username.eq." + identifier + ",email.eq." + identifier)
+         .or("username.ilike." + id + ",email.ilike." + id)
          .single();
        if (err || !data) { setError("No account found. Check your username or email."); setLoading(false); return; }
        if (data.password !== password) { setError("Incorrect password."); setLoading(false); return; }
@@ -53,10 +54,11 @@ export default function Login({ onLogin }) {
        if (data.force_password_change) { setForceReset(data); setLoading(false); return; }
        onLogin({ user: data, role: "investor" });
      } else {
+       const id = identifier.toLowerCase().trim();
        const { data, error: err } = await supabase
          .from("admin_users")
          .select("*")
-         .or("username.eq." + identifier + ",email.eq." + identifier)
+         .or("username.ilike." + id + ",email.ilike." + id)
          .single();
        if (err || !data) { setError("No admin account found."); setLoading(false); return; }
        if (data.password !== password) { setError("Incorrect password."); setLoading(false); return; }
@@ -182,4 +184,3 @@ export default function Login({ onLogin }) {
    </div>
  );
 }
- 
