@@ -693,7 +693,10 @@ function InvestorManagement() {
          <tbody>
            {filtered.map(inv=>(
              <tr key={inv.id} style={{borderBottom:'1px solid #f1f3f5',cursor:'pointer'}} onClick={()=>setSelected(inv)}>
-               <td style={{padding:'0.75rem',fontWeight:'600',color:'#212529'}}>{inv.full_name}</td>
+               <td style={{padding:'0.75rem',fontWeight:'600',color:'#003770',textDecoration:'underline',cursor:'pointer'}}
+                 onMouseEnter={e=>e.currentTarget.style.color='#C9A84C'}
+                 onMouseLeave={e=>e.currentTarget.style.color='#003770'}
+               >{inv.full_name}</td>
                <td style={{padding:'0.75rem',color:'#6c757d'}}>{inv.username}</td>
                <td style={{padding:'0.75rem',color:'#6c757d'}}>{inv.email}</td>
                <td style={{padding:'0.75rem'}}><Badge label={inv.investor_type||'Individual'}/></td>
