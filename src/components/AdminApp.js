@@ -1,4 +1,3 @@
- 
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -252,6 +251,51 @@ function DealManagement() {
    );
  };
  
+ const NumberInput = ({ fieldKey, label }) => {
+   const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
+   React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey]]);
+   return (
+     <div style={{marginBottom:'1rem'}}>
+       <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>{label}</label>
+       <input
+         type="text" inputMode="numeric"
+         value={display}
+         onChange={e => {
+           const raw = e.target.value.replace(/[^0-9]/g,'');
+           setDisplay(fmtNum(raw));
+           setForm(f => ({...f, [fieldKey]: raw}));
+         }}
+         style={{width:'100%',padding:'0.6rem 0.75rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',outline:'none',boxSizing:'border-box'}}
+       />
+     </div>
+   );
+ };
+ 
+ const DistributionPctInput = () => {
+   const noDistrib = (form.distribution_frequency || '') === 'No Distributions';
+   return (
+     <div style={{marginBottom:'1rem'}}>
+       <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color: noDistrib ? '#adb5bd' : '#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Distribution %</label>
+       <div style={{display:'flex',alignItems:'center',border:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6',borderRadius:'8px',overflow:'hidden',background: noDistrib ? '#f8f9fa' : '#fff'}}>
+         <input
+           type="text" inputMode="decimal"
+           disabled={noDistrib}
+           value={noDistrib ? '' : (form.distribution_pct||'')}
+           onChange={e => {
+             const raw = e.target.value.replace(/[^0-9.]/g,'');
+             const parts = raw.split('.');
+             const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
+             setForm(f => ({...f, distribution_pct: formatted}));
+           }}
+           placeholder={noDistrib ? 'N/A' : '0.00'}
+           style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent',color: noDistrib ? '#adb5bd' : '#212529'}}
+         />
+         <span style={{padding:'0.6rem 0.75rem',background: noDistrib ? '#f1f3f5' : '#f1f3f5',color: noDistrib ? '#adb5bd' : '#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid',borderColor: noDistrib ? '#e9ecef' : '#dee2e6'}}>%</span>
+       </div>
+     </div>
+   );
+ };
+ 
  const f = (k, label, type='text', opts) => (
    type==='select' ?
      <Select key={k} label={label} value={form[k]||''} onChange={e=>setForm({...form,[k]:e.target.value})}>
@@ -296,8 +340,9 @@ function DealManagement() {
            <CurrencyInput fieldKey="amount_raised" label="Amount Raised" />
            <CurrencyInput fieldKey="min_investment" label="Minimum Investment" />
            <CurrencyInput fieldKey="nav_per_unit" label="NAV Per Unit" />
-           {f('total_units','Total Fund Units','number')}
-           {f('distribution_pct','Distribution %','number')} {f('distribution_frequency','Distribution Frequency','select',['Monthly','Quarterly','Semi-Annually','Yearly','No Distributions'])}
+           <NumberInput fieldKey="total_units" label="Total Fund Units" />
+           <DistributionPctInput />
+           {f('distribution_frequency','Distribution Frequency','select',['Monthly','Quarterly','Semi-Annually','Yearly','No Distributions'])}
            {f('target_irr','Target IRR')} {f('closing_date','Closing Date')}
          </div>
          <div style={{marginBottom:"1rem"}}>
@@ -1272,4 +1317,3 @@ function AdminMessages() {
    </div>
  );
 }
- 
