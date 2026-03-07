@@ -505,25 +505,24 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
    load();
  }, [investor.id]);
  
- // Group totals by currency
- const investedByCurrency = investments.reduce((acc, i) => {
-   const cur = i.deals?.currency || 'SAR';
-   acc[cur] = (acc[cur] || 0) + (parseFloat(i.amount_invested) || 0);
-   return acc;
- }, {});
- const navByCurrency = investments.reduce((acc, i) => {
-   const cur = i.deals?.currency || 'SAR';
-   acc[cur] = (acc[cur] || 0) + ((i.units || 0) * (i.deals?.nav_per_unit || 0));
-   return acc;
- }, {});
- const distByCurrency = distributions.reduce((acc, d) => {
-   const cur = d.distributions?.deals?.currency || 'SAR';
-   acc[cur] = (acc[cur] || 0) + (parseFloat(d.amount) || 0);
-   return acc;
- }, {});
- const totalDistributed = Object.values(distByCurrency).reduce((s,v)=>s+v,0); // kept for footer fallback
- const formatByCurrency = (map) => Object.entries(map).length === 0 ? '—' :
-   Object.entries(map).map(([cur, val]) => fmt.currency(val, cur)).join(' + ');
+ const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
+ useEffect(() => {
+   supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1)
+     .then(({ data }) => { if (data?.[0]) setFx(data[0]); });
+ }, []);
+ const toSAR = (amount, currency) => {
+   if (!currency || currency === 'SAR') return amount;
+   if (currency === 'USD') return amount * (fx.usd_to_sar || 3.75);
+   if (currency === 'EUR') return amount * (fx.eur_to_sar || 4.10);
+   if (currency === 'GBP') return amount * (fx.gbp_to_sar || 4.73);
+   if (currency === 'AED') return amount * (fx.aed_to_sar || 1.02);
+   return amount;
+ };
+ 
+ const totalInvested = investments.reduce((s, i) => s + toSAR(parseFloat(i.amount_invested) || 0, i.deals?.currency), 0);
+ const totalCurrentNAV = investments.reduce((s, i) => s + toSAR((i.units || 0) * (i.deals?.nav_per_unit || 0), i.deals?.currency), 0);
+ const totalDistributed = distributions.reduce((s, d) => s + toSAR(parseFloat(d.amount) || 0, d.distributions?.deals?.currency), 0);
+ const formatByCurrency = () => ''; // unused, kept to avoid ref errors
  
  return (
    <div>
@@ -549,9 +548,9 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
      {/* Stat strip */}
      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'0.75rem',marginBottom:'1.25rem'}}>
        {[
-         ['Total Invested', formatByCurrency(investedByCurrency)],
-         ['Current NAV', formatByCurrency(navByCurrency)],
-         ['Total Distributed', formatByCurrency(distByCurrency)],
+         ['Total Invested', fmt.currency(totalInvested, 'SAR')],
+         ['Current NAV', fmt.currency(totalCurrentNAV, 'SAR')],
+         ['Total Distributed', fmt.currency(totalDistributed, 'SAR')],
          ['# Investments', investments.length],
        ].map(([k,v])=>(
          <Card key={k} style={{padding:'0.85rem 1rem'}}>
@@ -614,7 +613,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
          {distributions.length > 0 && (
            <div style={{marginTop:'1rem',paddingTop:'0.75rem',borderTop:'2px solid #f1f3f5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
              <span style={{fontSize:'0.82rem',fontWeight:'700',color:'#495057'}}>Total Received</span>
-             <span style={{fontSize:'1rem',fontWeight:'700',color:'#2a9d5c'}}>{formatByCurrency(distByCurrency)}</span>
+             <span style={{fontSize:'1rem',fontWeight:'700',color:'#2a9d5c'}}>{fmt.currency(totalDistributed, 'SAR')}</span>
            </div>
          )}
        </Card>
@@ -1450,3 +1449,4 @@ function AdminMessages() {
    </div>
  );
 }
+ 
