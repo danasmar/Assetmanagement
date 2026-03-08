@@ -34,6 +34,11 @@ export default function Login({ onLogin }) {
  const [confirmPassword, setConfirmPassword] = useState("");
  const [forceReset, setForceReset] = useState(null);
  const [showDisclaimer, setShowDisclaimer] = useState(false);
+ const [showForgotPassword, setShowForgotPassword] = useState(false);
+ const [resetEmail, setResetEmail] = useState("");
+ const [resetSent, setResetSent] = useState(false);
+ const [resetLoading, setResetLoading] = useState(false);
+ const [resetError, setResetError] = useState("");
  
  const handleLogin = async (e) => {
    e.preventDefault();
@@ -72,7 +77,23 @@ export default function Login({ onLogin }) {
    setLoading(false);
  };
  
- const handlePasswordReset = async (e) => {
+ const handleForgotPassword = async (e) => {
+  e.preventDefault();
+  setResetError("");
+  setResetLoading(true);
+  const email = resetEmail.toLowerCase().trim();
+  const { data: investor } = await supabase.from("investors").select("id").ilike("email", email).single();
+  const { data: admin } = await supabase.from("admin_users").select("id").ilike("email", email).single();
+  if (investor) {
+    await supabase.from("investors").update({ force_password_change: true }).eq("id", investor.id);
+  } else if (admin) {
+    await supabase.from("admin_users").update({ force_password_change: true }).eq("id", admin.id);
+  }
+  setResetLoading(false);
+  setResetSent(true);
+};
+
+const handlePasswordReset = async (e) => {
    e.preventDefault();
    if (newPassword.length < 6) { setError("Password must be at least 6 characters."); return; }
    if (newPassword !== confirmPassword) { setError("Passwords do not match."); return; }
@@ -143,6 +164,11 @@ export default function Login({ onLogin }) {
            {loading ? "Authenticating..." : "Sign In as " + (role === "investor" ? "Investor" : "Admin")}
          </button>
        </form>
+       <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+         <button onClick={() => { setShowForgotPassword(true); setResetSent(false); setResetEmail(""); setResetError(""); }} style={{ background: 'none', border: 'none', color: '#C9A84C', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'DM Sans, sans-serif', padding: 0 }}>
+           Forgot Password?
+         </button>
+       </div>
        <div style={s.footer}>
          Copyright {new Date().getFullYear()} Audi Capital. All rights reserved.
          <br />
@@ -178,6 +204,32 @@ export default function Login({ onLogin }) {
              <p style={{ fontSize: '0.82rem', color: '#6c757d', marginTop: '0.5rem' }}>For queries, contact: <strong>compliance@audicapital.com</strong> | CMA License No. 06017-37</p>
            </div>
            <button onClick={() => setShowDisclaimer(false)} style={{ marginTop: '1.25rem', width: '100%', padding: '0.75rem', background: '#091f58', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Close</button>
+         </div>
+       </div>
+     )}
+     {showForgotPassword && (
+       <div onClick={() => setShowForgotPassword(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+         <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', maxWidth: '420px', width: '100%', padding: '2rem', position: 'relative', fontFamily: 'DM Sans, sans-serif' }}>
+           <button onClick={() => setShowForgotPassword(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#6c757d', lineHeight: 1 }}>×</button>
+           <h2 style={{ color: '#091f58', fontFamily: 'DM Serif Display, serif', marginTop: 0, marginBottom: '0.5rem', fontSize: '1.2rem' }}>Forgot Password</h2>
+           {resetSent ? (
+             <div>
+               <p style={{ fontSize: '0.9rem', color: '#495057', lineHeight: 1.6 }}>
+                 If an account with that email exists, it has been flagged for a password reset. Please contact your administrator to receive your new temporary password.
+               </p>
+               <button onClick={() => setShowForgotPassword(false)} style={{ marginTop: '1rem', width: '100%', padding: '0.75rem', background: '#091f58', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Back to Sign In</button>
+             </div>
+           ) : (
+             <form onSubmit={handleForgotPassword}>
+               <p style={{ fontSize: '0.85rem', color: '#6c757d', marginTop: 0, marginBottom: '1.25rem' }}>Enter your email address and we will flag your account for a password reset.</p>
+               <div style={{ marginBottom: '1rem' }}>
+                 <label style={s.label}>Email Address</label>
+                 <input style={{ ...s.input, ...(focusField === "re" ? s.inputFocus : {}) }} type="email" placeholder="Your email address" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onFocus={() => setFocusField("re")} onBlur={() => setFocusField("")} required />
+               </div>
+               {resetError && <div style={s.error}>{resetError}</div>}
+               <button type="submit" style={{ ...s.btn, background: resetLoading ? "#6c757d" : "#091f58" }} disabled={resetLoading}>{resetLoading ? "Submitting..." : "Submit"}</button>
+             </form>
+           )}
          </div>
        </div>
      )}
