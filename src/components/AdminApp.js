@@ -1454,6 +1454,8 @@ function AdminMessages() {
 // ─── Portfolio Upload ─────────────────────────────────────────────────────────
 
 // ─── Portfolio Upload ─────────────────────────────────────────────────────────
+
+// ─── Portfolio Upload ─────────────────────────────────────────────────────────
 function PortfolioUpload() {
   const [investors, setInvestors] = useState([]);
   const [step, setStep] = useState(1);
@@ -1471,6 +1473,11 @@ function PortfolioUpload() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Multi-client state
+  const [clientIdentifierCol, setClientIdentifierCol] = useState('');
+  const [clientAssignments, setClientAssignments] = useState({}); // { rawValue: investor_id }
+
+  const isMulti = form.investor_id === 'multi';
 
   const STANDARD_FIELDS = [
     { key: 'security_name', label: 'Security Name', required: true },
@@ -1483,6 +1490,11 @@ function PortfolioUpload() {
     { key: 'currency', label: 'Currency' },
     { key: 'cash_balance', label: 'Cash Balance' },
   ];
+
+  const TOTAL_STEPS = isMulti ? 4 : 3;
+  const STEP_LABELS = isMulti
+    ? ['Upload File', 'Map Columns', 'Assign Clients', 'Confirm Import']
+    : ['Upload File', 'Map Columns', 'Confirm Import'];
 
   const loadXLSX = () => new Promise((resolve, reject) => {
     if (window.XLSX) { resolve(window.XLSX); return; }
@@ -1501,14 +1513,9 @@ function PortfolioUpload() {
     loadTemplates();
   }, []);
 
-  // Look up a saved template by bank name (case-insensitive)
   const findTemplate = async (bankName) => {
     if (!bankName || !bankName.trim()) return null;
-    const { data } = await supabase
-      .from('bank_mapping_templates')
-      .select('*')
-      .ilike('bank_name', bankName.trim())
-      .limit(1);
+    const { data } = await supabase.from('bank_mapping_templates').select('*').ilike('bank_name', bankName.trim()).limit(1);
     return data && data[0] ? data[0] : null;
   };
 
@@ -1516,16 +1523,9 @@ function PortfolioUpload() {
     if (!form.source_bank.trim()) return;
     setSavingTemplate(true);
     const existing = await findTemplate(form.source_bank);
-    const payload = {
-      bank_name: form.source_bank.trim(),
-      column_mappings: mapping,
-      updated_at: new Date().toISOString(),
-    };
-    if (existing) {
-      await supabase.from('bank_mapping_templates').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('bank_mapping_templates').insert(payload);
-    }
+    const payload = { bank_name: form.source_bank.trim(), column_mappings: mapping, updated_at: new Date().toISOString() };
+    if (existing) await supabase.from('bank_mapping_templates').update(payload).eq('id', existing.id);
+    else await supabase.from('bank_mapping_templates').insert(payload);
     setSavingTemplate(false);
     setOfferSaveTemplate(false);
     loadTemplates();
@@ -1542,9 +1542,7 @@ function PortfolioUpload() {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return { headers: [], rows: [] };
     const parseRow = (line) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
+      const result = []; let current = ''; let inQuotes = false;
       for (let i = 0; i < line.length; i++) {
         if (line[i] === '"') { inQuotes = !inQuotes; }
         else if (line[i] === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
@@ -1555,8 +1553,7 @@ function PortfolioUpload() {
     };
     const hdrs = parseRow(lines[0]);
     const rows = lines.slice(1).map(line => {
-      const vals = parseRow(line);
-      const obj = {};
+      const vals = parseRow(line); const obj = {};
       hdrs.forEach((h, i) => { obj[h] = vals[i] || ''; });
       return obj;
     }).filter(r => Object.values(r).some(v => v && v.trim()));
@@ -1564,8 +1561,7 @@ function PortfolioUpload() {
   };
 
   const autoMap = (hdrs) => {
-    const map = {};
-    const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const map = {}; const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
     const patterns = {
       security_name: ['securityname','securitydescription','description','security','instrument','assetname','name','holding','holdingname'],
       ticker: ['ticker','symbol','tickersymbol','bbg','bloombergticker'],
@@ -1580,84 +1576,27 @@ function PortfolioUpload() {
     hdrs.forEach(h => {
       const hn = norm(h);
       Object.entries(patterns).forEach(([field, pats]) => {
-        if (!map[field]) {
-          if (pats.some(p => hn === p || hn.includes(p) || p.includes(hn))) map[field] = h;
-        }
+        if (!map[field] && pats.some(p => hn === p || hn.includes(p) || p.includes(hn))) map[field] = h;
       });
     });
     return map;
   };
 
-  const applyMappingFromTemplate = (tplMapping, hdrs, rows) => {
-    // Validate that saved column names still exist in this file's headers
-    const validatedMap = {};
-    Object.entries(tplMapping).forEach(([field, col]) => {
-      if (hdrs.includes(col)) validatedMap[field] = col;
-    });
-    return validatedMap;
+  // Auto-detect which column is likely a client identifier
+  const autoDetectClientCol = (hdrs) => {
+    const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const patterns = ['clientname','clientid','accountname','accountnumber','portfolioname','portfoliocode','customername','clientcode','account','portfolio','client','customer','investorname'];
+    for (const h of hdrs) {
+      const hn = norm(h);
+      if (patterns.some(p => hn === p || hn.includes(p))) return h;
+    }
+    return '';
   };
 
-  const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    setFileName(file.name);
-    setTemplateApplied(false);
-    setOfferSaveTemplate(false);
-    const ext = file.name.split('.').pop().toLowerCase();
-    try {
-      let hdrs = [], rows = [];
-      if (ext === 'csv') {
-        const text = await file.text();
-        const parsed = parseCSV(text);
-        if (!parsed.headers.length) { alert('Could not parse CSV. Please check the file format.'); setUploading(false); return; }
-        hdrs = parsed.headers; rows = parsed.rows;
-      } else if (['xlsx', 'xls'].includes(ext)) {
-        const XLSX = await loadXLSX();
-        const ab = await file.arrayBuffer();
-        const wb = XLSX.read(ab);
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        if (!data.length) { alert('No data found in Excel file.'); setUploading(false); return; }
-        hdrs = Object.keys(data[0]); rows = data;
-      } else {
-        alert('Please upload a CSV or Excel (.xlsx/.xls) file.');
-        setUploading(false); return;
-      }
-      setHeaders(hdrs);
-      setRawRows(rows);
-
-      // Check for saved template for this bank
-      const tpl = await findTemplate(form.source_bank);
-      if (tpl && tpl.column_mappings) {
-        const validatedMap = applyMappingFromTemplate(tpl.column_mappings, hdrs, rows);
-        const matchCount = Object.keys(validatedMap).length;
-        if (matchCount > 0) {
-          setMapping(validatedMap);
-          setTemplateApplied(true);
-          // Auto-advance directly to preview step
-          const mapped = rows.map(row => {
-            const r = {};
-            STANDARD_FIELDS.forEach(({ key }) => { const col = validatedMap[key]; r[key] = col ? (row[col] || '') : ''; });
-            r._class = classifyRow(r);
-            return r;
-          });
-          setMappedData(mapped);
-          setStep(3);
-          setUploading(false);
-          e.target.value = '';
-          return;
-        }
-      }
-
-      // No template or template columns don't match — do auto-map and go to step 2
-      const autoMapped = autoMap(hdrs);
-      setMapping(autoMapped);
-      setOfferSaveTemplate(!!form.source_bank.trim());
-      setStep(2);
-    } catch (err) { alert('Error parsing file: ' + err.message); }
-    setUploading(false);
-    e.target.value = '';
+  const applyMappingFromTemplate = (tplMapping, hdrs) => {
+    const validatedMap = {};
+    Object.entries(tplMapping).forEach(([field, col]) => { if (hdrs.includes(col)) validatedMap[field] = col; });
+    return validatedMap;
   };
 
   const classifyRow = (row) => {
@@ -1669,30 +1608,104 @@ function PortfolioUpload() {
     return 'public_markets';
   };
 
-  const applyMapping = () => {
-    const mapped = rawRows.map(row => {
+  const buildMappedRows = (rows, map) =>
+    rows.map(row => {
       const r = {};
-      STANDARD_FIELDS.forEach(({ key }) => { const col = mapping[key]; r[key] = col ? (row[col] || '') : ''; });
+      STANDARD_FIELDS.forEach(({ key }) => { const col = map[key]; r[key] = col ? (row[col] || '') : ''; });
       r._class = classifyRow(r);
       return r;
     });
-    setMappedData(mapped);
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true); setFileName(file.name); setTemplateApplied(false); setOfferSaveTemplate(false);
+    setClientIdentifierCol(''); setClientAssignments({});
+    const ext = file.name.split('.').pop().toLowerCase();
+    try {
+      let hdrs = [], rows = [];
+      if (ext === 'csv') {
+        const text = await file.text();
+        const parsed = parseCSV(text);
+        if (!parsed.headers.length) { alert('Could not parse CSV.'); setUploading(false); return; }
+        hdrs = parsed.headers; rows = parsed.rows;
+      } else if (['xlsx', 'xls'].includes(ext)) {
+        const XLSX = await loadXLSX();
+        const ab = await file.arrayBuffer();
+        const wb = XLSX.read(ab);
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!data.length) { alert('No data found in Excel file.'); setUploading(false); return; }
+        hdrs = Object.keys(data[0]); rows = data;
+      } else {
+        alert('Please upload a CSV or Excel (.xlsx/.xls) file.'); setUploading(false); return;
+      }
+      setHeaders(hdrs); setRawRows(rows);
+
+      // Auto-detect client identifier column for multi mode
+      if (isMulti) setClientIdentifierCol(autoDetectClientCol(hdrs));
+
+      // Check for saved template
+      const tpl = await findTemplate(form.source_bank);
+      if (tpl && tpl.column_mappings) {
+        const validatedMap = applyMappingFromTemplate(tpl.column_mappings, hdrs);
+        if (Object.keys(validatedMap).length > 0) {
+          setMapping(validatedMap);
+          setTemplateApplied(true);
+          if (isMulti) {
+            // Template found but still need client assignment step
+            setStep(3);
+          } else {
+            setMappedData(buildMappedRows(rows, validatedMap));
+            setStep(3);
+          }
+          setUploading(false); e.target.value = ''; return;
+        }
+      }
+      // No template — go to map step
+      setMapping(autoMap(hdrs));
+      setOfferSaveTemplate(!!form.source_bank.trim());
+      setStep(2);
+    } catch (err) { alert('Error parsing file: ' + err.message); }
+    setUploading(false); e.target.value = '';
+  };
+
+  // Called from step 2 Map Columns
+  const applyMapping = () => {
     setOfferSaveTemplate(!!form.source_bank.trim());
-    setStep(3);
+    if (isMulti) {
+      // Go to client assignment step
+      setStep(3);
+    } else {
+      setMappedData(buildMappedRows(rawRows, mapping));
+      setStep(3);
+    }
+  };
+
+  // Called from step 3 (multi only) — Assign Clients → build final mapped data and go to step 4
+  const applyClientAssignments = () => {
+    const mapped = buildMappedRows(rawRows, mapping).map((row, i) => {
+      const raw = rawRows[i];
+      const clientVal = clientIdentifierCol ? (raw[clientIdentifierCol] || '') : '';
+      row._investorId = clientAssignments[clientVal] || null;
+      row._clientVal = clientVal;
+      return row;
+    });
+    setMappedData(mapped);
+    setStep(4);
   };
 
   const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
 
   const confirm = async () => {
-    if (!form.investor_id) { alert('Please go back and select an investor.'); return; }
+    if (!isMulti && !form.investor_id) { alert('Please go back and select an investor.'); return; }
     if (!form.statement_date) { alert('Please go back and enter a statement date.'); return; }
     setSaving(true);
-    const publicRows = mappedData.filter(r => r._class === 'public_markets');
-    const cashRows = mappedData.filter(r => r._class === 'cash');
+
     const errors = [];
-    if (publicRows.length) {
-      const { error } = await supabase.from('positions').insert(publicRows.map(r => ({
-        investor_id: form.investor_id,
+    const toInsert = (rows, investorId) => ({
+      positions: rows.filter(r => r._class === 'public_markets').map(r => ({
+        investor_id: investorId,
         security_name: r.security_name || 'Unknown',
         ticker: r.ticker || null,
         isin: r.isin || null,
@@ -1703,35 +1716,78 @@ function PortfolioUpload() {
         currency: r.currency || 'USD',
         statement_date: form.statement_date,
         source_bank: form.source_bank || null,
-      })));
-      if (error) errors.push('Positions: ' + error.message);
-    }
-    if (cashRows.length) {
-      const { error } = await supabase.from('cash_positions').insert(cashRows.map(r => ({
-        investor_id: form.investor_id,
+      })),
+      cash: rows.filter(r => r._class === 'cash').map(r => ({
+        investor_id: investorId,
         currency: r.currency || 'USD',
         balance: toNum(r.cash_balance) || toNum(r.market_value),
         description: r.security_name || 'Cash',
         statement_date: form.statement_date,
         source_bank: form.source_bank || null,
-      })));
-      if (error) errors.push('Cash: ' + error.message);
+      })),
+    });
+
+    let totalPos = 0; let totalCash = 0;
+
+    if (isMulti) {
+      // Group rows by assigned investor
+      const groups = {};
+      mappedData.forEach(row => {
+        const iid = row._investorId;
+        if (!iid) return; // skip unassigned rows
+        if (!groups[iid]) groups[iid] = [];
+        groups[iid].push(row);
+      });
+      for (const [iid, rows] of Object.entries(groups)) {
+        const { positions, cash } = toInsert(rows, iid);
+        if (positions.length) {
+          const { error } = await supabase.from('positions').insert(positions);
+          if (error) errors.push('Positions for investor ' + iid + ': ' + error.message);
+          else totalPos += positions.length;
+        }
+        if (cash.length) {
+          const { error } = await supabase.from('cash_positions').insert(cash);
+          if (error) errors.push('Cash for investor ' + iid + ': ' + error.message);
+          else totalCash += cash.length;
+        }
+      }
+    } else {
+      const { positions, cash } = toInsert(mappedData, form.investor_id);
+      if (positions.length) {
+        const { error } = await supabase.from('positions').insert(positions);
+        if (error) errors.push('Positions: ' + error.message); else totalPos += positions.length;
+      }
+      if (cash.length) {
+        const { error } = await supabase.from('cash_positions').insert(cash);
+        if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
+      }
     }
+
     setSaving(false);
     if (errors.length) { alert('Errors:\n' + errors.join('\n')); return; }
-    const invName = investors.find(i => i.id === form.investor_id)?.full_name || '';
-    setMsg('\u2713 Imported ' + publicRows.length + ' market position' + (publicRows.length !== 1 ? 's' : '') + ' and ' + cashRows.length + ' cash entr' + (cashRows.length !== 1 ? 'ies' : 'y') + ' for ' + invName + '.');
+
+    const suffix = isMulti
+      ? ' across ' + Object.keys(clientAssignments).filter(k => clientAssignments[k]).length + ' clients.'
+      : ' for ' + (investors.find(i => i.id === form.investor_id)?.full_name || '') + '.';
+    setMsg('\u2713 Imported ' + totalPos + ' market position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix);
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName('');
-    setTemplateApplied(false); setOfferSaveTemplate(false);
+    setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
   };
 
   const reset = () => {
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setMsg('');
-    setTemplateApplied(false); setOfferSaveTemplate(false);
+    setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
   };
 
+  // Unique client values detected in the file
+  const uniqueClientVals = clientIdentifierCol
+    ? [...new Set(rawRows.map(r => r[clientIdentifierCol] || '').filter(Boolean))]
+    : [];
+
+  const assignedCount = Object.values(clientAssignments).filter(Boolean).length;
+  const confirmStep = isMulti ? 4 : 3;
   const pubCount = mappedData.filter(r => r._class === 'public_markets').length;
   const cashCount = mappedData.filter(r => r._class === 'cash').length;
 
@@ -1744,10 +1800,10 @@ function PortfolioUpload() {
             {done ? '\u2713' : num}
           </div>
           <span style={{ fontSize:'0.82rem', fontWeight: active ? '700' : '400', color: active ? '#003770' : done ? '#2a9d5c' : '#adb5bd' }}>
-            {['Upload File','Map Columns','Confirm Import'][num - 1]}
+            {STEP_LABELS[num - 1]}
           </span>
         </div>
-        {num < 3 && <div style={{ flex:1, height:2, background: done ? '#2a9d5c' : '#dee2e6', maxWidth:60 }} />}
+        {num < TOTAL_STEPS && <div style={{ flex:1, height:2, background: done ? '#2a9d5c' : '#dee2e6', maxWidth:60 }} />}
       </React.Fragment>
     );
   };
@@ -1756,28 +1812,22 @@ function PortfolioUpload() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'0.25rem' }}>
         <PageHeader title="Portfolio Upload" subtitle="Upload and import investor portfolio statements from banks and custodians" />
-        <button
-          onClick={() => setShowTemplates(!showTemplates)}
-          style={{ background: showTemplates ? '#003770' : '#f1f3f5', color: showTemplates ? '#fff' : '#495057', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0, marginTop:'0.25rem' }}
-        >
+        <button onClick={() => setShowTemplates(!showTemplates)}
+          style={{ background: showTemplates ? '#003770' : '#f1f3f5', color: showTemplates ? '#fff' : '#495057', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0, marginTop:'0.25rem' }}>
           &#9881; Saved Templates {templates.length > 0 && <span style={{ background: showTemplates ? 'rgba(255,255,255,0.25)' : '#003770', color:'#fff', borderRadius:'20px', padding:'1px 7px', fontSize:'0.72rem' }}>{templates.length}</span>}
         </button>
       </div>
 
       {msg && (
-        <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'1rem 1.25rem', color:'#276749', fontSize:'0.9rem', marginBottom:'1.25rem', fontWeight:'600' }}>
-          {msg}
-        </div>
+        <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'1rem 1.25rem', color:'#276749', fontSize:'0.9rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>
       )}
 
       {/* Saved Templates Panel */}
       {showTemplates && (
         <Card style={{ marginBottom:'1.25rem', border:'1px solid #e9ecef' }}>
-          <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem' }}>
-            Saved Bank Mapping Templates
-          </div>
+          <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem' }}>Saved Bank Mapping Templates</div>
           {templates.length === 0 ? (
-            <p style={{ color:'#adb5bd', fontSize:'0.85rem', margin:0 }}>No templates saved yet. Templates are created when you map a new bank format.</p>
+            <p style={{ color:'#adb5bd', fontSize:'0.85rem', margin:0 }}>No templates saved yet.</p>
           ) : (
             <div style={{ display:'grid', gap:'0.5rem' }}>
               {templates.map(tpl => (
@@ -1787,14 +1837,10 @@ function PortfolioUpload() {
                     <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>
                       {Object.entries(tpl.column_mappings || {}).filter(([,v]) => v).map(([k, v]) => k.replace(/_/g, ' ') + ' \u2192 ' + v).join(' \u00b7 ')}
                     </div>
-                    <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'3px' }}>
-                      Last updated: {tpl.updated_at ? new Date(tpl.updated_at).toLocaleDateString() : '—'}
-                    </div>
+                    <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'3px' }}>Updated: {tpl.updated_at ? new Date(tpl.updated_at).toLocaleDateString() : '\u2014'}</div>
                   </div>
                   <button onClick={() => deleteTemplate(tpl.id, tpl.bank_name)}
-                    style={{ background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'6px', padding:'0.3rem 0.65rem', fontSize:'0.75rem', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', flexShrink:0 }}>
-                    Delete
-                  </button>
+                    style={{ background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'6px', padding:'0.3rem 0.65rem', fontSize:'0.75rem', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', flexShrink:0 }}>Delete</button>
                 </div>
               ))}
             </div>
@@ -1802,22 +1848,29 @@ function PortfolioUpload() {
         </Card>
       )}
 
-      <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.5rem', alignItems:'center' }}>
-        {[1, 2, 3].map(n => stepDot(n))}
+      <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.5rem', alignItems:'center', flexWrap:'wrap' }}>
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => stepDot(i + 1))}
       </div>
 
-      {/* STEP 1: Upload */}
+      {/* ── STEP 1: Upload ── */}
       {step === 1 && (
         <div style={{ display:'grid', gridTemplateColumns:'minmax(300px,480px) 1fr', gap:'1.25rem', alignItems:'start' }}>
           <Card>
             <h3 style={{ margin:'0 0 1.25rem', fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Statement Details</h3>
             <div style={{ marginBottom:'1rem' }}>
               <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Investor / Client</label>
-              <select value={form.investor_id} onChange={e => setForm({ ...form, investor_id: e.target.value })}
-                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', background:'#fff', boxSizing:'border-box' }}>
+              <select value={form.investor_id} onChange={e => { setForm({ ...form, investor_id: e.target.value }); setClientAssignments({}); setClientIdentifierCol(''); }}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid', borderColor: form.investor_id === 'multi' ? '#C9A84C' : '#dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', background: form.investor_id === 'multi' ? '#fffbeb' : '#fff', boxSizing:'border-box' }}>
                 <option value="">Select investor...</option>
+                <option value="multi">&#128101; Multi-Client Upload (file contains multiple investors)</option>
+                <option disabled style={{ color:'#adb5bd', fontSize:'0.8rem' }}>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>
                 {investors.map(inv => <option key={inv.id} value={inv.id}>{inv.full_name}</option>)}
               </select>
+              {isMulti && (
+                <div style={{ marginTop:'0.5rem', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.5rem 0.85rem', fontSize:'0.78rem', color:'#92400e', fontWeight:'600' }}>
+                  &#128101; Multi-client mode: the file must contain a column that identifies each client (e.g. Account Name, Client Code). You will map this in the next step.
+                </div>
+              )}
             </div>
             <Input label="Source Bank / Custodian" value={form.source_bank} onChange={e => setForm({ ...form, source_bank: e.target.value })} placeholder="e.g. Saudi National Bank, HSBC" />
             {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) && (
@@ -1828,27 +1881,23 @@ function PortfolioUpload() {
             <DateInput fieldKey="statement_date" label="Statement Date" form={form} setForm={setForm} />
             <div style={{ marginTop:'0.5rem' }}>
               <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'8px', letterSpacing:'0.04em' }}>Portfolio Statement File</label>
-              <label style={{ display:'flex', alignItems:'center', gap:'0.75rem', border:'1.5px dashed #dee2e6', borderRadius:'10px', padding:'1.25rem', background:'#fafafa', cursor: uploading || !form.investor_id ? 'not-allowed' : 'pointer', opacity: !form.investor_id ? 0.55 : 1, transition:'opacity 0.15s' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:'0.75rem', border:'1.5px dashed #dee2e6', borderRadius:'10px', padding:'1.25rem', background:'#fafafa', cursor: uploading || !form.investor_id ? 'not-allowed' : 'pointer', opacity: !form.investor_id ? 0.55 : 1 }}>
                 <span style={{ fontSize:'2rem' }}>&#128202;</span>
                 <div>
-                  <div style={{ fontWeight:'600', fontSize:'0.88rem', color:'#495057' }}>
-                    {uploading ? 'Parsing file...' : fileName || 'Choose CSV or Excel file'}
-                  </div>
-                  <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'3px' }}>Supported formats: .csv, .xlsx, .xls</div>
+                  <div style={{ fontWeight:'600', fontSize:'0.88rem', color:'#495057' }}>{uploading ? 'Parsing file...' : fileName || 'Choose CSV or Excel file'}</div>
+                  <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'3px' }}>Supported: .csv, .xlsx, .xls</div>
                 </div>
                 <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display:'none' }} disabled={uploading || !form.investor_id} />
               </label>
-              {!form.investor_id && <div style={{ fontSize:'0.75rem', color:'#C9A84C', marginTop:'6px', fontWeight:'600' }}>&#9888; Select an investor before uploading</div>}
+              {!form.investor_id && <div style={{ fontSize:'0.75rem', color:'#C9A84C', marginTop:'6px', fontWeight:'600' }}>&#9888; Select an investor or choose Multi-Client Upload before uploading</div>}
             </div>
           </Card>
           <Card style={{ background:'#f8f9fa', border:'1px solid #e9ecef' }}>
             <h3 style={{ margin:'0 0 1rem', fontSize:'0.88rem', fontWeight:'700', color:'#495057' }}>How it works</h3>
             {[
-              ['1. Select Investor', 'Choose the client this statement belongs to.'],
-              ['2. Enter Bank Name', 'Enter the bank or custodian name. Known banks are mapped automatically.'],
-              ['3. Upload File', 'Upload a CSV or Excel export from the bank.'],
-              ['4. Map Columns', 'Match file columns to standard fields. Skipped if a saved template exists.'],
-              ['5. Confirm Import', 'Review parsed data. Save the mapping to skip step 4 next time.'],
+              ['Single Investor', 'Select one investor and upload their statement. All rows are assigned to that investor.'],
+              ['Multi-Client Upload', 'Select "Multi-Client Upload" if one file contains data for several clients. You will pick the column that identifies each client and map each value to an investor.'],
+              ['Bank Templates', 'Enter the bank name to apply a saved column mapping automatically, skipping the mapping step.'],
             ].map(([t, d]) => (
               <div key={t} style={{ marginBottom:'0.85rem' }}>
                 <div style={{ fontSize:'0.82rem', fontWeight:'700', color:'#003770' }}>{t}</div>
@@ -1859,7 +1908,7 @@ function PortfolioUpload() {
         </div>
       )}
 
-      {/* STEP 2: Column Mapping */}
+      {/* ── STEP 2: Column Mapping ── */}
       {step === 2 && (
         <div>
           <Card style={{ marginBottom:'1rem' }}>
@@ -1867,14 +1916,33 @@ function PortfolioUpload() {
               <div>
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Map Columns</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
-                  File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; <strong>{rawRows.length}</strong> rows detected
+                  File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; <strong>{rawRows.length}</strong> rows
                   {form.source_bank && <span> &nbsp;&middot;&nbsp; Bank: <strong>{form.source_bank}</strong></span>}
+                  {isMulti && <span style={{ color:'#C9A84C', fontWeight:'700' }}> &nbsp;&middot;&nbsp; &#128101; Multi-client</span>}
                 </div>
               </div>
               <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={reset}>&larr; Start Over</Btn>
             </div>
+
+            {isMulti && (
+              <div style={{ marginBottom:'1.25rem', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'10px', padding:'0.85rem 1rem' }}>
+                <div style={{ fontWeight:'700', color:'#92400e', fontSize:'0.85rem', marginBottom:'6px' }}>&#128101; Client Identifier Column</div>
+                <div style={{ fontSize:'0.78rem', color:'#92400e', marginBottom:'8px' }}>Select the column that identifies each client in the file (e.g. Account Name, Client Code, Portfolio Name).</div>
+                <select value={clientIdentifierCol} onChange={e => setClientIdentifierCol(e.target.value)}
+                  style={{ width:'100%', padding:'0.55rem 0.85rem', border:'1.5px solid', borderColor: clientIdentifierCol ? '#C9A84C' : '#fde68a', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', background: clientIdentifierCol ? '#fffbeb' : '#fff', boxSizing:'border-box', fontWeight: clientIdentifierCol ? '700' : '400' }}>
+                  <option value="">-- Select client identifier column --</option>
+                  {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                {clientIdentifierCol && (
+                  <div style={{ marginTop:'6px', fontSize:'0.75rem', color:'#92400e' }}>
+                    {[...new Set(rawRows.map(r => r[clientIdentifierCol] || '').filter(Boolean))].length} unique client values detected
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1rem' }}>
-              No saved template found for <strong>{form.source_bank || 'this bank'}</strong>. Map the columns below, then save the template so future uploads are processed automatically.
+              No saved template for <strong>{form.source_bank || 'this bank'}</strong>. Map columns below, then save the template to skip this step next time.
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'0.75rem' }}>
               {STANDARD_FIELDS.map(({ key, label, required }) => (
@@ -1894,7 +1962,7 @@ function PortfolioUpload() {
               <div style={{ marginTop:'1.25rem', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
                 <div>
                   <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save this mapping for {form.source_bank}?</div>
-                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Future uploads from this bank will skip the mapping step entirely.</div>
+                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Future uploads from this bank will skip the mapping step.</div>
                 </div>
                 <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
                   {savingTemplate ? 'Saving...' : 'Save Template'}
@@ -1903,22 +1971,22 @@ function PortfolioUpload() {
             )}
             <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
-              <Btn onClick={applyMapping} disabled={!mapping.security_name && !mapping.cash_balance}>Apply Mapping &amp; Preview &rarr;</Btn>
+              <Btn onClick={applyMapping} disabled={!mapping.security_name && !mapping.cash_balance || (isMulti && !clientIdentifierCol)}>
+                {isMulti ? 'Next: Assign Clients \u2192' : 'Apply Mapping & Preview \u2192'}
+              </Btn>
             </div>
           </Card>
           <Card>
             <div style={{ fontWeight:'700', fontSize:'0.85rem', color:'#003770', marginBottom:'0.75rem' }}>Raw Data Preview (first 5 rows)</div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ borderCollapse:'collapse', fontSize:'0.78rem', minWidth:'100%' }}>
-                <thead>
-                  <tr style={{ background:'#f8f9fa' }}>
-                    {headers.map(h => <th key={h} style={{ padding:'0.5rem 0.75rem', textAlign:'left', color:'#6c757d', fontWeight:'600', whiteSpace:'nowrap', fontSize:'0.72rem', borderBottom:'1px solid #dee2e6' }}>{h}</th>)}
-                  </tr>
-                </thead>
+                <thead><tr style={{ background:'#f8f9fa' }}>
+                  {headers.map(h => <th key={h} style={{ padding:'0.5rem 0.75rem', textAlign:'left', color: h === clientIdentifierCol ? '#C9A84C' : '#6c757d', fontWeight:'600', whiteSpace:'nowrap', fontSize:'0.72rem', borderBottom:'1px solid #dee2e6' }}>{h}{h === clientIdentifierCol ? ' &#x1F4CC;' : ''}</th>)}
+                </tr></thead>
                 <tbody>
                   {rawRows.slice(0, 5).map((row, i) => (
                     <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                      {headers.map(h => <td key={h} style={{ padding:'0.45rem 0.75rem', color:'#495057', whiteSpace:'nowrap', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis' }}>{row[h]}</td>)}
+                      {headers.map(h => <td key={h} style={{ padding:'0.45rem 0.75rem', color: h === clientIdentifierCol ? '#92400e' : '#495057', fontWeight: h === clientIdentifierCol ? '700' : '400', whiteSpace:'nowrap', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis' }}>{row[h]}</td>)}
                     </tr>
                   ))}
                 </tbody>
@@ -1928,12 +1996,105 @@ function PortfolioUpload() {
         </div>
       )}
 
-      {/* STEP 3: Preview & Confirm */}
-      {step === 3 && (
+      {/* ── STEP 3 (MULTI ONLY): Assign Clients ── */}
+      {step === 3 && isMulti && (
         <div>
           {templateApplied && (
-            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 column mapping step skipped automatically.
+            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600' }}>
+              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 column mapping step skipped.
+            </div>
+          )}
+          <Card>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem', flexWrap:'wrap', gap:'1rem' }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Assign Clients</h3>
+                <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
+                  File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; Identifier column: <strong style={{ color:'#C9A84C' }}>{clientIdentifierCol || '\u2014'}</strong>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
+                <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>
+                  {assignedCount} / {uniqueClientVals.length} assigned
+                </div>
+                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => setStep(2)}>&larr; Back to Mapping</Btn>
+              </div>
+            </div>
+
+            {!clientIdentifierCol ? (
+              <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.85rem', color:'#c53030', marginBottom:'1rem' }}>
+                No client identifier column selected. Go back and select the column that identifies each client.
+              </div>
+            ) : uniqueClientVals.length === 0 ? (
+              <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.85rem', color:'#c53030', marginBottom:'1rem' }}>
+                No unique values found in column <strong>{clientIdentifierCol}</strong>. Please go back and check the file.
+              </div>
+            ) : (
+              <>
+                <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1.25rem' }}>
+                  Map each client identifier found in the file to an investor in the system. Unassigned rows will be skipped on import.
+                </div>
+
+                {/* Quick actions */}
+                <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem', flexWrap:'wrap' }}>
+                  <button onClick={() => {
+                    const all = {};
+                    uniqueClientVals.forEach(v => { if (!clientAssignments[v]) all[v] = ''; });
+                    setClientAssignments({ ...clientAssignments, ...all });
+                  }} style={{ background:'transparent', border:'1px solid #dee2e6', borderRadius:'6px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', color:'#6c757d', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>
+                    Clear All
+                  </button>
+                </div>
+
+                <div style={{ display:'grid', gap:'0.6rem' }}>
+                  {uniqueClientVals.map(val => {
+                    const rowCount = rawRows.filter(r => r[clientIdentifierCol] === val).length;
+                    const assigned = clientAssignments[val];
+                    return (
+                      <div key={val} style={{ display:'flex', alignItems:'center', gap:'1rem', background: assigned ? '#f0fff4' : '#fafafa', border:'1px solid', borderColor: assigned ? '#c8e6c9' : '#dee2e6', borderRadius:'10px', padding:'0.75rem 1rem', flexWrap:'wrap' }}>
+                        <div style={{ flex:'0 0 auto', minWidth:0 }}>
+                          <div style={{ fontWeight:'700', color:'#212529', fontSize:'0.9rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'220px' }}>{val}</div>
+                          <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{rowCount} row{rowCount !== 1 ? 's' : ''} in file</div>
+                        </div>
+                        <div style={{ fontSize:'1.1rem', color:'#adb5bd', flexShrink:0 }}>\u2192</div>
+                        <div style={{ flex:1, minWidth:'180px' }}>
+                          <select value={assigned || ''} onChange={e => setClientAssignments({ ...clientAssignments, [val]: e.target.value })}
+                            style={{ width:'100%', padding:'0.5rem 0.75rem', border:'1.5px solid', borderColor: assigned ? '#2a9d5c' : '#dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background: assigned ? '#f0fff4' : '#fff', boxSizing:'border-box' }}>
+                            <option value="">-- Select investor --</option>
+                            {investors.map(inv => <option key={inv.id} value={inv.id}>{inv.full_name}</option>)}
+                          </select>
+                        </div>
+                        {assigned && (
+                          <div style={{ fontSize:'0.8rem', color:'#2a9d5c', fontWeight:'700', flexShrink:0 }}>\u2713</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {assignedCount < uniqueClientVals.length && (
+                  <div style={{ marginTop:'1rem', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.6rem 1rem', fontSize:'0.78rem', color:'#92400e' }}>
+                    &#9888; {uniqueClientVals.length - assignedCount} client{uniqueClientVals.length - assignedCount !== 1 ? 's' : ''} not yet assigned. Their rows will be skipped on import.
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+              <Btn variant="ghost" onClick={reset}>Cancel</Btn>
+              <Btn onClick={applyClientAssignments} disabled={assignedCount === 0}>
+                Preview Import ({assignedCount} client{assignedCount !== 1 ? 's' : ''}) \u2192
+              </Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── STEP 3 (SINGLE) or STEP 4 (MULTI): Confirm ── */}
+      {step === confirmStep && (
+        <div>
+          {templateApplied && !isMulti && (
+            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600' }}>
+              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 mapping step skipped automatically.
             </div>
           )}
           <Card>
@@ -1941,23 +2102,25 @@ function PortfolioUpload() {
               <div>
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Review &amp; Confirm Import</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
-                  Investor: <strong>{investors.find(i => i.id === form.investor_id)?.full_name}</strong> &nbsp;&middot;&nbsp;
-                  Bank: <strong>{form.source_bank || '\u2014'}</strong> &nbsp;&middot;&nbsp;
-                  Date: <strong>{form.statement_date}</strong>
+                  {isMulti
+                    ? <span>&#128101; Multi-client &nbsp;&middot;&nbsp; <strong>{assignedCount}</strong> investors assigned</span>
+                    : <span>Investor: <strong>{investors.find(i => i.id === form.investor_id)?.full_name}</strong></span>
+                  }
+                  &nbsp;&middot;&nbsp; Bank: <strong>{form.source_bank || '\u2014'}</strong> &nbsp;&middot;&nbsp; Date: <strong>{form.statement_date}</strong>
                 </div>
               </div>
               <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
-                <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Position{pubCount !== 1 ? 's' : ''}</div>
+                <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Positions</div>
                 <div style={{ background:'#e3f2fd', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#1565c0' }}>&#128181; {cashCount} Cash</div>
-                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(2); }}>&larr; Edit Mapping</Btn>
+                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
               </div>
             </div>
 
-            {offerSaveTemplate && !templateApplied && form.source_bank.trim() && (
+            {offerSaveTemplate && form.source_bank.trim() && (
               <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
                 <div>
                   <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save mapping template for {form.source_bank}?</div>
-                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Next time you upload from this bank, the mapping step will be skipped automatically.</div>
+                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Next time you upload from this bank, the mapping step will be skipped.</div>
                 </div>
                 <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
                   {savingTemplate ? 'Saving...' : 'Save Template'}
@@ -1969,41 +2132,44 @@ function PortfolioUpload() {
               <table style={{ borderCollapse:'collapse', fontSize:'0.8rem', width:'100%', minWidth:'640px' }}>
                 <thead>
                   <tr style={{ background:'#f8f9fa' }}>
-                    {['#','Class','Security Name','Ticker','ISIN','Asset Type','Qty','Price','Market Value / Balance','Ccy'].map(h => (
-                      <th key={h} style={{ padding:'0.6rem 0.75rem', textAlign: h === 'Security Name' || h === '#' || h === 'Class' ? 'left' : 'right', color:'#6c757d', fontWeight:'600', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
+                    {['#', isMulti ? 'Client' : null, 'Class','Security Name','Ticker','ISIN','Qty','Market Value / Balance','Ccy'].filter(Boolean).map(h => (
+                      <th key={h} style={{ padding:'0.6rem 0.75rem', textAlign: h === 'Security Name' || h === '#' || h === 'Class' || h === 'Client' ? 'left' : 'right', color:'#6c757d', fontWeight:'600', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {mappedData.map((row, i) => (
-                    <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem' }}>{i + 1}</td>
-                      <td style={{ padding:'0.5rem 0.75rem' }}>
-                        <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700', whiteSpace:'nowrap' }}>
-                          {row._class === 'cash' ? 'Cash' : 'Markets'}
-                        </span>
-                      </td>
-                      <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', textAlign:'right', fontSize:'0.72rem', fontFamily:'monospace' }}>{row.isin || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.asset_type || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.quantity || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.price || '\u2014'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#003770', textAlign:'right' }}>
-                        {row._class === 'cash' ? (row.cash_balance || row.market_value || '\u2014') : (row.market_value || '\u2014')}
-                      </td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.currency || '\u2014'}</td>
-                    </tr>
-                  ))}
+                  {mappedData.map((row, i) => {
+                    const invName = isMulti ? (investors.find(inv => inv.id === row._investorId)?.full_name || <span style={{ color:'#e63946' }}>Unassigned</span>) : null;
+                    return (
+                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                        <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem' }}>{i + 1}</td>
+                        {isMulti && <td style={{ padding:'0.5rem 0.75rem', fontSize:'0.78rem', fontWeight:'600', color: row._investorId ? '#003770' : '#e63946' }}>{invName}</td>}
+                        <td style={{ padding:'0.5rem 0.75rem' }}>
+                          <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
+                            {row._class === 'cash' ? 'Cash' : 'Markets'}
+                          </span>
+                        </td>
+                        <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
+                        <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
+                        <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', textAlign:'right', fontSize:'0.72rem', fontFamily:'monospace' }}>{row.isin || '\u2014'}</td>
+                        <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.quantity || '\u2014'}</td>
+                        <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#003770', textAlign:'right' }}>
+                          {row._class === 'cash' ? (row.cash_balance || row.market_value || '\u2014') : (row.market_value || '\u2014')}
+                        </td>
+                        <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.currency || '\u2014'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#92400e', marginBottom:'1.25rem' }}>
-              &#9888; Confirming will add these positions to the investor's portfolio. Previous entries with the same statement date are not automatically removed.
+              &#9888; Confirming will add these positions to the portfolio. Previous entries with the same statement date are not automatically removed.
+              {isMulti && mappedData.some(r => !r._investorId) && <span style={{ display:'block', marginTop:'4px', fontWeight:'700' }}>&#9888; {mappedData.filter(r => !r._investorId).length} unassigned rows will be skipped.</span>}
             </div>
             <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
-              <Btn onClick={confirm} disabled={saving}>{saving ? 'Importing...' : 'Confirm Import (' + mappedData.length + ' rows)'}</Btn>
+              <Btn onClick={confirm} disabled={saving}>{saving ? 'Importing...' : 'Confirm Import (' + mappedData.filter(r => !isMulti || r._investorId).length + ' rows)'}</Btn>
             </div>
           </Card>
         </div>
