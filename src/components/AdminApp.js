@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
 
@@ -1466,7 +1465,14 @@ function PortfolioUpload() {
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  const STANDARD_FIELDS = [
+  const loadXLSX = () => new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(window.XLSX); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error('Failed to load Excel parser'));
+    document.head.appendChild(script);
+  });
     { key: 'security_name', label: 'Security Name', required: true },
     { key: 'ticker', label: 'Ticker' },
     { key: 'isin', label: 'ISIN' },
@@ -1545,6 +1551,7 @@ function PortfolioUpload() {
         if (!hdrs.length) { alert('Could not parse CSV. Please check the file format.'); setUploading(false); return; }
         setHeaders(hdrs); setRawRows(rows); autoMap(hdrs); setStep(2);
       } else if (['xlsx', 'xls'].includes(ext)) {
+        const XLSX = await loadXLSX();
         const ab = await file.arrayBuffer();
         const wb = XLSX.read(ab);
         const ws = wb.Sheets[wb.SheetNames[0]];
