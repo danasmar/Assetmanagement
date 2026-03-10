@@ -119,18 +119,23 @@ function InvestorDashboard({ session, onPage }) {
 // ─── Portfolio ────────────────────────────────────────────────────────────────
 function InvestorPortfolio({ session }) {
   const [investments, setInvestments] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [cashPositions, setCashPositions] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [distByDeal, setDistByDeal] = useState({});
+  const [activeTab, setActiveTab] = useState('private');
 
   useEffect(() => {
     const load = async () => {
-      const [invRes, distRes] = await Promise.all([
+      const [invRes, distRes, posRes, cashRes] = await Promise.all([
         supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
+        supabase.from('positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
       ]);
       setInvestments(invRes.data || []);
-      // Sum distributions per deal_id
+      setPositions(posRes.data || []);
+      setCashPositions(cashRes.data || []);
       const byDeal = {};
       (distRes.data || []).forEach(d => {
         const dealId = d.distributions?.deal_id;
@@ -142,40 +147,158 @@ function InvestorPortfolio({ session }) {
     load();
   }, [session.user.id]);
 
+  // Show only the most recent statement date for positions and cash
+  const latestPosDate = positions.length ? positions[0].statement_date : null;
+  const displayPositions = latestPosDate ? positions.filter(p => p.statement_date === latestPosDate) : [];
+  const latestCashDate = cashPositions.length ? cashPositions[0].statement_date : null;
+  const displayCash = latestCashDate ? cashPositions.filter(p => p.statement_date === latestCashDate) : [];
+
+  const totalPublicMV = displayPositions.reduce((s, p) => s + (p.market_value || 0), 0);
+  const totalCash = displayCash.reduce((s, c) => s + (c.balance || 0), 0);
+
+  const tabBtn = (key, label, count) => (
+    <button onClick={() => setActiveTab(key)} style={{
+      padding: '0.5rem 1.25rem',
+      border: 'none',
+      background: activeTab === key ? '#003770' : '#f1f3f5',
+      color: activeTab === key ? '#fff' : '#6c757d',
+      borderRadius: '8px',
+      fontFamily: 'DM Sans,sans-serif',
+      fontWeight: '600',
+      fontSize: '0.85rem',
+      cursor: 'pointer',
+    }}>
+      {label}{count > 0 ? ` (${count})` : ''}
+    </button>
+  );
+
   return (
     <div>
-      <PageHeader title="Private Markets" subtitle="Your active investment portfolio" />
-      {loading ? <p style={{color:'#adb5bd'}}>Loading...</p> : investments.length === 0 ?
-        <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No investments yet.</p></Card> :
-        <div style={{ display:'grid', gap:'1rem' }}>
-          {investments.map(inv => {
-            const navUpdates = inv.deals?.nav_updates || [];
-            const sortedNavUpdates = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
-            const latestNavEntry = sortedNavUpdates.length > 0 ? sortedNavUpdates[0] : null;
-            const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
-            const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
-            const nav = (inv.units||0) * latestNav;
-            const dealDist = distByDeal[inv.deal_id] || 0;
-            const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
-            return (
-              <Card key={inv.id}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem' }}>
-                  <div>
-                    <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:'700', color:'#003770' }}>{inv.deals?.name}</h3>
-                    <Badge label={inv.deals?.strategy || 'Fund'} type="strategy" />
+      <PageHeader title="My Investments" subtitle="Your complete investment portfolio" />
+
+      <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+        {tabBtn('private', 'Private Markets', investments.length)}
+        {tabBtn('public', 'Public Markets', displayPositions.length)}
+        {tabBtn('cash', 'Cash', displayCash.length)}
+      </div>
+
+      {loading ? <p style={{color:'#adb5bd'}}>Loading...</p> : (
+        <>
+          {/* ── Private Markets ── */}
+          {activeTab === 'private' && (
+            investments.length === 0 ?
+              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No private market investments yet.</p></Card> :
+              <div style={{ display:'grid', gap:'1rem' }}>
+                {investments.map(inv => {
+                  const navUpdates = inv.deals?.nav_updates || [];
+                  const sortedNavUpdates = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+                  const latestNavEntry = sortedNavUpdates.length > 0 ? sortedNavUpdates[0] : null;
+                  const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
+                  const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
+                  const nav = (inv.units||0) * latestNav;
+                  const dealDist = distByDeal[inv.deal_id] || 0;
+                  const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
+                  return (
+                    <Card key={inv.id}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem' }}>
+                        <div>
+                          <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:'700', color:'#003770' }}>{inv.deals?.name}</h3>
+                          <Badge label={inv.deals?.strategy || 'Fund'} type="strategy" />
+                        </div>
+                        <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret>=0?'#2a9d5c':'#e63946' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
+                        {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
+                          <div key={k}><div style={{fontSize:'0.72rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em'}}>{k}</div><div style={{fontSize:'0.95rem',fontWeight:'700',color:'#212529',marginTop:'2px'}}>{v}</div></div>
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+          )}
+
+          {/* ── Public Markets ── */}
+          {activeTab === 'public' && (
+            displayPositions.length === 0 ?
+              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No public market positions yet.</p></Card> :
+              <>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem' }}>
+                  <div style={{ fontSize:'0.8rem', color:'#6c757d' }}>Statement date: <strong>{fmt.date(latestPosDate)}</strong></div>
+                  <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Total: {fmt.currency(totalPublicMV, displayPositions[0]?.currency || 'USD')}</div>
+                </div>
+                <Card>
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.85rem', minWidth:'540px' }}>
+                      <thead>
+                        <tr style={{ background:'#f8f9fa' }}>
+                          {['Security','Ticker','ISIN','Qty','Price','Market Value','Currency'].map(h => (
+                            <th key={h} style={{ padding:'0.7rem 0.85rem', textAlign: h === 'Security' ? 'left' : 'right', color:'#6c757d', fontWeight:'600', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayPositions.map((pos, i) => (
+                          <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding:'0.7rem 0.85rem' }}>
+                              <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
+                              {pos.asset_type && <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{pos.asset_type}</div>}
+                            </td>
+                            <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{pos.ticker || '—'}</td>
+                            <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '—'}</td>
+                            <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '—'}</td>
+                            <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '—'}</td>
+                            <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                            <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right' }}>{pos.currency}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
+                          <td colSpan={5} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>Total Market Value</td>
+                          <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right', fontSize:'0.95rem' }}>{fmt.currency(totalPublicMV, displayPositions[0]?.currency || 'USD')}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
-                  <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret>=0?'#2a9d5c':'#e63946' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
+                </Card>
+              </>
+          )}
+
+          {/* ── Cash ── */}
+          {activeTab === 'cash' && (
+            displayCash.length === 0 ?
+              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No cash positions yet.</p></Card> :
+              <>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem' }}>
+                  <div style={{ fontSize:'0.8rem', color:'#6c757d' }}>Statement date: <strong>{fmt.date(latestCashDate)}</strong></div>
+                  <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Total Cash: {fmt.currency(totalCash, displayCash[0]?.currency || 'USD')}</div>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
-                  {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
-                    <div key={k}><div style={{fontSize:'0.72rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em'}}>{k}</div><div style={{fontSize:'0.95rem',fontWeight:'700',color:'#212529',marginTop:'2px'}}>{v}</div></div>
+                <div style={{ display:'grid', gap:'0.75rem' }}>
+                  {displayCash.map(c => (
+                    <Card key={c.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'1rem 1.25rem' }}>
+                      <div>
+                        <div style={{ fontWeight:'600', color:'#212529', fontSize:'0.95rem' }}>{c.description || 'Cash Balance'}</div>
+                        {c.source_bank && <div style={{ fontSize:'0.75rem', color:'#adb5bd', marginTop:'3px' }}>{c.source_bank}</div>}
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:'1.1rem', fontWeight:'700', color:'#003770' }}>{fmt.currency(c.balance, c.currency)}</div>
+                        <div style={{ fontSize:'0.75rem', color:'#6c757d', marginTop:'2px' }}>{c.currency}</div>
+                      </div>
+                    </Card>
                   ))}
+                  {displayCash.length > 1 && (
+                    <Card style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.85rem 1.25rem', background:'#003770' }}>
+                      <div style={{ fontWeight:'700', color:'#fff', fontSize:'0.9rem' }}>Total Cash Balance</div>
+                      <div style={{ fontWeight:'700', color:'#C9A84C', fontSize:'1.1rem' }}>{fmt.currency(totalCash, displayCash[0]?.currency || 'USD')}</div>
+                    </Card>
+                  )}
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      }
+              </>
+          )}
+        </>
+      )}
     </div>
   );
 }
