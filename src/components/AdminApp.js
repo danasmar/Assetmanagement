@@ -1941,9 +1941,15 @@ function PortfolioUpload() {
               </div>
             )}
 
-            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1rem' }}>
-              No saved template for <strong>{form.source_bank || 'this bank'}</strong>. Map columns below, then save the template to skip this step next time.
-            </div>
+            {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) ? (
+              <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#c53030', marginBottom:'1rem' }}>
+                &#9888; A saved template exists for <strong>{form.source_bank}</strong> but its column names did not match this file. Re-map below to update the template.
+              </div>
+            ) : (
+              <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1rem' }}>
+                No saved template for <strong>{form.source_bank || 'this bank'}</strong>. Map columns below, then save the template to skip this step next time.
+              </div>
+            )}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'0.75rem' }}>
               {STANDARD_FIELDS.map(({ key, label, required }) => (
                 <div key={key}>
@@ -1958,17 +1964,20 @@ function PortfolioUpload() {
                 </div>
               ))}
             </div>
-            {offerSaveTemplate && form.source_bank.trim() && (
-              <div style={{ marginTop:'1.25rem', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
-                <div>
-                  <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save this mapping for {form.source_bank}?</div>
-                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Future uploads from this bank will skip the mapping step.</div>
+            {offerSaveTemplate && form.source_bank.trim() && (() => {
+              const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
+              return (
+                <div style={{ marginTop:'1.25rem', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
+                  <div>
+                    <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
+                    <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Future uploads from this bank will skip the mapping step.'}</div>
+                  </div>
+                  <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
+                    {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
+                  </Btn>
                 </div>
-                <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
-                  {savingTemplate ? 'Saving...' : 'Save Template'}
-                </Btn>
-              </div>
-            )}
+              );
+            })()}
             <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
               <Btn onClick={applyMapping} disabled={!mapping.security_name && !mapping.cash_balance || (isMulti && !clientIdentifierCol)}>
@@ -2009,7 +2018,7 @@ function PortfolioUpload() {
               <div>
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Assign Clients</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
-                  File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; Identifier column: <strong style={{ color:'#C9A84C' }}>{clientIdentifierCol || '\u2014'}</strong>
+                  File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; {rawRows.length} rows
                 </div>
               </div>
               <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
@@ -2020,11 +2029,23 @@ function PortfolioUpload() {
               </div>
             </div>
 
-            {!clientIdentifierCol ? (
-              <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.85rem', color:'#c53030', marginBottom:'1rem' }}>
-                No client identifier column selected. Go back and select the column that identifies each client.
-              </div>
-            ) : uniqueClientVals.length === 0 ? (
+            {/* Client identifier column — always editable on this step */}
+            <div style={{ marginBottom:'1.25rem', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'10px', padding:'0.85rem 1rem' }}>
+              <div style={{ fontWeight:'700', color:'#92400e', fontSize:'0.85rem', marginBottom:'6px' }}>&#128101; Client Identifier Column</div>
+              <div style={{ fontSize:'0.78rem', color:'#92400e', marginBottom:'8px' }}>The column that identifies each client in the file (e.g. Account Name, Client Code, Portfolio Name).</div>
+              <select value={clientIdentifierCol} onChange={e => { setClientIdentifierCol(e.target.value); setClientAssignments({}); }}
+                style={{ width:'100%', padding:'0.55rem 0.85rem', border:'1.5px solid', borderColor: clientIdentifierCol ? '#C9A84C' : '#e63946', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', background: clientIdentifierCol ? '#fffbeb' : '#fff3f3', boxSizing:'border-box', fontWeight: clientIdentifierCol ? '700' : '400' }}>
+                <option value="">-- Select client identifier column --</option>
+                {headers.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+              {clientIdentifierCol && (
+                <div style={{ marginTop:'6px', fontSize:'0.75rem', color:'#92400e' }}>
+                  {uniqueClientVals.length} unique client value{uniqueClientVals.length !== 1 ? 's' : ''} detected
+                </div>
+              )}
+            </div>
+
+            {uniqueClientVals.length === 0 && clientIdentifierCol ? (
               <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.85rem', color:'#c53030', marginBottom:'1rem' }}>
                 No unique values found in column <strong>{clientIdentifierCol}</strong>. Please go back and check the file.
               </div>
@@ -2036,11 +2057,8 @@ function PortfolioUpload() {
 
                 {/* Quick actions */}
                 <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem', flexWrap:'wrap' }}>
-                  <button onClick={() => {
-                    const all = {};
-                    uniqueClientVals.forEach(v => { if (!clientAssignments[v]) all[v] = ''; });
-                    setClientAssignments({ ...clientAssignments, ...all });
-                  }} style={{ background:'transparent', border:'1px solid #dee2e6', borderRadius:'6px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', color:'#6c757d', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>
+                  <button onClick={() => setClientAssignments({})}
+                    style={{ background:'transparent', border:'1px solid #dee2e6', borderRadius:'6px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', color:'#6c757d', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>
                     Clear All
                   </button>
                 </div>
@@ -2081,7 +2099,7 @@ function PortfolioUpload() {
 
             <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
-              <Btn onClick={applyClientAssignments} disabled={assignedCount === 0}>
+              <Btn onClick={applyClientAssignments} disabled={assignedCount === 0 || !clientIdentifierCol}>
                 Preview Import ({assignedCount} client{assignedCount !== 1 ? 's' : ''}) \u2192
               </Btn>
             </div>
@@ -2116,17 +2134,20 @@ function PortfolioUpload() {
               </div>
             </div>
 
-            {offerSaveTemplate && form.source_bank.trim() && (
-              <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
-                <div>
-                  <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save mapping template for {form.source_bank}?</div>
-                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Next time you upload from this bank, the mapping step will be skipped.</div>
+            {offerSaveTemplate && form.source_bank.trim() && (() => {
+              const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
+              return (
+                <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
+                  <div>
+                    <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
+                    <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Next time you upload from this bank, the mapping step will be skipped.'}</div>
+                  </div>
+                  <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
+                    {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
+                  </Btn>
                 </div>
-                <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
-                  {savingTemplate ? 'Saving...' : 'Save Template'}
-                </Btn>
-              </div>
-            )}
+              );
+            })()}
 
             <div style={{ overflowX:'auto', marginBottom:'1.25rem' }}>
               <table style={{ borderCollapse:'collapse', fontSize:'0.8rem', width:'100%', minWidth:'640px' }}>
