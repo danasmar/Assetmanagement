@@ -27,21 +27,32 @@ function InvestorDashboard({ session, onPage }) {
   const [investments, setInvestments] = useState([]);
   const [distributions, setDistributions] = useState([]);
   const [updates, setUpdates] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [cashPositions, setCashPositions] = useState([]);
   const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [inv, dist, upd, assump] = await Promise.all([
+      const [inv, dist, upd, assump, posRes, cashRes] = await Promise.all([
         supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id),
         supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
+        supabase.from('positions').select('market_value, currency, statement_date').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('cash_positions').select('balance, currency, statement_date').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
       ]);
       setInvestments(inv.data || []);
       setDistributions(dist.data || []);
       setUpdates(upd.data || []);
       if (assump.data && assump.data[0]) setFx(assump.data[0]);
+      // Only use latest statement date for each
+      const posData = posRes.data || [];
+      const cashData = cashRes.data || [];
+      const latestPosDate = posData.length ? posData[0].statement_date : null;
+      const latestCashDate = cashData.length ? cashData[0].statement_date : null;
+      setPositions(latestPosDate ? posData.filter(p => p.statement_date === latestPosDate) : []);
+      setCashPositions(latestCashDate ? cashData.filter(c => c.statement_date === latestCashDate) : []);
       setLoading(false);
     };
     load();
@@ -64,16 +75,24 @@ function InvestorDashboard({ session, onPage }) {
     return s + toSAR((i.units||0) * latestNavPerUnit, i.deals?.currency);
   }, 0);
   const totalDist = distributions.reduce((s,d) => s + toSAR(d.amount||0, d.distributions?.deals?.currency), 0);
+  const totalPublicMV = positions.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
+  const totalCash = cashPositions.reduce((s,c) => s + toSAR(c.balance||0, c.currency), 0);
+  const totalAUM = portfolioNAV + totalPublicMV + totalCash;
   const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
   return (
     <div>
       <PageHeader title={`Welcome back, ${session.user.full_name.split(' ')[0]}`} subtitle={`Here's your investment portfolio summary as of ${today}`} />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px,1fr))', gap:'1rem', marginBottom:'1.5rem' }}>
-        <StatCard label="Active Investments" value={investments.length} />
-        <StatCard label="Total Invested" value={fmt.currency(totalInvested)} color="#003770" />
-        <StatCard label="Portfolio NAV" value={fmt.currency(portfolioNAV)} color="#2a9d5c" />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))', gap:'1rem', marginBottom:'1.5rem' }}>
+        <StatCard label="Private Markets NAV" value={fmt.currency(portfolioNAV)} color="#003770" />
+        <StatCard label="Public Markets" value={fmt.currency(totalPublicMV)} color="#1565c0" />
+        <StatCard label="Cash &amp; Deposits" value={fmt.currency(totalCash)} color="#00695c" />
         <StatCard label="Distributions" value={fmt.currency(totalDist)} color="#C9A84C" />
+        <div style={{ background:'#003770', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', padding:'1rem 1.25rem' }}>
+          <div style={{ fontSize:'0.72rem', color:'rgba(255,255,255,0.6)', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'0.4rem' }}>Total AUM</div>
+          <div style={{ fontSize:'1.15rem', fontWeight:'700', color:'#C9A84C' }}>{fmt.currency(totalAUM)}</div>
+          <div style={{ fontSize:'0.7rem', color:'rgba(255,255,255,0.4)', marginTop:'3px' }}>SAR equivalent</div>
+        </div>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px,1fr))', gap:'1rem' }}>
         <Card>
