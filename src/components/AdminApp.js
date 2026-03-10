@@ -1863,7 +1863,7 @@ function PortfolioUpload() {
                 style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid', borderColor: form.investor_id === 'multi' ? '#C9A84C' : '#dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', background: form.investor_id === 'multi' ? '#fffbeb' : '#fff', boxSizing:'border-box' }}>
                 <option value="">Select investor...</option>
                 <option value="multi">&#128101; Multi-Client Upload (file contains multiple investors)</option>
-                <option disabled style={{ color:'#adb5bd', fontSize:'0.8rem' }}>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>
+                <option disabled style={{ color:'#adb5bd', fontSize:'0.8rem' }}>────────────────</option>
                 {investors.map(inv => <option key={inv.id} value={inv.id}>{inv.full_name}</option>)}
               </select>
               {isMulti && (
