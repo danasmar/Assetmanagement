@@ -130,7 +130,7 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
 
 export const INVESTOR_NAV = [
   { key: "dashboard", icon: "⊞", label: "Dashboard" },
-  { key: "portfolio", icon: "◈", label: "Private Markets" },
+  { key: "portfolio", icon: "◈", label: "My Investments" },
   { key: "opportunities", icon: "◉", label: "Opportunities" },
   { section: "Account" },
   { key: "reports", icon: "⊟", label: "Reports" },
