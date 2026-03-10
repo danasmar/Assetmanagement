@@ -123,39 +123,148 @@ function InvestorPortfolio({ session }) {
   const [cashPositions, setCashPositions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [distByDeal, setDistByDeal] = useState({});
+  const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
   const [activeTab, setActiveTab] = useState('private');
+
+  // Public Markets controls
+  const [selectedPosDate, setSelectedPosDate] = useState('');
+  const [posSearch, setPosSearch] = useState('');
+  const [posSort, setPosSort] = useState({ col: 'market_value', dir: 'desc' });
+  const [posGroupBy, setPosGroupBy] = useState('none');
 
   useEffect(() => {
     const load = async () => {
-      const [invRes, distRes, posRes, cashRes] = await Promise.all([
+      const [invRes, distRes, posRes, cashRes, assumpRes] = await Promise.all([
         supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
         supabase.from('positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
         supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
       ]);
       setInvestments(invRes.data || []);
       setPositions(posRes.data || []);
       setCashPositions(cashRes.data || []);
+      if (assumpRes.data && assumpRes.data[0]) setFx(assumpRes.data[0]);
       const byDeal = {};
       (distRes.data || []).forEach(d => {
         const dealId = d.distributions?.deal_id;
         if (dealId) byDeal[dealId] = (byDeal[dealId] || 0) + (d.amount || 0);
       });
       setDistByDeal(byDeal);
+      // Default to latest position date
+      const latest = (posRes.data || []).length ? (posRes.data || [])[0].statement_date : '';
+      setSelectedPosDate(latest);
       setLoading(false);
     };
     load();
   }, [session.user.id]);
 
-  // Show only the most recent statement date for positions and cash
-  const latestPosDate = positions.length ? positions[0].statement_date : null;
-  const displayPositions = latestPosDate ? positions.filter(p => p.statement_date === latestPosDate) : [];
+  // ── FX helpers ──────────────────────────────────────────────────────────────
+  const toSAR = (amount, currency) => {
+    if (!currency || currency === 'SAR') return amount || 0;
+    if (currency === 'USD') return (amount || 0) * (fx.usd_to_sar || 3.75);
+    if (currency === 'EUR') return (amount || 0) * (fx.eur_to_sar || 4.10);
+    if (currency === 'GBP') return (amount || 0) * (fx.gbp_to_sar || 4.73);
+    if (currency === 'AED') return (amount || 0) * (fx.aed_to_sar || 1.02);
+    return amount || 0;
+  };
+
+  const currencyFlag = (ccy) => {
+    const flags = { USD:'\uD83C\uDDFA\uD83C\uDDF8', EUR:'\uD83C\uDDEA\uD83C\uDDFA', GBP:'\uD83C\uDDEC\uD83C\uDDE7', SAR:'\uD83C\uDDF8\uD83C\uDDE6', AED:'\uD83C\uDDE6\uD83C\uDDEA', CHF:'\uD83C\uDDE8\uD83C\uDDED', JPY:'\uD83C\uDDEF\uD83C\uDDF5', KWD:'\uD83C\uDDF0\uD83C\uDDFC', QAR:'\uD83C\uDDF6\uD83C\uDDE6', BHD:'\uD83C\uDDE7\uD83C\uDDED', OMR:'\uD83C\uDDF4\uD83C\uDDF2', EGP:'\uD83C\uDDEA\uD83C\uDDEC' };
+    return flags[ccy] || '\uD83C\uDFF3\uFE0F';
+  };
+
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  // All unique statement dates for positions (sorted desc)
+  const allPosDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
+
+  // Positions for selected date
+  const displayPositions = selectedPosDate ? positions.filter(p => p.statement_date === selectedPosDate) : [];
+
+  // Cash: always latest date, group by bank
   const latestCashDate = cashPositions.length ? cashPositions[0].statement_date : null;
   const displayCash = latestCashDate ? cashPositions.filter(p => p.statement_date === latestCashDate) : [];
 
-  const totalPublicMV = displayPositions.reduce((s, p) => s + (p.market_value || 0), 0);
-  const totalCash = displayCash.reduce((s, c) => s + (c.balance || 0), 0);
+  // Private markets NAV
+  const privateNAV = investments.reduce((s, i) => {
+    const sorted = (i.deals?.nav_updates || []).slice().sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+    const nav = sorted.length ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
+    return s + toSAR((i.units || 0) * nav, i.deals?.currency);
+  }, 0);
 
+  const totalPublicMV_SAR = displayPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
+  const totalCash_SAR = displayCash.reduce((s, c) => s + toSAR(c.balance || 0, c.currency), 0);
+  const totalAUM = privateNAV + totalPublicMV_SAR + totalCash_SAR;
+
+  // ── Public Markets: search + sort + group ────────────────────────────────────
+  const searchedPositions = displayPositions.filter(p => {
+    if (!posSearch.trim()) return true;
+    const q = posSearch.toLowerCase();
+    return (p.security_name || '').toLowerCase().includes(q)
+      || (p.ticker || '').toLowerCase().includes(q)
+      || (p.isin || '').toLowerCase().includes(q)
+      || (p.asset_type || '').toLowerCase().includes(q);
+  });
+
+  const sortedPositions = [...searchedPositions].sort((a, b) => {
+    let av = a[posSort.col], bv = b[posSort.col];
+    if (typeof av === 'string') av = (av || '').toLowerCase();
+    if (typeof bv === 'string') bv = (bv || '').toLowerCase();
+    if (av == null) return 1; if (bv == null) return -1;
+    return posSort.dir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  const handleSort = (col) => {
+    setPosSort(prev => ({ col, dir: prev.col === col && prev.dir === 'desc' ? 'asc' : 'desc' }));
+  };
+
+  const sortIcon = (col) => {
+    if (posSort.col !== col) return ' \u2195';
+    return posSort.dir === 'asc' ? ' \u2191' : ' \u2193';
+  };
+
+  // Asset class allocation
+  const assetClassTotals = {};
+  displayPositions.forEach(p => {
+    const cls = p.asset_type || 'Unclassified';
+    assetClassTotals[cls] = (assetClassTotals[cls] || 0) + toSAR(p.market_value || 0, p.currency);
+  });
+  const totalForAlloc = Object.values(assetClassTotals).reduce((s, v) => s + v, 0);
+  const assetClassColors = {
+    'Equity': '#2a9d5c', 'Fixed Income': '#1565c0', 'Fund': '#4527a0', 'ETF': '#e65100',
+    'Alternative': '#880e4f', 'Cash & Equivalent': '#00695c', 'Commodity': '#f57f17',
+    'Real Estate': '#6a1b9a', 'Unclassified': '#adb5bd', 'Other': '#6c757d',
+  };
+  const getColor = (cls) => assetClassColors[cls] || '#495057';
+
+  // Grouped positions
+  const groupedPositions = () => {
+    if (posGroupBy === 'none') return [{ label: null, rows: sortedPositions }];
+    const groupKey = posGroupBy === 'asset_class' ? 'asset_type' : 'sector';
+    const groups = {};
+    sortedPositions.forEach(p => {
+      const key = (p[groupKey] || 'Unclassified');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    });
+    return Object.entries(groups)
+      .sort((a, b) => {
+        const aTotal = a[1].reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
+        const bTotal = b[1].reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
+        return bTotal - aTotal;
+      })
+      .map(([label, rows]) => ({ label, rows }));
+  };
+
+  // Cash grouped by bank
+  const cashByBank = {};
+  displayCash.forEach(c => {
+    const bank = c.source_bank || 'Other';
+    if (!cashByBank[bank]) cashByBank[bank] = [];
+    cashByBank[bank].push(c);
+  });
+
+  // ── Tab button ───────────────────────────────────────────────────────────────
   const tabBtn = (key, label, count) => (
     <button onClick={() => setActiveTab(key)} style={{
       padding: '0.5rem 1.25rem',
@@ -172,9 +281,38 @@ function InvestorPortfolio({ session }) {
     </button>
   );
 
+  // ── Position table columns ───────────────────────────────────────────────────
+  const POS_COLS = [
+    { key: 'security_name', label: 'Security', align: 'left', sortable: true },
+    { key: 'ticker', label: 'Ticker', align: 'right', sortable: true },
+    { key: 'isin', label: 'ISIN', align: 'right', sortable: false },
+    { key: 'quantity', label: 'Qty', align: 'right', sortable: true },
+    { key: 'price', label: 'Price', align: 'right', sortable: true },
+    { key: 'market_value', label: 'Market Value', align: 'right', sortable: true },
+    { key: 'currency', label: 'CCY', align: 'right', sortable: true },
+  ];
+
   return (
     <div>
       <PageHeader title="My Investments" subtitle="Your complete investment portfolio" />
+
+      {/* ── AUM Summary ── */}
+      {!loading && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px,1fr))', gap:'1rem', marginBottom:'1.5rem' }}>
+          {[
+            { label: 'Private Markets NAV', value: fmt.currency(privateNAV), color: '#003770' },
+            { label: 'Public Markets', value: fmt.currency(totalPublicMV_SAR), color: '#1565c0' },
+            { label: 'Cash & Deposits', value: fmt.currency(totalCash_SAR), color: '#00695c' },
+            { label: 'Total AUM', value: fmt.currency(totalAUM), color: '#C9A84C', highlight: true },
+          ].map(({ label, value, color, highlight }) => (
+            <div key={label} style={{ background: highlight ? '#003770' : '#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', padding:'1rem 1.25rem', borderLeft: highlight ? 'none' : `4px solid ${color}` }}>
+              <div style={{ fontSize:'0.72rem', color: highlight ? 'rgba(255,255,255,0.65)' : '#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'0.4rem' }}>{label}</div>
+              <div style={{ fontSize:'1.1rem', fontWeight:'700', color: highlight ? '#C9A84C' : color }}>{value}</div>
+              {!highlight && <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'3px' }}>in SAR</div>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
         {tabBtn('private', 'Private Markets', investments.length)}
@@ -182,20 +320,20 @@ function InvestorPortfolio({ session }) {
         {tabBtn('cash', 'Cash', displayCash.length)}
       </div>
 
-      {loading ? <p style={{color:'#adb5bd'}}>Loading...</p> : (
+      {loading ? <p style={{ color:'#adb5bd' }}>Loading...</p> : (
         <>
           {/* ── Private Markets ── */}
           {activeTab === 'private' && (
             investments.length === 0 ?
-              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No private market investments yet.</p></Card> :
+              <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No private market investments yet.</p></Card> :
               <div style={{ display:'grid', gap:'1rem' }}>
                 {investments.map(inv => {
                   const navUpdates = inv.deals?.nav_updates || [];
-                  const sortedNavUpdates = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
-                  const latestNavEntry = sortedNavUpdates.length > 0 ? sortedNavUpdates[0] : null;
+                  const sorted = navUpdates.slice().sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+                  const latestNavEntry = sorted.length > 0 ? sorted[0] : null;
                   const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
                   const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
-                  const nav = (inv.units||0) * latestNav;
+                  const nav = (inv.units || 0) * latestNav;
                   const dealDist = distByDeal[inv.deal_id] || 0;
                   const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
                   return (
@@ -205,11 +343,14 @@ function InvestorPortfolio({ session }) {
                           <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:'700', color:'#003770' }}>{inv.deals?.name}</h3>
                           <Badge label={inv.deals?.strategy || 'Fund'} type="strategy" />
                         </div>
-                        <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret>=0?'#2a9d5c':'#e63946' }}>{ret>=0?'+':''}{fmt.pct(ret)}</span>
+                        <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret >= 0 ? '#2a9d5c' : '#e63946' }}>{ret >= 0 ? '+' : ''}{fmt.pct(ret)}</span>
                       </div>
                       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
-                        {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret>=0?'+':''}${fmt.pct(ret)}`]].map(([k,v]) => (
-                          <div key={k}><div style={{fontSize:'0.72rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em'}}>{k}</div><div style={{fontSize:'0.95rem',fontWeight:'700',color:'#212529',marginTop:'2px'}}>{v}</div></div>
+                        {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency || 'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency || 'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret >= 0 ? '+' : ''}${fmt.pct(ret)}`]].map(([k, v]) => (
+                          <div key={k}>
+                            <div style={{ fontSize:'0.72rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.06em' }}>{k}</div>
+                            <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#212529', marginTop:'2px' }}>{v}</div>
+                          </div>
                         ))}
                       </div>
                     </Card>
@@ -220,82 +361,204 @@ function InvestorPortfolio({ session }) {
 
           {/* ── Public Markets ── */}
           {activeTab === 'public' && (
-            displayPositions.length === 0 ?
-              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No public market positions yet.</p></Card> :
-              <>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem' }}>
-                  <div style={{ fontSize:'0.8rem', color:'#6c757d' }}>Statement date: <strong>{fmt.date(latestPosDate)}</strong></div>
-                  <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Total: {fmt.currency(totalPublicMV, displayPositions[0]?.currency || 'USD')}</div>
+            <div>
+              {/* Controls bar */}
+              <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'center' }}>
+                {/* Statement date selector */}
+                <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexShrink:0 }}>
+                  <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'#6c757d' }}>Statement:</span>
+                  <select value={selectedPosDate} onChange={e => setSelectedPosDate(e.target.value)}
+                    style={{ padding:'0.45rem 0.75rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background:'#fff', cursor:'pointer' }}>
+                    {allPosDates.length === 0 && <option value="">No data</option>}
+                    {allPosDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
+                  </select>
                 </div>
-                <Card>
-                  <div style={{ overflowX:'auto' }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.85rem', minWidth:'540px' }}>
-                      <thead>
-                        <tr style={{ background:'#f8f9fa' }}>
-                          {['Security','Ticker','ISIN','Qty','Price','Market Value','Currency'].map(h => (
-                            <th key={h} style={{ padding:'0.7rem 0.85rem', textAlign: h === 'Security' ? 'left' : 'right', color:'#6c757d', fontWeight:'600', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayPositions.map((pos, i) => (
-                          <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                            <td style={{ padding:'0.7rem 0.85rem' }}>
-                              <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
-                              {pos.asset_type && <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{pos.asset_type}</div>}
-                            </td>
-                            <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{pos.ticker || '—'}</td>
-                            <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '—'}</td>
-                            <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '—'}</td>
-                            <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '—'}</td>
-                            <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
-                            <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right' }}>{pos.currency}</td>
-                          </tr>
+                {/* Search */}
+                <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
+                  placeholder="Search name, ticker, ISIN..."
+                  style={{ flex:1, minWidth:'180px', padding:'0.45rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
+                {/* Group by */}
+                <div style={{ display:'flex', gap:'0.4rem', flexShrink:0 }}>
+                  {[['none','Flat'],['asset_class','Asset Class'],['sector','Sector']].map(([val, label]) => (
+                    <button key={val} onClick={() => setPosGroupBy(val)}
+                      style={{ padding:'0.4rem 0.85rem', border:'1.5px solid', borderColor: posGroupBy === val ? '#003770' : '#dee2e6', borderRadius:'8px', background: posGroupBy === val ? '#003770' : '#fff', color: posGroupBy === val ? '#fff' : '#6c757d', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {displayPositions.length === 0 ? (
+                <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No public market positions for this date.</p></Card>
+              ) : (
+                <>
+                  {/* Asset class allocation cards */}
+                  {Object.keys(assetClassTotals).length > 0 && (
+                    <div style={{ marginBottom:'1.25rem' }}>
+                      <div style={{ fontSize:'0.78rem', fontWeight:'700', color:'#6c757d', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.6rem' }}>Allocation by Asset Class</div>
+                      {/* Bar */}
+                      <div style={{ display:'flex', height:'8px', borderRadius:'8px', overflow:'hidden', marginBottom:'0.75rem', gap:'2px' }}>
+                        {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
+                          <div key={cls} style={{ flex: val / totalForAlloc, background: getColor(cls), minWidth: val / totalForAlloc > 0.005 ? '4px' : 0 }} title={cls + ': ' + ((val / totalForAlloc) * 100).toFixed(1) + '%'} />
                         ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
-                          <td colSpan={5} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>Total Market Value</td>
-                          <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right', fontSize:'0.95rem' }}>{fmt.currency(totalPublicMV, displayPositions[0]?.currency || 'USD')}</td>
-                          <td />
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </Card>
-              </>
+                      </div>
+                      {/* Cards */}
+                      <div style={{ display:'flex', gap:'0.6rem', flexWrap:'wrap' }}>
+                        {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
+                          <div key={cls} style={{ background:'#fff', border:'1.5px solid', borderColor: getColor(cls), borderRadius:'10px', padding:'0.6rem 0.9rem', minWidth:'130px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize:'0.72rem', fontWeight:'700', color: getColor(cls), textTransform:'uppercase', letterSpacing:'0.05em' }}>{cls}</div>
+                            <div style={{ fontSize:'1rem', fontWeight:'700', color:'#212529', marginTop:'3px' }}>{((val / totalForAlloc) * 100).toFixed(1)}%</div>
+                            <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'1px' }}>{fmt.currency(val)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Positions table */}
+                  <Card style={{ padding:0, overflow:'hidden' }}>
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.85rem', minWidth:'580px' }}>
+                        <thead>
+                          <tr style={{ background:'#f8f9fa' }}>
+                            {POS_COLS.map(col => (
+                              <th key={col.key}
+                                onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                                style={{ padding:'0.7rem 0.85rem', textAlign: col.align, color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap', borderBottom:'2px solid #e9ecef', cursor: col.sortable ? 'pointer' : 'default', userSelect:'none' }}>
+                                {col.label}{col.sortable ? sortIcon(col.key) : ''}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groupedPositions().map(({ label: groupLabel, rows }) => (
+                            <React.Fragment key={groupLabel || 'all'}>
+                              {groupLabel && (
+                                <tr>
+                                  <td colSpan={POS_COLS.length} style={{ padding:'0.6rem 0.85rem', background:'#f1f3f5', fontWeight:'700', fontSize:'0.78rem', color: getColor(posGroupBy === 'asset_class' ? groupLabel : undefined), borderBottom:'1px solid #dee2e6' }}>
+                                    <span style={{ display:'inline-block', width:'8px', height:'8px', borderRadius:'50%', background: posGroupBy === 'asset_class' ? getColor(groupLabel) : '#495057', marginRight:'6px', verticalAlign:'middle' }} />
+                                    {groupLabel}
+                                    <span style={{ fontWeight:'400', color:'#adb5bd', marginLeft:'8px' }}>
+                                      {rows.length} position{rows.length !== 1 ? 's' : ''} &middot; {fmt.currency(rows.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0))}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )}
+                              {rows.map((pos, i) => (
+                                <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                  <td style={{ padding:'0.7rem 0.85rem' }}>
+                                    <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
+                                    {pos.asset_type && posGroupBy === 'none' && <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{pos.asset_type}</div>}
+                                  </td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace', fontWeight:'600' }}>{pos.ticker || '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', textAlign:'right' }}>
+                                    <span style={{ fontSize:'1rem', marginRight:'4px' }}>{currencyFlag(pos.currency)}</span>
+                                    <span style={{ color:'#6c757d', fontSize:'0.8rem' }}>{pos.currency}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
+                            <td colSpan={5} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
+                              {sortedPositions.length} position{sortedPositions.length !== 1 ? 's' : ''}
+                              {posSearch && <span style={{ fontWeight:'400', color:'#adb5bd' }}> (filtered)</span>}
+                            </td>
+                            <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right', fontSize:'0.95rem' }}>
+                              {fmt.currency(sortedPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0))}
+                              <div style={{ fontSize:'0.7rem', color:'#adb5bd', fontWeight:'400' }}>SAR equiv.</div>
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
+            </div>
           )}
 
           {/* ── Cash ── */}
           {activeTab === 'cash' && (
             displayCash.length === 0 ?
-              <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'2rem 0'}}>No cash positions yet.</p></Card> :
-              <>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem' }}>
+              <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No cash positions yet.</p></Card> :
+              <div>
+                {/* Header bar */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
                   <div style={{ fontSize:'0.8rem', color:'#6c757d' }}>Statement date: <strong>{fmt.date(latestCashDate)}</strong></div>
-                  <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Total Cash: {fmt.currency(totalCash, displayCash[0]?.currency || 'USD')}</div>
+                  <div style={{ fontSize:'0.9rem', fontWeight:'700', color:'#003770' }}>
+                    Total Cash: {fmt.currency(totalCash_SAR)}
+                    <span style={{ fontSize:'0.72rem', color:'#adb5bd', fontWeight:'400', marginLeft:'4px' }}>SAR equiv.</span>
+                  </div>
                 </div>
-                <div style={{ display:'grid', gap:'0.75rem' }}>
-                  {displayCash.map(c => (
-                    <Card key={c.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'1rem 1.25rem' }}>
-                      <div>
-                        <div style={{ fontWeight:'600', color:'#212529', fontSize:'0.95rem' }}>{c.description || 'Cash Balance'}</div>
-                        {c.source_bank && <div style={{ fontSize:'0.75rem', color:'#adb5bd', marginTop:'3px' }}>{c.source_bank}</div>}
-                      </div>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:'1.1rem', fontWeight:'700', color:'#003770' }}>{fmt.currency(c.balance, c.currency)}</div>
-                        <div style={{ fontSize:'0.75rem', color:'#6c757d', marginTop:'2px' }}>{c.currency}</div>
-                      </div>
-                    </Card>
-                  ))}
-                  {displayCash.length > 1 && (
-                    <Card style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.85rem 1.25rem', background:'#003770' }}>
-                      <div style={{ fontWeight:'700', color:'#fff', fontSize:'0.9rem' }}>Total Cash Balance</div>
-                      <div style={{ fontWeight:'700', color:'#C9A84C', fontSize:'1.1rem' }}>{fmt.currency(totalCash, displayCash[0]?.currency || 'USD')}</div>
-                    </Card>
-                  )}
+
+                {/* Groups by bank */}
+                <div style={{ display:'grid', gap:'1rem' }}>
+                  {Object.entries(cashByBank).map(([bank, items]) => {
+                    const bankTotal_SAR = items.reduce((s, c) => s + toSAR(c.balance || 0, c.currency), 0);
+                    // Group by currency within bank
+                    const byCcy = {};
+                    items.forEach(c => { byCcy[c.currency] = (byCcy[c.currency] || 0) + (c.balance || 0); });
+                    return (
+                      <Card key={bank} style={{ padding:0, overflow:'hidden' }}>
+                        {/* Bank header */}
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.85rem 1.25rem', background:'#f8f9fa', borderBottom:'1px solid #e9ecef' }}>
+                          <div>
+                            <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.92rem' }}>{bank}</div>
+                            <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{items.length} account{items.length !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div style={{ textAlign:'right' }}>
+                            <div style={{ fontWeight:'700', color:'#003770', fontSize:'1rem' }}>{fmt.currency(bankTotal_SAR)}</div>
+                            <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'1px' }}>SAR equiv.</div>
+                          </div>
+                        </div>
+                        {/* Currency summary pills */}
+                        <div style={{ padding:'0.65rem 1.25rem', borderBottom:'1px solid #f1f3f5', display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+                          {Object.entries(byCcy).map(([ccy, total]) => (
+                            <span key={ccy} style={{ background:'#f1f3f5', borderRadius:'20px', padding:'3px 10px', fontSize:'0.78rem', fontWeight:'600', color:'#495057', display:'inline-flex', alignItems:'center', gap:'4px' }}>
+                              <span>{currencyFlag(ccy)}</span>
+                              <span>{ccy}</span>
+                              <span style={{ color:'#003770' }}>{fmt.currency(total, ccy)}</span>
+                            </span>
+                          ))}
+                        </div>
+                        {/* Individual accounts */}
+                        {items.map((c, i) => (
+                          <div key={c.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.85rem 1.25rem', borderBottom: i < items.length - 1 ? '1px solid #f1f3f5' : 'none', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'0.65rem' }}>
+                              <span style={{ fontSize:'1.4rem' }}>{currencyFlag(c.currency)}</span>
+                              <div>
+                                <div style={{ fontWeight:'600', color:'#212529', fontSize:'0.9rem' }}>{c.description || 'Cash Balance'}</div>
+                                <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{c.currency}</div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign:'right' }}>
+                              <div style={{ fontSize:'1rem', fontWeight:'700', color:'#003770' }}>{fmt.currency(c.balance, c.currency)}</div>
+                              {c.currency !== 'SAR' && <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>\u2248 {fmt.currency(toSAR(c.balance, c.currency))} SAR</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </Card>
+                    );
+                  })}
                 </div>
-              </>
+
+                {/* Grand total footer */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'1rem', padding:'0.85rem 1.25rem', background:'#003770', borderRadius:'12px' }}>
+                  <div style={{ fontWeight:'700', color:'#fff', fontSize:'0.9rem' }}>Total Cash &amp; Deposits</div>
+                  <div>
+                    <div style={{ fontWeight:'700', color:'#C9A84C', fontSize:'1.15rem', textAlign:'right' }}>{fmt.currency(totalCash_SAR)}</div>
+                    <div style={{ fontSize:'0.7rem', color:'rgba(255,255,255,0.5)', textAlign:'right', marginTop:'1px' }}>SAR equivalent</div>
+                  </div>
+                </div>
+              </div>
           )}
         </>
       )}
