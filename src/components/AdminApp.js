@@ -1452,6 +1452,8 @@ function AdminMessages() {
 }
 
 // ─── Portfolio Upload ─────────────────────────────────────────────────────────
+
+// ─── Portfolio Upload ─────────────────────────────────────────────────────────
 function PortfolioUpload() {
   const [investors, setInvestors] = useState([]);
   const [step, setStep] = useState(1);
@@ -1464,15 +1466,11 @@ function PortfolioUpload() {
   const [msg, setMsg] = useState('');
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
-
-  const loadXLSX = () => new Promise((resolve, reject) => {
-    if (window.XLSX) { resolve(window.XLSX); return; }
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.onload = () => resolve(window.XLSX);
-    script.onerror = () => reject(new Error('Failed to load Excel parser'));
-    document.head.appendChild(script);
-  });
+  const [templateApplied, setTemplateApplied] = useState(false);
+  const [offerSaveTemplate, setOfferSaveTemplate] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const STANDARD_FIELDS = [
     { key: 'security_name', label: 'Security Name', required: true },
@@ -1486,9 +1484,59 @@ function PortfolioUpload() {
     { key: 'cash_balance', label: 'Cash Balance' },
   ];
 
+  const loadXLSX = () => new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(window.XLSX); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error('Failed to load Excel parser'));
+    document.head.appendChild(script);
+  });
+
+  const loadTemplates = () =>
+    supabase.from('bank_mapping_templates').select('*').order('bank_name').then(({ data }) => setTemplates(data || []));
+
   useEffect(() => {
     supabase.from('investors').select('id, full_name').order('full_name').then(({ data }) => setInvestors(data || []));
+    loadTemplates();
   }, []);
+
+  // Look up a saved template by bank name (case-insensitive)
+  const findTemplate = async (bankName) => {
+    if (!bankName || !bankName.trim()) return null;
+    const { data } = await supabase
+      .from('bank_mapping_templates')
+      .select('*')
+      .ilike('bank_name', bankName.trim())
+      .limit(1);
+    return data && data[0] ? data[0] : null;
+  };
+
+  const saveTemplateNow = async () => {
+    if (!form.source_bank.trim()) return;
+    setSavingTemplate(true);
+    const existing = await findTemplate(form.source_bank);
+    const payload = {
+      bank_name: form.source_bank.trim(),
+      column_mappings: mapping,
+      updated_at: new Date().toISOString(),
+    };
+    if (existing) {
+      await supabase.from('bank_mapping_templates').update(payload).eq('id', existing.id);
+    } else {
+      await supabase.from('bank_mapping_templates').insert(payload);
+    }
+    setSavingTemplate(false);
+    setOfferSaveTemplate(false);
+    loadTemplates();
+    setMsg('\u2713 Mapping template saved for ' + form.source_bank.trim() + '. Future uploads from this bank will be mapped automatically.');
+  };
+
+  const deleteTemplate = async (id, bankName) => {
+    if (!window.confirm('Delete mapping template for ' + bankName + '?')) return;
+    await supabase.from('bank_mapping_templates').delete().eq('id', id);
+    loadTemplates();
+  };
 
   const parseCSV = (text) => {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -1537,7 +1585,16 @@ function PortfolioUpload() {
         }
       });
     });
-    setMapping(map);
+    return map;
+  };
+
+  const applyMappingFromTemplate = (tplMapping, hdrs, rows) => {
+    // Validate that saved column names still exist in this file's headers
+    const validatedMap = {};
+    Object.entries(tplMapping).forEach(([field, col]) => {
+      if (hdrs.includes(col)) validatedMap[field] = col;
+    });
+    return validatedMap;
   };
 
   const handleFile = async (e) => {
@@ -1545,13 +1602,16 @@ function PortfolioUpload() {
     if (!file) return;
     setUploading(true);
     setFileName(file.name);
+    setTemplateApplied(false);
+    setOfferSaveTemplate(false);
     const ext = file.name.split('.').pop().toLowerCase();
     try {
+      let hdrs = [], rows = [];
       if (ext === 'csv') {
         const text = await file.text();
-        const { headers: hdrs, rows } = parseCSV(text);
-        if (!hdrs.length) { alert('Could not parse CSV. Please check the file format.'); setUploading(false); return; }
-        setHeaders(hdrs); setRawRows(rows); autoMap(hdrs); setStep(2);
+        const parsed = parseCSV(text);
+        if (!parsed.headers.length) { alert('Could not parse CSV. Please check the file format.'); setUploading(false); return; }
+        hdrs = parsed.headers; rows = parsed.rows;
       } else if (['xlsx', 'xls'].includes(ext)) {
         const XLSX = await loadXLSX();
         const ab = await file.arrayBuffer();
@@ -1559,11 +1619,42 @@ function PortfolioUpload() {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
         if (!data.length) { alert('No data found in Excel file.'); setUploading(false); return; }
-        const hdrs = Object.keys(data[0]);
-        setHeaders(hdrs); setRawRows(data); autoMap(hdrs); setStep(2);
+        hdrs = Object.keys(data[0]); rows = data;
       } else {
         alert('Please upload a CSV or Excel (.xlsx/.xls) file.');
+        setUploading(false); return;
       }
+      setHeaders(hdrs);
+      setRawRows(rows);
+
+      // Check for saved template for this bank
+      const tpl = await findTemplate(form.source_bank);
+      if (tpl && tpl.column_mappings) {
+        const validatedMap = applyMappingFromTemplate(tpl.column_mappings, hdrs, rows);
+        const matchCount = Object.keys(validatedMap).length;
+        if (matchCount > 0) {
+          setMapping(validatedMap);
+          setTemplateApplied(true);
+          // Auto-advance directly to preview step
+          const mapped = rows.map(row => {
+            const r = {};
+            STANDARD_FIELDS.forEach(({ key }) => { const col = validatedMap[key]; r[key] = col ? (row[col] || '') : ''; });
+            r._class = classifyRow(r);
+            return r;
+          });
+          setMappedData(mapped);
+          setStep(3);
+          setUploading(false);
+          e.target.value = '';
+          return;
+        }
+      }
+
+      // No template or template columns don't match — do auto-map and go to step 2
+      const autoMapped = autoMap(hdrs);
+      setMapping(autoMapped);
+      setOfferSaveTemplate(!!form.source_bank.trim());
+      setStep(2);
     } catch (err) { alert('Error parsing file: ' + err.message); }
     setUploading(false);
     e.target.value = '';
@@ -1585,7 +1676,9 @@ function PortfolioUpload() {
       r._class = classifyRow(r);
       return r;
     });
-    setMappedData(mapped); setStep(3);
+    setMappedData(mapped);
+    setOfferSaveTemplate(!!form.source_bank.trim());
+    setStep(3);
   };
 
   const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
@@ -1626,14 +1719,17 @@ function PortfolioUpload() {
     }
     setSaving(false);
     if (errors.length) { alert('Errors:\n' + errors.join('\n')); return; }
-    setMsg('\u2713 Imported ' + publicRows.length + ' market position' + (publicRows.length !== 1 ? 's' : '') + ' and ' + cashRows.length + ' cash entr' + (cashRows.length !== 1 ? 'ies' : 'y') + ' for ' + (investors.find(i => i.id === form.investor_id)?.full_name || '') + '.');
+    const invName = investors.find(i => i.id === form.investor_id)?.full_name || '';
+    setMsg('\u2713 Imported ' + publicRows.length + ' market position' + (publicRows.length !== 1 ? 's' : '') + ' and ' + cashRows.length + ' cash entr' + (cashRows.length !== 1 ? 'ies' : 'y') + ' for ' + invName + '.');
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName('');
+    setTemplateApplied(false); setOfferSaveTemplate(false);
   };
 
   const reset = () => {
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setMsg('');
+    setTemplateApplied(false); setOfferSaveTemplate(false);
   };
 
   const pubCount = mappedData.filter(r => r._class === 'public_markets').length;
@@ -1658,12 +1754,52 @@ function PortfolioUpload() {
 
   return (
     <div>
-      <PageHeader title="Portfolio Upload" subtitle="Upload and import investor portfolio statements from banks and custodians" />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'0.25rem' }}>
+        <PageHeader title="Portfolio Upload" subtitle="Upload and import investor portfolio statements from banks and custodians" />
+        <button
+          onClick={() => setShowTemplates(!showTemplates)}
+          style={{ background: showTemplates ? '#003770' : '#f1f3f5', color: showTemplates ? '#fff' : '#495057', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0, marginTop:'0.25rem' }}
+        >
+          &#9881; Saved Templates {templates.length > 0 && <span style={{ background: showTemplates ? 'rgba(255,255,255,0.25)' : '#003770', color:'#fff', borderRadius:'20px', padding:'1px 7px', fontSize:'0.72rem' }}>{templates.length}</span>}
+        </button>
+      </div>
 
       {msg && (
         <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'1rem 1.25rem', color:'#276749', fontSize:'0.9rem', marginBottom:'1.25rem', fontWeight:'600' }}>
           {msg}
         </div>
+      )}
+
+      {/* Saved Templates Panel */}
+      {showTemplates && (
+        <Card style={{ marginBottom:'1.25rem', border:'1px solid #e9ecef' }}>
+          <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem' }}>
+            Saved Bank Mapping Templates
+          </div>
+          {templates.length === 0 ? (
+            <p style={{ color:'#adb5bd', fontSize:'0.85rem', margin:0 }}>No templates saved yet. Templates are created when you map a new bank format.</p>
+          ) : (
+            <div style={{ display:'grid', gap:'0.5rem' }}>
+              {templates.map(tpl => (
+                <div key={tpl.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', borderRadius:'8px', padding:'0.75rem 1rem' }}>
+                  <div>
+                    <div style={{ fontWeight:'700', color:'#212529', fontSize:'0.88rem' }}>{tpl.bank_name}</div>
+                    <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>
+                      {Object.entries(tpl.column_mappings || {}).filter(([,v]) => v).map(([k, v]) => k.replace(/_/g, ' ') + ' \u2192 ' + v).join(' \u00b7 ')}
+                    </div>
+                    <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'3px' }}>
+                      Last updated: {tpl.updated_at ? new Date(tpl.updated_at).toLocaleDateString() : '—'}
+                    </div>
+                  </div>
+                  <button onClick={() => deleteTemplate(tpl.id, tpl.bank_name)}
+                    style={{ background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'6px', padding:'0.3rem 0.65rem', fontSize:'0.75rem', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', flexShrink:0 }}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
       <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.5rem', alignItems:'center' }}>
@@ -1684,6 +1820,11 @@ function PortfolioUpload() {
               </select>
             </div>
             <Input label="Source Bank / Custodian" value={form.source_bank} onChange={e => setForm({ ...form, source_bank: e.target.value })} placeholder="e.g. Saudi National Bank, HSBC" />
+            {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) && (
+              <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px', padding:'0.5rem 0.85rem', fontSize:'0.78rem', color:'#2e7d32', marginTop:'-0.5rem', marginBottom:'1rem', fontWeight:'600' }}>
+                \u2713 Saved template found \u2014 mapping will be applied automatically
+              </div>
+            )}
             <DateInput fieldKey="statement_date" label="Statement Date" form={form} setForm={setForm} />
             <div style={{ marginTop:'0.5rem' }}>
               <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'8px', letterSpacing:'0.04em' }}>Portfolio Statement File</label>
@@ -1704,10 +1845,10 @@ function PortfolioUpload() {
             <h3 style={{ margin:'0 0 1rem', fontSize:'0.88rem', fontWeight:'700', color:'#495057' }}>How it works</h3>
             {[
               ['1. Select Investor', 'Choose the client this statement belongs to.'],
-              ['2. Enter Details', 'Set the bank/custodian name and statement date.'],
+              ['2. Enter Bank Name', 'Enter the bank or custodian name. Known banks are mapped automatically.'],
               ['3. Upload File', 'Upload a CSV or Excel export from the bank.'],
-              ['4. Map Columns', 'Match file columns to standard fields. Auto-detected where possible.'],
-              ['5. Confirm Import', 'Review parsed data. Holdings are classified as Public Markets or Cash automatically.'],
+              ['4. Map Columns', 'Match file columns to standard fields. Skipped if a saved template exists.'],
+              ['5. Confirm Import', 'Review parsed data. Save the mapping to skip step 4 next time.'],
             ].map(([t, d]) => (
               <div key={t} style={{ marginBottom:'0.85rem' }}>
                 <div style={{ fontSize:'0.82rem', fontWeight:'700', color:'#003770' }}>{t}</div>
@@ -1727,12 +1868,13 @@ function PortfolioUpload() {
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Map Columns</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
                   File: <strong>{fileName}</strong> &nbsp;&middot;&nbsp; <strong>{rawRows.length}</strong> rows detected
+                  {form.source_bank && <span> &nbsp;&middot;&nbsp; Bank: <strong>{form.source_bank}</strong></span>}
                 </div>
               </div>
               <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={reset}>&larr; Start Over</Btn>
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1rem' }}>
-              Match each standard field to the corresponding column in your file. Fields highlighted in green were auto-detected.
+              No saved template found for <strong>{form.source_bank || 'this bank'}</strong>. Map the columns below, then save the template so future uploads are processed automatically.
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'0.75rem' }}>
               {STANDARD_FIELDS.map(({ key, label, required }) => (
@@ -1748,6 +1890,17 @@ function PortfolioUpload() {
                 </div>
               ))}
             </div>
+            {offerSaveTemplate && form.source_bank.trim() && (
+              <div style={{ marginTop:'1.25rem', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
+                <div>
+                  <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save this mapping for {form.source_bank}?</div>
+                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Future uploads from this bank will skip the mapping step entirely.</div>
+                </div>
+                <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
+                  {savingTemplate ? 'Saving...' : 'Save Template'}
+                </Btn>
+              </div>
+            )}
             <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
               <Btn onClick={applyMapping} disabled={!mapping.security_name && !mapping.cash_balance}>Apply Mapping &amp; Preview &rarr;</Btn>
@@ -1778,22 +1931,40 @@ function PortfolioUpload() {
       {/* STEP 3: Preview & Confirm */}
       {step === 3 && (
         <div>
+          {templateApplied && (
+            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 column mapping step skipped automatically.
+            </div>
+          )}
           <Card>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem', flexWrap:'wrap', gap:'1rem' }}>
               <div>
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Review &amp; Confirm Import</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
                   Investor: <strong>{investors.find(i => i.id === form.investor_id)?.full_name}</strong> &nbsp;&middot;&nbsp;
-                  Bank: <strong>{form.source_bank || '—'}</strong> &nbsp;&middot;&nbsp;
+                  Bank: <strong>{form.source_bank || '\u2014'}</strong> &nbsp;&middot;&nbsp;
                   Date: <strong>{form.statement_date}</strong>
                 </div>
               </div>
               <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Position{pubCount !== 1 ? 's' : ''}</div>
                 <div style={{ background:'#e3f2fd', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#1565c0' }}>&#128181; {cashCount} Cash</div>
-                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => setStep(2)}>&larr; Back</Btn>
+                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(2); }}>&larr; Edit Mapping</Btn>
               </div>
             </div>
+
+            {offerSaveTemplate && !templateApplied && form.source_bank.trim() && (
+              <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; Save mapping template for {form.source_bank}?</div>
+                  <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>Next time you upload from this bank, the mapping step will be skipped automatically.</div>
+                </div>
+                <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
+                  {savingTemplate ? 'Saving...' : 'Save Template'}
+                </Btn>
+              </div>
+            )}
+
             <div style={{ overflowX:'auto', marginBottom:'1.25rem' }}>
               <table style={{ borderCollapse:'collapse', fontSize:'0.8rem', width:'100%', minWidth:'640px' }}>
                 <thead>
@@ -1812,16 +1983,16 @@ function PortfolioUpload() {
                           {row._class === 'cash' ? 'Cash' : 'Markets'}
                         </span>
                       </td>
-                      <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '—'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '—'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', textAlign:'right', fontSize:'0.72rem', fontFamily:'monospace' }}>{row.isin || '—'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.asset_type || '—'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.quantity || '—'}</td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.price || '—'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', textAlign:'right', fontSize:'0.72rem', fontFamily:'monospace' }}>{row.isin || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.asset_type || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.quantity || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.price || '\u2014'}</td>
                       <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#003770', textAlign:'right' }}>
-                        {row._class === 'cash' ? (row.cash_balance || row.market_value || '—') : (row.market_value || '—')}
+                        {row._class === 'cash' ? (row.cash_balance || row.market_value || '\u2014') : (row.market_value || '\u2014')}
                       </td>
-                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.currency || '—'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.currency || '\u2014'}</td>
                     </tr>
                   ))}
                 </tbody>
