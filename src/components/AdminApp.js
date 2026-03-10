@@ -1473,6 +1473,8 @@ function PortfolioUpload() {
     script.onerror = () => reject(new Error('Failed to load Excel parser'));
     document.head.appendChild(script);
   });
+
+  const STANDARD_FIELDS = [
     { key: 'security_name', label: 'Security Name', required: true },
     { key: 'ticker', label: 'Ticker' },
     { key: 'isin', label: 'ISIN' },
