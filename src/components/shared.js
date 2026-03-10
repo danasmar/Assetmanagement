@@ -145,6 +145,8 @@ export const ADMIN_NAV = [
   { key: "deals", icon: "◈", label: "Deal Management" },
   { key: "investors", icon: "◉", label: "Investor Management" },
   { key: "portfolio_upload", icon: "⊕", label: "Portfolio Upload" },
+  { key: "review_queue", icon: "⚑", label: "Review Queue" },
+  { key: "asset_master", icon: "◫", label: "Asset Master" },
   { section: "Operations" },
   { key: "reporting", icon: "⊟", label: "Reporting" },
   { key: "distributions", icon: "◎", label: "Distributions" },
