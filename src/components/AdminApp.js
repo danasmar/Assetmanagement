@@ -1872,7 +1872,7 @@ function PortfolioUpload() {
                 </div>
               )}
             </div>
-            <Input label="Source Bank / Custodian" value={form.source_bank} onChange={e => setForm({ ...form, source_bank: e.target.value })} placeholder="e.g. Saudi National Bank, HSBC" />
+            <Input label="Source Bank / Custodian" value={form.source_bank} onChange={e => setForm({ ...form, source_bank: e.target.value })} placeholder="e.g. Audi Capital, JP Morgan" />
             {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) && (
               <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px', padding:'0.5rem 0.85rem', fontSize:'0.78rem', color:'#2e7d32', marginTop:'-0.5rem', marginBottom:'1rem', fontWeight:'600' }}>
                 \u2713 Saved template found \u2014 mapping will be applied automatically
@@ -2198,4 +2198,3 @@ function PortfolioUpload() {
     </div>
   );
 }
-
