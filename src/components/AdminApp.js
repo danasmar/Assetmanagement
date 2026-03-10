@@ -16,6 +16,8 @@ export default function AdminApp({ session, onLogout }) {
     admins: <AdminUsers session={session} />,
     assumptions: <Assumptions />,
     portfolio_upload: <PortfolioUpload />,
+    review_queue: <ReviewQueue />,
+    asset_master: <AssetMaster />,
   };
   return (
     <Layout page={page} onPageChange={setPage} session={session} onLogout={onLogout} navItems={ADMIN_NAV}>
@@ -1697,70 +1699,106 @@ function PortfolioUpload() {
 
   const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
 
+  // A row needs review if it has no ISIN AND no ticker (unidentifiable)
+  const needsReview = (r) => r._class === 'public_markets' && !r.isin && !r.ticker;
+
   const confirm = async () => {
     if (!isMulti && !form.investor_id) { alert('Please go back and select an investor.'); return; }
     if (!form.statement_date) { alert('Please go back and enter a statement date.'); return; }
     setSaving(true);
 
     const errors = [];
-    const toInsert = (rows, investorId) => ({
-      positions: rows.filter(r => r._class === 'public_markets').map(r => ({
-        investor_id: investorId,
-        security_name: r.security_name || 'Unknown',
-        ticker: r.ticker || null,
-        isin: r.isin || null,
-        asset_type: r.asset_type || 'Equity',
-        quantity: toNum(r.quantity),
-        price: toNum(r.price),
-        market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price),
-        currency: r.currency || 'USD',
-        statement_date: form.statement_date,
-        source_bank: form.source_bank || null,
-      })),
-      cash: rows.filter(r => r._class === 'cash').map(r => ({
-        investor_id: investorId,
-        currency: r.currency || 'USD',
-        balance: toNum(r.cash_balance) || toNum(r.market_value),
-        description: r.security_name || 'Cash',
-        statement_date: form.statement_date,
-        source_bank: form.source_bank || null,
-      })),
-    });
 
-    let totalPos = 0; let totalCash = 0;
+    // Split a set of rows for one investor into: direct-save vs review-queue
+    const splitRows = (rows, investorId) => {
+      const direct = { positions: [], cash: [] };
+      const queued = [];
+      rows.forEach(r => {
+        if (needsReview(r)) {
+          queued.push({
+            investor_id: investorId,
+            raw_security_name: r.security_name || null,
+            raw_ticker: r.ticker || null,
+            raw_isin: r.isin || null,
+            raw_asset_type: r.asset_type || null,
+            raw_quantity: toNum(r.quantity) || null,
+            raw_price: toNum(r.price) || null,
+            raw_market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price) || null,
+            raw_currency: r.currency || null,
+            raw_cash_balance: null,
+            statement_date: form.statement_date,
+            source_bank: form.source_bank || null,
+            classification: 'public_markets',
+            status: 'pending',
+          });
+        } else if (r._class === 'public_markets') {
+          direct.positions.push({
+            investor_id: investorId,
+            security_name: r.security_name || 'Unknown',
+            ticker: r.ticker || null,
+            isin: r.isin || null,
+            asset_type: r.asset_type || 'Equity',
+            quantity: toNum(r.quantity),
+            price: toNum(r.price),
+            market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price),
+            currency: r.currency || 'USD',
+            statement_date: form.statement_date,
+            source_bank: form.source_bank || null,
+          });
+        } else {
+          // cash — never needs review
+          direct.cash.push({
+            investor_id: investorId,
+            currency: r.currency || 'USD',
+            balance: toNum(r.cash_balance) || toNum(r.market_value),
+            description: r.security_name || 'Cash',
+            statement_date: form.statement_date,
+            source_bank: form.source_bank || null,
+          });
+        }
+      });
+      return { direct, queued };
+    };
+
+    let totalPos = 0; let totalCash = 0; let totalQueued = 0;
+    const allQueued = [];
 
     if (isMulti) {
-      // Group rows by assigned investor
       const groups = {};
       mappedData.forEach(row => {
         const iid = row._investorId;
-        if (!iid) return; // skip unassigned rows
+        if (!iid) return;
         if (!groups[iid]) groups[iid] = [];
         groups[iid].push(row);
       });
       for (const [iid, rows] of Object.entries(groups)) {
-        const { positions, cash } = toInsert(rows, iid);
-        if (positions.length) {
-          const { error } = await supabase.from('positions').insert(positions);
-          if (error) errors.push('Positions for investor ' + iid + ': ' + error.message);
-          else totalPos += positions.length;
+        const { direct, queued } = splitRows(rows, iid);
+        if (direct.positions.length) {
+          const { error } = await supabase.from('positions').insert(direct.positions);
+          if (error) errors.push('Positions: ' + error.message); else totalPos += direct.positions.length;
         }
-        if (cash.length) {
-          const { error } = await supabase.from('cash_positions').insert(cash);
-          if (error) errors.push('Cash for investor ' + iid + ': ' + error.message);
-          else totalCash += cash.length;
+        if (direct.cash.length) {
+          const { error } = await supabase.from('cash_positions').insert(direct.cash);
+          if (error) errors.push('Cash: ' + error.message); else totalCash += direct.cash.length;
         }
+        allQueued.push(...queued);
       }
     } else {
-      const { positions, cash } = toInsert(mappedData, form.investor_id);
-      if (positions.length) {
-        const { error } = await supabase.from('positions').insert(positions);
-        if (error) errors.push('Positions: ' + error.message); else totalPos += positions.length;
+      const { direct, queued } = splitRows(mappedData, form.investor_id);
+      if (direct.positions.length) {
+        const { error } = await supabase.from('positions').insert(direct.positions);
+        if (error) errors.push('Positions: ' + error.message); else totalPos += direct.positions.length;
       }
-      if (cash.length) {
-        const { error } = await supabase.from('cash_positions').insert(cash);
-        if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
+      if (direct.cash.length) {
+        const { error } = await supabase.from('cash_positions').insert(direct.cash);
+        if (error) errors.push('Cash: ' + error.message); else totalCash += direct.cash.length;
       }
+      allQueued.push(...queued);
+    }
+
+    if (allQueued.length) {
+      const { error } = await supabase.from('upload_review_queue').insert(allQueued);
+      if (error) errors.push('Review queue: ' + error.message); else totalQueued += allQueued.length;
     }
 
     setSaving(false);
@@ -1769,7 +1807,9 @@ function PortfolioUpload() {
     const suffix = isMulti
       ? ' across ' + Object.keys(clientAssignments).filter(k => clientAssignments[k]).length + ' clients.'
       : ' for ' + (investors.find(i => i.id === form.investor_id)?.full_name || '') + '.';
-    setMsg('\u2713 Imported ' + totalPos + ' market position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix);
+    let successMsg = '\u2713 Imported ' + totalPos + ' market position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix;
+    if (totalQueued > 0) successMsg += ' \u26a0\ufe0f ' + totalQueued + ' position' + (totalQueued !== 1 ? 's' : '') + ' flagged for review (no ISIN or ticker) \u2014 check the Review Queue.';
+    setMsg(successMsg);
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName('');
     setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
@@ -1788,8 +1828,9 @@ function PortfolioUpload() {
 
   const assignedCount = Object.values(clientAssignments).filter(Boolean).length;
   const confirmStep = isMulti ? 4 : 3;
-  const pubCount = mappedData.filter(r => r._class === 'public_markets').length;
+  const pubCount = mappedData.filter(r => r._class === 'public_markets' && !needsReview(r)).length;
   const cashCount = mappedData.filter(r => r._class === 'cash').length;
+  const queueCount = mappedData.filter(r => needsReview(r)).length;
 
   const stepDot = (num) => {
     const active = step === num; const done = step > num;
@@ -2130,6 +2171,7 @@ function PortfolioUpload() {
               <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Positions</div>
                 <div style={{ background:'#e3f2fd', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#1565c0' }}>&#128181; {cashCount} Cash</div>
+                {queueCount > 0 && <div style={{ background:'#fff3e0', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#e65100' }}>&#9888; {queueCount} For Review</div>}
                 <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
               </div>
             </div>
@@ -2162,13 +2204,16 @@ function PortfolioUpload() {
                   {mappedData.map((row, i) => {
                     const invName = isMulti ? (investors.find(inv => inv.id === row._investorId)?.full_name || <span style={{ color:'#e63946' }}>Unassigned</span>) : null;
                     return (
-                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: needsReview(row) ? '#fffbeb' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
                         <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem' }}>{i + 1}</td>
                         {isMulti && <td style={{ padding:'0.5rem 0.75rem', fontSize:'0.78rem', fontWeight:'600', color: row._investorId ? '#003770' : '#e63946' }}>{invName}</td>}
                         <td style={{ padding:'0.5rem 0.75rem' }}>
-                          <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
-                            {row._class === 'cash' ? 'Cash' : 'Markets'}
-                          </span>
+                          {needsReview(row)
+                            ? <span style={{ background:'#fff3e0', color:'#e65100', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>&#9888; Review</span>
+                            : <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
+                                {row._class === 'cash' ? 'Cash' : 'Markets'}
+                              </span>
+                          }
                         </td>
                         <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
                         <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
@@ -2186,6 +2231,7 @@ function PortfolioUpload() {
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#92400e', marginBottom:'1.25rem' }}>
               &#9888; Confirming will add these positions to the portfolio. Previous entries with the same statement date are not automatically removed.
+              {queueCount > 0 && <span style={{ display:'block', marginTop:'4px', fontWeight:'700', color:'#e65100' }}>&#9888; {queueCount} position{queueCount !== 1 ? 's' : ''} have no ISIN or ticker and will be sent to the Review Queue instead of saved directly.</span>}
               {isMulti && mappedData.some(r => !r._investorId) && <span style={{ display:'block', marginTop:'4px', fontWeight:'700' }}>&#9888; {mappedData.filter(r => !r._investorId).length} unassigned rows will be skipped.</span>}
             </div>
             <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
@@ -2198,3 +2244,416 @@ function PortfolioUpload() {
     </div>
   );
 }
+
+// ─── Asset Master ─────────────────────────────────────────────────────────────
+function AssetMaster() {
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const emptyForm = { security_name:'', isin:'', ticker:'', asset_class:'', sector:'', country:'', exchange:'', currency:'' };
+  const [form, setForm] = useState(emptyForm);
+
+  const ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('asset_master').select('*').order('security_name');
+    setAssets(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = assets.filter(a => {
+    const q = search.toLowerCase();
+    return !q || a.security_name?.toLowerCase().includes(q) || a.isin?.toLowerCase().includes(q) || a.ticker?.toLowerCase().includes(q) || a.asset_class?.toLowerCase().includes(q);
+  });
+
+  const openAdd = () => { setForm(emptyForm); setEditId(null); setShowAdd(true); };
+  const openEdit = (a) => { setForm({ security_name: a.security_name||'', isin: a.isin||'', ticker: a.ticker||'', asset_class: a.asset_class||'', sector: a.sector||'', country: a.country||'', exchange: a.exchange||'', currency: a.currency||'' }); setEditId(a.id); setShowAdd(true); };
+
+  const save = async () => {
+    if (!form.security_name.trim()) { alert('Security name is required.'); return; }
+    setSaving(true);
+    const payload = { ...form, updated_at: new Date().toISOString() };
+    if (editId) {
+      await supabase.from('asset_master').update(payload).eq('id', editId);
+    } else {
+      await supabase.from('asset_master').insert(payload);
+    }
+    setSaving(false);
+    setShowAdd(false);
+    setMsg('\u2713 Security ' + (editId ? 'updated' : 'added') + ': ' + form.security_name);
+    load();
+  };
+
+  const del = async (id, name) => {
+    if (!window.confirm('Delete "' + name + '" from Asset Master?')) return;
+    await supabase.from('asset_master').delete().eq('id', id);
+    setMsg('\u2713 Deleted: ' + name);
+    load();
+  };
+
+  const classColor = (c) => {
+    const map = { 'Equity':'#e8f5e9', 'Fixed Income':'#e3f2fd', 'Fund':'#ede7f6', 'ETF':'#fff3e0', 'Alternative':'#fce4ec', 'Cash & Equivalent':'#e0f7fa', 'Commodity':'#fff8e1', 'Real Estate':'#f3e5f5' };
+    return map[c] || '#f5f5f5';
+  };
+  const classText = (c) => {
+    const map = { 'Equity':'#2e7d32', 'Fixed Income':'#1565c0', 'Fund':'#4527a0', 'ETF':'#e65100', 'Alternative':'#880e4f', 'Cash & Equivalent':'#00695c', 'Commodity':'#f57f17', 'Real Estate':'#6a1b9a' };
+    return map[c] || '#495057';
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
+        <PageHeader title="Asset Master" subtitle="Central database of known securities used to enrich uploaded positions" />
+        <Btn onClick={openAdd} style={{ flexShrink:0 }}>+ Add Security</Btn>
+      </div>
+
+      {msg && <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.85rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>}
+
+      <Card style={{ marginBottom:'1.25rem' }}>
+        <div style={{ display:'flex', gap:'1rem', alignItems:'center', flexWrap:'wrap' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, ISIN, ticker or asset class..." style={{ flex:1, minWidth:'220px', padding:'0.6rem 0.9rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
+          <div style={{ fontSize:'0.82rem', color:'#adb5bd', flexShrink:0 }}>{filtered.length} of {assets.length} securities</div>
+        </div>
+      </Card>
+
+      {loading ? (
+        <Card><div style={{ textAlign:'center', padding:'2rem', color:'#adb5bd' }}>Loading asset master...</div></Card>
+      ) : filtered.length === 0 ? (
+        <Card><div style={{ textAlign:'center', padding:'2rem' }}>
+          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>&#128200;</div>
+          <div style={{ color:'#adb5bd', fontSize:'0.9rem' }}>{assets.length === 0 ? 'No securities yet. Add manually or upload positions to auto-populate.' : 'No results for "' + search + '"'}</div>
+        </div></Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem' }}>
+              <thead>
+                <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
+                  {['Security Name','ISIN','Ticker','Asset Class','Sector','Country','Exchange','CCY',''].map(h => (
+                    <th key={h} style={{ padding:'0.75rem 1rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((a, i) => (
+                  <tr key={a.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding:'0.7rem 1rem', fontWeight:'600', color:'#212529', maxWidth:'220px' }}>{a.security_name}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#495057', fontFamily:'monospace', fontSize:'0.78rem' }}>{a.isin || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#495057', fontFamily:'monospace', fontSize:'0.78rem', fontWeight:'700' }}>{a.ticker || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem' }}>
+                      {a.asset_class ? <span style={{ background: classColor(a.asset_class), color: classText(a.asset_class), borderRadius:'12px', padding:'3px 10px', fontSize:'0.72rem', fontWeight:'700', whiteSpace:'nowrap' }}>{a.asset_class}</span> : <span style={{ color:'#dee2e6' }}>\u2014</span>}
+                    </td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.sector || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.country || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.exchange || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d', fontFamily:'monospace' }}>{a.currency || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', whiteSpace:'nowrap' }}>
+                      <button onClick={() => openEdit(a)} style={{ background:'transparent', border:'1px solid #dee2e6', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', marginRight:'6px' }}>Edit</button>
+                      <button onClick={() => del(a.id, a.security_name)} style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {showAdd && (
+        <Modal title={(editId ? 'Edit' : 'Add') + ' Security'} onClose={() => setShowAdd(false)}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+            <div style={{ gridColumn:'1/-1' }}>
+              <Input label="Security Name *" value={form.security_name} onChange={e => setForm({ ...form, security_name: e.target.value })} placeholder="e.g. Apple Inc." />
+            </div>
+            <Input label="ISIN" value={form.isin} onChange={e => setForm({ ...form, isin: e.target.value })} placeholder="e.g. US0378331005" />
+            <Input label="Ticker" value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} placeholder="e.g. AAPL" />
+            <div>
+              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Asset Class</label>
+              <select value={form.asset_class} onChange={e => setForm({ ...form, asset_class: e.target.value })}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
+                <option value="">Select...</option>
+                {ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <Input label="Sector" value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })} placeholder="e.g. Technology" />
+            <Input label="Country" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} placeholder="e.g. United States" />
+            <Input label="Exchange" value={form.exchange} onChange={e => setForm({ ...form, exchange: e.target.value })} placeholder="e.g. NASDAQ" />
+            <Input label="Currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} placeholder="e.g. USD" />
+          </div>
+          <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'1.5rem' }}>
+            <Btn variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
+            <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : (editId ? 'Update Security' : 'Add Security')}</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Review Queue ─────────────────────────────────────────────────────────────
+function ReviewQueue() {
+  const [items, setItems] = useState([]);
+  const [investors, setInvestors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending');
+  const [editItem, setEditItem] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('upload_review_queue').select('*, investors(full_name)').order('created_at', { ascending: false });
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    supabase.from('investors').select('id, full_name').order('full_name').then(({ data }) => setInvestors(data || []));
+  }, []);
+
+  const pending = items.filter(i => i.status === 'pending');
+  const filtered = items.filter(i => filter === 'all' ? true : i.status === filter);
+
+  const openEdit = (item) => {
+    setEditItem(item);
+    setEditForm({
+      security_name: item.raw_security_name || '',
+      isin: item.raw_isin || '',
+      ticker: item.raw_ticker || '',
+      asset_class: item.raw_asset_type || '',
+      quantity: item.raw_quantity || '',
+      price: item.raw_price || '',
+      market_value: item.raw_market_value || '',
+      currency: item.raw_currency || '',
+      cash_balance: item.raw_cash_balance || '',
+      classification: item.classification || 'public_markets',
+    });
+  };
+
+  const approve = async () => {
+    if (!editItem) return;
+    setSaving(true);
+    const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
+    const isCash = editForm.classification === 'cash';
+
+    // 1. Upsert into asset_master (by ISIN if available, else by name)
+    if (!isCash && (editForm.security_name || editForm.isin || editForm.ticker)) {
+      const assetPayload = {
+        security_name: editForm.security_name || 'Unknown',
+        isin: editForm.isin || null,
+        ticker: editForm.ticker || null,
+        asset_class: editForm.asset_class || null,
+        currency: editForm.currency || null,
+        updated_at: new Date().toISOString(),
+      };
+      // Try to match existing by ISIN first, then ticker
+      let existing = null;
+      if (editForm.isin) {
+        const { data } = await supabase.from('asset_master').select('id').eq('isin', editForm.isin).limit(1);
+        existing = data && data[0];
+      }
+      if (!existing && editForm.ticker) {
+        const { data } = await supabase.from('asset_master').select('id').ilike('ticker', editForm.ticker).limit(1);
+        existing = data && data[0];
+      }
+      if (existing) {
+        await supabase.from('asset_master').update(assetPayload).eq('id', existing.id);
+      } else {
+        await supabase.from('asset_master').insert(assetPayload);
+      }
+    }
+
+    // 2. Save to positions or cash_positions
+    if (isCash) {
+      await supabase.from('cash_positions').insert({
+        investor_id: editItem.investor_id,
+        currency: editForm.currency || 'USD',
+        balance: toNum(editForm.cash_balance) || toNum(editForm.market_value),
+        description: editForm.security_name || 'Cash',
+        statement_date: editItem.statement_date,
+        source_bank: editItem.source_bank,
+      });
+    } else {
+      await supabase.from('positions').insert({
+        investor_id: editItem.investor_id,
+        security_name: editForm.security_name || 'Unknown',
+        ticker: editForm.ticker || null,
+        isin: editForm.isin || null,
+        asset_type: editForm.asset_class || editForm.asset_type || 'Equity',
+        quantity: toNum(editForm.quantity),
+        price: toNum(editForm.price),
+        market_value: toNum(editForm.market_value) || toNum(editForm.quantity) * toNum(editForm.price),
+        currency: editForm.currency || 'USD',
+        statement_date: editItem.statement_date,
+        source_bank: editItem.source_bank,
+      });
+    }
+
+    // 3. Mark queue item as approved
+    await supabase.from('upload_review_queue').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', editItem.id);
+
+    setSaving(false);
+    setEditItem(null);
+    setMsg('\u2713 Approved: "' + (editForm.security_name || 'position') + '" \u2014 added to Asset Master and saved to portfolio.');
+    load();
+  };
+
+  const reject = async (id, name) => {
+    if (!window.confirm('Reject and discard "' + (name || 'this position') + '"?')) return;
+    await supabase.from('upload_review_queue').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', id);
+    setMsg('\u2713 Rejected: "' + (name || 'position') + '"');
+    load();
+  };
+
+  const statusBadge = (s) => {
+    const cfg = { pending: ['#fff3e0','#e65100','Pending'], approved: ['#e8f5e9','#2e7d32','Approved'], rejected: ['#fff5f5','#c53030','Rejected'] };
+    const [bg, color, label] = cfg[s] || ['#f5f5f5','#6c757d', s];
+    return <span style={{ background: bg, color, borderRadius:'12px', padding:'3px 10px', fontSize:'0.72rem', fontWeight:'700' }}>{label}</span>;
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
+        <PageHeader
+          title="Review Queue"
+          subtitle="Positions flagged during upload that need manual review before being added to portfolios"
+        />
+        {pending.length > 0 && (
+          <div style={{ background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:'10px', padding:'0.5rem 1rem', fontSize:'0.82rem', color:'#e65100', fontWeight:'700', flexShrink:0 }}>
+            &#9888; {pending.length} pending item{pending.length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+
+      {msg && <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.85rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>}
+
+      {/* Filter tabs */}
+      <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+        {[['pending','Pending', pending.length], ['approved','Approved', null], ['rejected','Rejected', null], ['all','All', items.length]].map(([val, label, count]) => (
+          <button key={val} onClick={() => setFilter(val)}
+            style={{ padding:'0.4rem 1rem', borderRadius:'20px', border:'1.5px solid', borderColor: filter === val ? '#003770' : '#dee2e6', background: filter === val ? '#003770' : '#fff', color: filter === val ? '#fff' : '#6c757d', fontSize:'0.82rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem' }}>
+            {label}
+            {count !== null && count > 0 && <span style={{ background: filter === val ? 'rgba(255,255,255,0.25)' : (val === 'pending' ? '#e65100' : '#6c757d'), color:'#fff', borderRadius:'20px', padding:'1px 7px', fontSize:'0.7rem' }}>{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <Card><div style={{ textAlign:'center', padding:'2rem', color:'#adb5bd' }}>Loading review queue...</div></Card>
+      ) : filtered.length === 0 ? (
+        <Card><div style={{ textAlign:'center', padding:'2.5rem' }}>
+          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>&#10003;</div>
+          <div style={{ color:'#adb5bd', fontSize:'0.9rem' }}>{filter === 'pending' ? 'No pending items \u2014 queue is clear.' : 'No items in this category.'}</div>
+        </div></Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem' }}>
+              <thead>
+                <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
+                  {['Investor','Security Name','Ticker','ISIN','Raw Asset Type','Qty','Market Value','CCY','Bank','Date','Status',''].map(h => (
+                    <th key={h} style={{ padding:'0.75rem 1rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item, i) => (
+                  <tr key={item.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding:'0.7rem 1rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap' }}>{item.investors?.full_name || <span style={{ color:'#adb5bd' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#212529', maxWidth:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.raw_security_name || <span style={{ color:'#adb5bd' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', fontFamily:'monospace', color:'#495057' }}>{item.raw_ticker || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', fontFamily:'monospace', color:'#adb5bd', fontSize:'0.72rem' }}>{item.raw_isin || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{item.raw_asset_type || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', textAlign:'right', color:'#495057' }}>{item.raw_quantity ?? <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', textAlign:'right', fontWeight:'600', color:'#003770' }}>{item.raw_market_value ? item.raw_market_value.toLocaleString() : (item.raw_cash_balance ? item.raw_cash_balance.toLocaleString() : <span style={{ color:'#dee2e6' }}>\u2014</span>)}</td>
+                    <td style={{ padding:'0.7rem 1rem', fontFamily:'monospace', color:'#6c757d' }}>{item.raw_currency || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d', whiteSpace:'nowrap' }}>{item.source_bank || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem', color:'#adb5bd', fontSize:'0.72rem', whiteSpace:'nowrap' }}>{item.statement_date || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                    <td style={{ padding:'0.7rem 1rem' }}>{statusBadge(item.status)}</td>
+                    <td style={{ padding:'0.7rem 1rem', whiteSpace:'nowrap' }}>
+                      {item.status === 'pending' && (
+                        <>
+                          <button onClick={() => openEdit(item)} style={{ background:'#003770', border:'none', borderRadius:'6px', padding:'4px 10px', fontSize:'0.75rem', color:'#fff', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', marginRight:'6px' }}>Review</button>
+                          <button onClick={() => reject(item.id, item.raw_security_name)} style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'4px 10px', fontSize:'0.75rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>Reject</button>
+                        </>
+                      )}
+                      {item.status !== 'pending' && <span style={{ color:'#adb5bd', fontSize:'0.78rem' }}>{item.reviewed_at ? new Date(item.reviewed_at).toLocaleDateString() : ''}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Review / Approve Modal */}
+      {editItem && (
+        <Modal title={'Review Position'} onClose={() => setEditItem(null)} wide>
+          <div style={{ marginBottom:'1rem', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#e65100', fontWeight:'600' }}>
+            &#9888; No ISIN or ticker was detected for this position. Enrich the data below before approving.
+          </div>
+          <div style={{ marginBottom:'1.25rem', fontSize:'0.82rem', color:'#6c757d' }}>
+            Investor: <strong style={{ color:'#003770' }}>{editItem.investors?.full_name}</strong>
+            &nbsp;&middot;&nbsp; Bank: <strong>{editItem.source_bank || '\u2014'}</strong>
+            &nbsp;&middot;&nbsp; Date: <strong>{editItem.statement_date || '\u2014'}</strong>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+            <div style={{ gridColumn:'1/-1' }}>
+              <Input label="Security Name *" value={editForm.security_name} onChange={e => setEditForm({ ...editForm, security_name: e.target.value })} />
+            </div>
+            <Input label="ISIN" value={editForm.isin} onChange={e => setEditForm({ ...editForm, isin: e.target.value })} placeholder="e.g. US0378331005" />
+            <Input label="Ticker" value={editForm.ticker} onChange={e => setEditForm({ ...editForm, ticker: e.target.value })} placeholder="e.g. AAPL" />
+            <div>
+              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Asset Class</label>
+              <select value={editForm.asset_class} onChange={e => setEditForm({ ...editForm, asset_class: e.target.value })}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
+                <option value="">Select...</option>
+                {ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Classification</label>
+              <select value={editForm.classification} onChange={e => setEditForm({ ...editForm, classification: e.target.value })}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
+                <option value="public_markets">Public Markets (position)</option>
+                <option value="cash">Cash</option>
+              </select>
+            </div>
+            <Input label="Quantity" value={editForm.quantity} onChange={e => setEditForm({ ...editForm, quantity: e.target.value })} />
+            <Input label="Price" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })} />
+            <Input label="Market Value" value={editForm.market_value} onChange={e => setEditForm({ ...editForm, market_value: e.target.value })} />
+            <Input label="Cash Balance" value={editForm.cash_balance} onChange={e => setEditForm({ ...editForm, cash_balance: e.target.value })} />
+            <Input label="Currency" value={editForm.currency} onChange={e => setEditForm({ ...editForm, currency: e.target.value })} placeholder="e.g. USD" />
+          </div>
+
+          <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#2e7d32', marginBottom:'1.25rem' }}>
+            &#128190; Approving will save this position to the portfolio <strong>and</strong> add/update the security in the Asset Master.
+          </div>
+
+          <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setEditItem(null)}>Cancel</Btn>
+            <button onClick={() => reject(editItem.id, editItem.raw_security_name).then(() => setEditItem(null))}
+              style={{ padding:'0.55rem 1.25rem', border:'1px solid #e63946', borderRadius:'8px', background:'transparent', color:'#e63946', fontSize:'0.88rem', fontWeight:'700', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+              Reject
+            </button>
+            <Btn onClick={approve} disabled={saving}>{saving ? 'Approving...' : 'Approve & Save'}</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
