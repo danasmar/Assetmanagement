@@ -18,6 +18,7 @@ export default function AdminApp({ session, onLogout }) {
     portfolio_upload: <PortfolioUpload />,
     review_queue: <ReviewQueue />,
     asset_master: <AssetMaster />,
+    positions: <PositionsViewer />,
   };
   return (
     <Layout page={page} onPageChange={setPage} session={session} onLogout={onLogout} navItems={ADMIN_NAV}>
@@ -2652,6 +2653,204 @@ function ReviewQueue() {
             <Btn onClick={approve} disabled={saving}>{saving ? 'Approving...' : 'Approve & Save'}</Btn>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Positions Viewer ─────────────────────────────────────────────────────────
+function PositionsViewer() {
+  const [positions, setPositions] = useState([]);
+  const [investors, setInvestors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterInvestor, setFilterInvestor] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterType, setFilterType] = useState('all'); // all | positions | cash
+  const [sortCol, setSortCol] = useState('statement_date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [msg, setMsg] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    const [posRes, cashRes, invRes] = await Promise.all([
+      supabase.from('positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
+      supabase.from('cash_positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
+      supabase.from('investors').select('id, full_name').order('full_name'),
+    ]);
+    const pos = (posRes.data || []).map(r => ({ ...r, _type: 'position' }));
+    const cash = (cashRes.data || []).map(r => ({
+      ...r,
+      security_name: r.description || 'Cash',
+      ticker: null,
+      isin: null,
+      asset_type: 'Cash & Equivalent',
+      quantity: null,
+      price: null,
+      market_value: r.balance,
+      _type: 'cash',
+    }));
+    setPositions([...pos, ...cash]);
+    setInvestors(invRes.data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  // All unique statement dates across both tables
+  const allDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
+
+  const filtered = positions.filter(p => {
+    if (filterType === 'positions' && p._type !== 'position') return false;
+    if (filterType === 'cash' && p._type !== 'cash') return false;
+    if (filterInvestor && p.investor_id !== filterInvestor) return false;
+    if (filterDate && p.statement_date !== filterDate) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return (p.security_name || '').toLowerCase().includes(q)
+        || (p.ticker || '').toLowerCase().includes(q)
+        || (p.isin || '').toLowerCase().includes(q)
+        || (p.investors?.full_name || '').toLowerCase().includes(q)
+        || (p.source_bank || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av == null) return 1; if (bv == null) return -1;
+    return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  const handleSort = (col) => setSortCol(prev => {
+    setSortDir(prev === col && sortDir === 'desc' ? 'asc' : 'desc');
+    return col;
+  });
+  const si = (col) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
+
+  const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
+
+  const deleteRow = async (id, type) => {
+    if (!window.confirm('Delete this position?')) return;
+    const table = type === 'cash' ? 'cash_positions' : 'positions';
+    await supabase.from(table).delete().eq('id', id);
+    setMsg('✓ Position deleted.');
+    load();
+  };
+
+  const COLS = [
+    { key: 'full_name', label: 'Investor', sortKey: null },
+    { key: '_type', label: 'Type' },
+    { key: 'security_name', label: 'Security' },
+    { key: 'ticker', label: 'Ticker' },
+    { key: 'isin', label: 'ISIN' },
+    { key: 'asset_type', label: 'Asset Class' },
+    { key: 'quantity', label: 'Qty', right: true },
+    { key: 'price', label: 'Price', right: true },
+    { key: 'market_value', label: 'Value', right: true },
+    { key: 'currency', label: 'CCY' },
+    { key: 'source_bank', label: 'Bank' },
+    { key: 'statement_date', label: 'Date' },
+    { key: '_actions', label: '' },
+  ];
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
+        <PageHeader title="Positions" subtitle="All uploaded market positions and cash balances across all investors" />
+        <button onClick={load} style={{ background:'#f1f3f5', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      {msg && <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>}
+
+      {/* Filters */}
+      <Card style={{ marginBottom:'1.25rem' }}>
+        <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap', alignItems:'center' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search security, ticker, ISIN, investor, bank..."
+            style={{ flex:1, minWidth:'200px', padding:'0.55rem 0.9rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
+          <select value={filterInvestor} onChange={e => setFilterInvestor(e.target.value)}
+            style={{ padding:'0.55rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', minWidth:'160px' }}>
+            <option value="">All Investors</option>
+            {investors.map(i => <option key={i.id} value={i.id}>{i.full_name}</option>)}
+          </select>
+          <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
+            style={{ padding:'0.55rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', minWidth:'140px' }}>
+            <option value="">All Dates</option>
+            {allDates.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <div style={{ display:'flex', gap:'0.4rem' }}>
+            {[['all','All'],['positions','Positions'],['cash','Cash']].map(([val, label]) => (
+              <button key={val} onClick={() => setFilterType(val)}
+                style={{ padding:'0.45rem 0.85rem', border:'1.5px solid', borderColor: filterType === val ? '#003770' : '#dee2e6', borderRadius:'8px', background: filterType === val ? '#003770' : '#fff', color: filterType === val ? '#fff' : '#6c757d', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize:'0.82rem', color:'#adb5bd', flexShrink:0 }}>
+            {sorted.length} row{sorted.length !== 1 ? 's' : ''}
+            {totalMV > 0 && <span style={{ marginLeft:'8px', color:'#003770', fontWeight:'700' }}>· {totalMV.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 })}</span>}
+          </div>
+        </div>
+      </Card>
+
+      {loading ? (
+        <Card><div style={{ textAlign:'center', padding:'2rem', color:'#adb5bd' }}>Loading positions...</div></Card>
+      ) : sorted.length === 0 ? (
+        <Card><div style={{ textAlign:'center', padding:'2.5rem' }}>
+          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>📊</div>
+          <div style={{ color:'#adb5bd', fontSize:'0.9rem' }}>No positions found. Upload a portfolio statement to get started.</div>
+        </div></Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem', minWidth:'900px' }}>
+              <thead>
+                <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
+                  {COLS.map(col => (
+                    <th key={col.key}
+                      onClick={col.key !== '_actions' && col.key !== 'full_name' ? () => handleSort(col.sortKey || col.key) : undefined}
+                      style={{ padding:'0.75rem 0.9rem', textAlign: col.right ? 'right' : 'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', cursor: col.key !== '_actions' ? 'pointer' : 'default', userSelect:'none' }}>
+                      {col.label}{col.key !== '_actions' && col.key !== 'full_name' ? si(col.sortKey || col.key) : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row, i) => (
+                  <tr key={row.id + row._type} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap' }}>{row.investors?.full_name || '—'}</td>
+                    <td style={{ padding:'0.65rem 0.9rem' }}>
+                      <span style={{ background: row._type === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._type === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
+                        {row._type === 'cash' ? 'Cash' : 'Position'}
+                      </span>
+                    </td>
+                    <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#212529', maxWidth:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.security_name || '—'}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{row.ticker || <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', fontFamily:'monospace', color:'#adb5bd', fontSize:'0.75rem' }}>{row.isin || <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d' }}>{row.asset_type || <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', color:'#495057' }}>{row.quantity != null ? Number(row.quantity).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', color:'#495057' }}>{row.price != null ? Number(row.price).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{row.market_value != null ? Number(row.market_value).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d', fontFamily:'monospace' }}>{row.currency || '—'}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d', whiteSpace:'nowrap' }}>{row.source_bank || <span style={{ color:'#dee2e6' }}>—</span>}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', color:'#adb5bd', fontSize:'0.78rem', whiteSpace:'nowrap' }}>{row.statement_date || '—'}</td>
+                    <td style={{ padding:'0.65rem 0.9rem', whiteSpace:'nowrap' }}>
+                      <button onClick={() => deleteRow(row.id, row._type)}
+                        style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );
