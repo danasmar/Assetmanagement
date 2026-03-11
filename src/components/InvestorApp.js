@@ -156,7 +156,7 @@ function InvestorPortfolio({ session }) {
       const [invRes, distRes, posRes, cashRes, assumpRes] = await Promise.all([
         supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
-        supabase.from('positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('positions').select('*, deals(id, name, strategy, currency, nav_per_unit, status)').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
         supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
       ]);
@@ -170,8 +170,9 @@ function InvestorPortfolio({ session }) {
         if (dealId) byDeal[dealId] = (byDeal[dealId] || 0) + (d.amount || 0);
       });
       setDistByDeal(byDeal);
-      // Default to latest position date
-      const latest = (posRes.data || []).length ? (posRes.data || [])[0].statement_date : '';
+      // Default to latest public position date
+      const latest = (posRes.data || []).filter(p => !p.market_type || p.market_type === 'public').length
+        ? (posRes.data || []).filter(p => !p.market_type || p.market_type === 'public')[0].statement_date : '';
       setSelectedPosDate(latest);
       setLoading(false);
     };
@@ -195,10 +196,18 @@ function InvestorPortfolio({ session }) {
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   // All unique statement dates for positions (sorted desc)
-  const allPosDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
+  const allPosDates = [...new Set(publicPositions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
 
-  // Positions for selected date
-  const displayPositions = selectedPosDate ? positions.filter(p => p.statement_date === selectedPosDate) : [];
+  // Split by market type (default: public if not set)
+  const publicPositions = positions.filter(p => !p.market_type || p.market_type === 'public');
+  const privatePositions = positions.filter(p => p.market_type === 'private');
+
+  // Public positions for selected date
+  const displayPositions = selectedPosDate ? publicPositions.filter(p => p.statement_date === selectedPosDate) : [];
+
+  // Private positions for selected date (or latest date they have)
+  const latestPrivateDate = privatePositions.length ? privatePositions[0].statement_date : null;
+  const displayPrivatePositions = privatePositions.filter(p => p.statement_date === latestPrivateDate);
 
   // Cash: always latest date, group by bank
   const latestCashDate = cashPositions.length ? cashPositions[0].statement_date : null;
@@ -209,7 +218,7 @@ function InvestorPortfolio({ session }) {
     const sorted = (i.deals?.nav_updates || []).slice().sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
     const nav = sorted.length ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
     return s + toSAR((i.units || 0) * nav, i.deals?.currency);
-  }, 0);
+  }, 0) + displayPrivatePositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
 
   const totalPublicMV_SAR = displayPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
   const totalCash_SAR = displayCash.reduce((s, c) => s + toSAR(c.balance || 0, c.currency), 0);
@@ -336,7 +345,7 @@ function InvestorPortfolio({ session }) {
       )}
 
       <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
-        {tabBtn('private', 'Private Markets', investments.length)}
+        {tabBtn('private', 'Private Markets', investments.length + displayPrivatePositions.length)}
         {tabBtn('public', 'Public Markets', displayPositions.length)}
         {tabBtn('cash', 'Cash', displayCash.length)}
       </div>
@@ -344,9 +353,17 @@ function InvestorPortfolio({ session }) {
       {loading ? <p style={{ color:'#adb5bd' }}>Loading...</p> : (
         <>
           {/* ── Private Markets ── */}
-          {activeTab === 'private' && (
-            investments.length === 0 ?
-              <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No private market investments yet.</p></Card> :
+          {activeTab === 'private' && (() => {
+            const hasAnything = investments.length > 0 || displayPrivatePositions.length > 0;
+            if (!hasAnything) return <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No private market investments yet.</p></Card>;
+            // Group private positions by deal_id
+            const posByDeal = {};
+            const unlinkedPrivate = [];
+            displayPrivatePositions.forEach(p => {
+              if (p.deal_id) { (posByDeal[p.deal_id] = posByDeal[p.deal_id] || []).push(p); }
+              else unlinkedPrivate.push(p);
+            });
+            return (
               <div style={{ display:'grid', gap:'1rem' }}>
                 {investments.map(inv => {
                   const navUpdates = inv.deals?.nav_updates || [];
@@ -357,6 +374,7 @@ function InvestorPortfolio({ session }) {
                   const nav = (inv.units || 0) * latestNav;
                   const dealDist = distByDeal[inv.deal_id] || 0;
                   const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
+                  const linkedPos = posByDeal[inv.deal_id] || [];
                   return (
                     <Card key={inv.id}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem' }}>
@@ -374,11 +392,72 @@ function InvestorPortfolio({ session }) {
                           </div>
                         ))}
                       </div>
+                      {linkedPos.length > 0 && (
+                        <div style={{ marginTop:'1.25rem', borderTop:'1px solid #f1f3f5', paddingTop:'1rem' }}>
+                          <div style={{ fontSize:'0.72rem', fontWeight:'700', color:'#6c757d', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.6rem' }}>Linked Positions</div>
+                          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
+                            <thead>
+                              <tr style={{ background:'#f8f9fa' }}>
+                                {['Security','Ticker','Industry','Qty','Value','CCY'].map(h => (
+                                  <th key={h} style={{ padding:'0.45rem 0.7rem', textAlign: ['Qty','Value'].includes(h) ? 'right' : 'left', color:'#adb5bd', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e9ecef' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {linkedPos.map((pos, pi) => (
+                                <tr key={pos.id} style={{ borderBottom:'1px solid #f8f9fa', background: pi % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                  <td style={{ padding:'0.45rem 0.7rem', fontWeight:'600', color:'#212529' }}>{pos.security_name}</td>
+                                  <td style={{ padding:'0.45rem 0.7rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{pos.ticker || '—'}</td>
+                                  <td style={{ padding:'0.45rem 0.7rem', color:'#6c757d' }}>{pos.industry || '—'}</td>
+                                  <td style={{ padding:'0.45rem 0.7rem', textAlign:'right', color:'#495057' }}>{pos.quantity ? fmt.num(pos.quantity) : '—'}</td>
+                                  <td style={{ padding:'0.45rem 0.7rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                                  <td style={{ padding:'0.45rem 0.7rem', color:'#6c757d', fontFamily:'monospace' }}>{pos.currency}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr style={{ borderTop:'1px solid #e9ecef' }}>
+                                <td colSpan={4} style={{ padding:'0.45rem 0.7rem', fontSize:'0.75rem', color:'#adb5bd' }}>{linkedPos.length} position{linkedPos.length !== 1 ? 's' : ''}</td>
+                                <td style={{ padding:'0.45rem 0.7rem', textAlign:'right', fontWeight:'700', color:'#003770', fontSize:'0.85rem' }}>{fmt.currency(linkedPos.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0))}</td>
+                                <td />
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
                     </Card>
                   );
                 })}
+                {unlinkedPrivate.length > 0 && (
+                  <Card>
+                    <h3 style={{ margin:'0 0 1rem', fontSize:'0.95rem', fontWeight:'700', color:'#495057' }}>Other Private Holdings</h3>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
+                      <thead>
+                        <tr style={{ background:'#f8f9fa' }}>
+                          {['Security','Ticker','Asset Class','Industry','Qty','Value','CCY'].map(h => (
+                            <th key={h} style={{ padding:'0.5rem 0.75rem', textAlign: ['Qty','Value'].includes(h) ? 'right' : 'left', color:'#adb5bd', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e9ecef' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unlinkedPrivate.map((pos, pi) => (
+                          <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: pi % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{pos.security_name}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{pos.ticker || '—'}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.asset_type || '—'}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.industry || '—'}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', color:'#495057' }}>{pos.quantity ? fmt.num(pos.quantity) : '—'}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', fontFamily:'monospace' }}>{pos.currency}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                )}
               </div>
-          )}
+            );
+          })()}
 
           {/* ── Public Markets ── */}
           {activeTab === 'public' && (
