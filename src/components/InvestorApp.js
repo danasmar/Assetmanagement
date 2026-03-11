@@ -141,6 +141,7 @@ function InvestorPortfolio({ session }) {
   const [investments, setInvestments] = useState([]);
   const [positions, setPositions] = useState([]);
   const [cashPositions, setCashPositions] = useState([]);
+  const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [distByDeal, setDistByDeal] = useState({});
   const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
@@ -154,16 +155,18 @@ function InvestorPortfolio({ session }) {
 
   useEffect(() => {
     const load = async () => {
-      const [invRes, distRes, posRes, cashRes, assumpRes] = await Promise.all([
+      const [invRes, distRes, posRes, cashRes, assumpRes, dealRes] = await Promise.all([
         supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
         supabase.from('positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
         supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
+        supabase.from('deals').select('id, name, strategy, currency, status'),
       ]);
       setInvestments(invRes.data || []);
       setPositions(posRes.data || []);
       setCashPositions(cashRes.data || []);
+      setDeals(dealRes.data || []);
       if (assumpRes.data && assumpRes.data[0]) setFx(assumpRes.data[0]);
       const byDeal = {};
       (distRes.data || []).forEach(d => {
@@ -325,10 +328,18 @@ function InvestorPortfolio({ session }) {
 
   // ── Private Markets JSX (computed here to access toSAR, fmt, state directly) ─
   const posByDeal = {};
+  // Build set of deal_ids the investor actually has an investment record for
+  const investmentDealIds = new Set(investments.map(inv => inv.deal_id).filter(Boolean));
+
   const unlinkedPrivate = [];
   displayPrivatePositions.forEach(p => {
-    if (p.deal_id) { (posByDeal[p.deal_id] = posByDeal[p.deal_id] || []).push(p); }
-    else unlinkedPrivate.push(p);
+    // Link to investment card only if investor has an investment record for this deal
+    if (p.deal_id && investmentDealIds.has(p.deal_id)) {
+      (posByDeal[p.deal_id] = posByDeal[p.deal_id] || []).push(p);
+    } else {
+      // No investment record for this deal (or no deal_id) → show in Other Private Holdings
+      unlinkedPrivate.push(p);
+    }
   });
 
   const privateMarketsJSX = (investments.length === 0 && displayPrivatePositions.length === 0)
@@ -404,23 +415,31 @@ function InvestorPortfolio({ session }) {
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
               <thead>
                 <tr style={{ background:'#f8f9fa' }}>
-                  {['Security','Ticker','Asset Class','Industry','Qty','Value','CCY'].map(h => (
+                  {['Security','Ticker','Deal','Asset Class','Industry','Qty','Value','CCY'].map(h => (
                     <th key={h} style={{ padding:'0.5rem 0.75rem', textAlign: ['Qty','Value'].includes(h) ? 'right' : 'left', color:'#adb5bd', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e9ecef' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {unlinkedPrivate.map((pos, pi) => (
-                  <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: pi % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{pos.security_name}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{pos.ticker || '\u2014'}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.asset_type || '\u2014'}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.industry || '\u2014'}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', color:'#495057' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
-                    <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', fontFamily:'monospace' }}>{pos.currency}</td>
-                  </tr>
-                ))}
+                {unlinkedPrivate.map((pos, pi) => {
+                  const linkedDeal = pos.deal_id ? deals.find(d => d.id === pos.deal_id) : null;
+                  return (
+                    <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: pi % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{pos.security_name}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{pos.ticker || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#003770', fontWeight:'600', fontSize:'0.8rem' }}>
+                        {linkedDeal
+                          ? <span>{linkedDeal.name}{linkedDeal.status === 'closed' ? <span style={{ marginLeft:'4px', fontSize:'0.68rem', color:'#adb5bd' }}>(Closed)</span> : null}</span>
+                          : <span style={{ color:'#dee2e6' }}>\u2014</span>}
+                      </td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.asset_type || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d' }}>{pos.industry || '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', color:'#495057' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                      <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', fontFamily:'monospace' }}>{pos.currency}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </Card>
