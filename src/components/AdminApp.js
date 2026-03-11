@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -2826,17 +2825,43 @@ function PositionsViewer() {
     setSavingCell(null);
     if (error) {
       alert('Save failed: ' + error.message);
-    } else {
-      setPositions(prev => prev.map(p => {
-        if (p.id !== id || p._type !== type) return p;
-        const cfg = FIELD_CFG[field];
-        let newVal = editValue.trim() === '' ? null : editValue.trim();
-        if (cfg?.type === 'number') newVal = parseFloat(editValue) || 0;
-        if (field === 'deal_id') newVal = editValue.trim() === '' ? null : editValue.trim();
-        return { ...p, [field]: newVal };
-      }));
-      setFlashCell({ id, field });
-      setTimeout(() => setFlashCell(null), 1200);
+      return;
+    }
+
+    // ── Ticker sync: if security_name changed on a position with a ticker,
+    //    propagate the new name to ALL positions sharing that ticker ────────────
+    let syncedCount = 0;
+    if (field === 'security_name' && type === 'position' && row.ticker) {
+      const ticker = row.ticker.trim();
+      // Find all OTHER position rows with the same ticker
+      const siblings = positions.filter(p => p._type === 'position' && p.ticker === ticker && p.id !== id);
+      if (siblings.length > 0) {
+        await supabase.from('positions').update({ security_name: dbValue }).eq('ticker', ticker).neq('id', id);
+        syncedCount = siblings.length;
+      }
+    }
+
+    // Optimistic local update — covers both the edited row and any ticker siblings
+    setPositions(prev => prev.map(p => {
+      const cfg = FIELD_CFG[field];
+      let newVal = editValue.trim() === '' ? null : editValue.trim();
+      if (cfg?.type === 'number') newVal = parseFloat(editValue) || 0;
+      if (field === 'deal_id') newVal = editValue.trim() === '' ? null : editValue.trim();
+
+      if (p.id === id && p._type === type) return { ...p, [field]: newVal };
+      // Also update ticker siblings for security_name
+      if (field === 'security_name' && type === 'position' && p._type === 'position' && row.ticker && p.ticker === row.ticker) {
+        return { ...p, security_name: newVal };
+      }
+      return p;
+    }));
+
+    setFlashCell({ id, field });
+    setTimeout(() => setFlashCell(null), 1200);
+
+    if (syncedCount > 0) {
+      setMsg(`✓ Name updated and synced across ${syncedCount + 1} positions with ticker "${row.ticker}".`);
+      setTimeout(() => setMsg(''), 4000);
     }
   };
 
@@ -3099,4 +3124,3 @@ function PositionsViewer() {
     </div>
   );
 }
-
