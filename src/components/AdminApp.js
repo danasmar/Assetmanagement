@@ -2678,8 +2678,24 @@ function PositionsViewer() {
 
   const ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
 
+  const INDUSTRIES = [
+    'Energy', 'Oil & Gas', 'Renewables',
+    'Materials', 'Chemicals', 'Mining & Metals',
+    'Industrials', 'Aerospace & Defense', 'Construction', 'Transportation',
+    'Consumer Discretionary', 'Automobiles', 'Retail', 'Luxury Goods', 'Hotels & Leisure',
+    'Consumer Staples', 'Food & Beverage', 'Household Products', 'Tobacco',
+    'Health Care', 'Pharmaceuticals', 'Biotechnology', 'Medical Devices', 'Health Services',
+    'Financials', 'Banking', 'Insurance', 'Asset Management', 'Diversified Financials',
+    'Information Technology', 'Software', 'Semiconductors', 'IT Hardware', 'IT Services',
+    'Communication Services', 'Telecom', 'Media', 'Internet Services',
+    'Utilities', 'Electric Utilities', 'Water Utilities', 'Multi-Utilities',
+    'Real Estate', 'REITs', 'Real Estate Development',
+    'Government', 'Supranational', 'Municipal',
+    'Other',
+  ];
+
   const EDITABLE_FIELDS = {
-    positions: ['security_name','ticker','isin','asset_type','quantity','price','market_value','currency','source_bank','statement_date'],
+    positions: ['security_name','ticker','isin','asset_type','industry','quantity','price','market_value','currency','source_bank','statement_date'],
     cash: ['security_name','currency','market_value','source_bank','statement_date'],
   };
 
@@ -2689,6 +2705,7 @@ function PositionsViewer() {
     ticker:         { label: 'Ticker',          right: false, mono: true  },
     isin:           { label: 'ISIN',            right: false, mono: true  },
     asset_type:     { label: 'Asset Class',     right: false, mono: false, type: 'select' },
+    industry:       { label: 'Industry',        right: false, mono: false, type: 'select-industry' },
     quantity:       { label: 'Qty',             right: true,  mono: false, type: 'number' },
     price:          { label: 'Price',           right: true,  mono: false, type: 'number' },
     market_value:   { label: 'Value',           right: true,  mono: false, type: 'number' },
@@ -2867,6 +2884,17 @@ function PositionsViewer() {
           </td>
         );
       }
+      if (cfg.type === 'select-industry') {
+        return (
+          <td style={cellStyle}>
+            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
+              style={{ ...inputStyle, cursor:'pointer' }}>
+              <option value="">—</option>
+              {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+            </select>
+          </td>
+        );
+      }
       return (
         <td style={cellStyle}>
           <input
@@ -2915,7 +2943,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','quantity','price','market_value','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','quantity','price','market_value','currency','source_bank','statement_date'];
 
   return (
     <div>
