@@ -1,3 +1,5 @@
+AdminApp.js
+Paste into: src/components/AdminApp.js
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
@@ -2697,7 +2699,7 @@ function PositionsViewer() {
   ];
 
   const EDITABLE_FIELDS = {
-    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','price','market_value','currency','source_bank','statement_date'],
+    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'],
     cash: ['security_name','currency','market_value','source_bank','statement_date'],
   };
 
@@ -2712,6 +2714,7 @@ function PositionsViewer() {
     deal_id:        { label: 'Linked Deal',      right: false, mono: false, type: 'select-deal' },
     mandate_type:   { label: 'Mandate Type',     right: false, mono: false, type: 'select-mandate' },
     quantity:       { label: 'Quantity',         right: true,  mono: false, type: 'number' },
+    avg_cost_price: { label: 'Avg Cost Price',   right: true,  mono: false, type: 'number' },
     price:          { label: 'Market Price',     right: true,  mono: false, type: 'number' },
     market_value:   { label: 'Market Value',     right: true,  mono: false, type: 'number' },
     currency:       { label: 'Currency',         right: false, mono: true  },
@@ -3031,7 +3034,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','price','market_value','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'];
 
   return (
     <div>
