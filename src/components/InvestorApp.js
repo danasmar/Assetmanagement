@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, INVESTOR_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -315,15 +314,18 @@ function InvestorPortfolio({ session }) {
 
   // ── Position table columns ───────────────────────────────────────────────────
   const POS_COLS = [
-    { key: 'security_name', label: 'Security', align: 'left', sortable: true },
-    { key: 'ticker', label: 'Ticker', align: 'right', sortable: true },
-    { key: 'isin', label: 'ISIN', align: 'right', sortable: false },
-    { key: 'asset_type', label: 'Asset Class', align: 'left', sortable: true },
-    { key: 'industry', label: 'Industry', align: 'left', sortable: true },
-    { key: 'quantity', label: 'Qty', align: 'right', sortable: true },
-    { key: 'price', label: 'Price', align: 'right', sortable: true },
-    { key: 'market_value', label: 'Market Value', align: 'right', sortable: true },
-    { key: 'currency', label: 'CCY', align: 'right', sortable: true },
+    { key: 'security_name',  label: 'Security',          align: 'left',  sortable: true  },
+    { key: 'ticker',         label: 'Ticker',            align: 'right', sortable: true  },
+    { key: 'isin',           label: 'ISIN',              align: 'right', sortable: false },
+    { key: 'asset_type',     label: 'Asset Class',       align: 'left',  sortable: true  },
+    { key: 'industry',       label: 'Industry',          align: 'left',  sortable: true  },
+    { key: 'mandate_type',   label: 'Mandate Type',      align: 'left',  sortable: true  },
+    { key: 'quantity',       label: 'Quantity',          align: 'right', sortable: true  },
+    { key: 'avg_cost_price', label: 'Avg Cost Price',    align: 'right', sortable: true  },
+    { key: 'price',          label: 'Market Price',      align: 'right', sortable: true  },
+    { key: 'market_value',   label: 'Market Value',      align: 'right', sortable: true  },
+    { key: 'performance_pct',label: 'Performance %',     align: 'right', sortable: false },
+    { key: 'currency',       label: 'Currency',          align: 'right', sortable: true  },
   ];
 
   // ── Private Markets JSX (computed here to access toSAR, fmt, state directly) ─
@@ -622,30 +624,46 @@ function InvestorPortfolio({ session }) {
                                   </td>
                                 </tr>
                               )}
-                              {rows.map((pos, i) => (
-                                <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                  <td style={{ padding:'0.7rem 0.85rem' }}>
-                                    <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
-                                  </td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace', fontWeight:'600' }}>{pos.ticker || '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'left', fontSize:'0.8rem' }}>{pos.asset_type || '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'left', fontSize:'0.8rem' }}>{pos.industry || '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '\u2014'}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
-                                  <td style={{ padding:'0.7rem 0.85rem', textAlign:'right' }}>
-                                    <span style={{ fontSize:'1rem', marginRight:'4px' }}>{currencyFlag(pos.currency)}</span>
-                                    <span style={{ color:'#6c757d', fontSize:'0.8rem' }}>{pos.currency}</span>
-                                  </td>
-                                </tr>
-                              ))}
+                              {rows.map((pos, i) => {
+                                  const costBasis = parseFloat(pos.avg_cost_price) * parseFloat(pos.quantity);
+                                  const mv = parseFloat(pos.market_value);
+                                  const perf = (!isNaN(costBasis) && costBasis > 0 && !isNaN(mv)) ? ((mv - costBasis) / costBasis) * 100 : null;
+                                  const mandateColors = { 'Managed Account': { bg:'#e8f0fe', color:'#1a56db' }, 'Execution-Only': { bg:'#f3e5f5', color:'#7b1fa2' }, 'Advisory': { bg:'#fff8e1', color:'#b45309' } };
+                                  const mc = pos.mandate_type ? mandateColors[pos.mandate_type] : null;
+                                  return (
+                                    <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                      <td style={{ padding:'0.7rem 0.85rem' }}>
+                                        <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
+                                      </td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace', fontWeight:'600' }}>{pos.ticker || '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'left', fontSize:'0.8rem' }}>{pos.asset_type || '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'left', fontSize:'0.8rem' }}>{pos.industry || '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', textAlign:'left' }}>
+                                        {mc
+                                          ? <span style={{ background: mc.bg, color: mc.color, borderRadius:'10px', padding:'2px 8px', fontSize:'0.72rem', fontWeight:'700', whiteSpace:'nowrap' }}>{pos.mandate_type}</span>
+                                          : <span style={{ color:'#dee2e6' }}>\u2014</span>}
+                                      </td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.avg_cost_price ? fmt.currency(pos.avg_cost_price, pos.currency) : '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '\u2014'}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
+                                      <td style={{ padding:'0.7rem 0.85rem', textAlign:'right', fontWeight:'700', color: perf === null ? '#dee2e6' : perf >= 0 ? '#2a9d5c' : '#e63946' }}>
+                                        {perf !== null ? `${perf >= 0 ? '+' : ''}${perf.toFixed(2)}%` : '\u2014'}
+                                      </td>
+                                      <td style={{ padding:'0.7rem 0.85rem', textAlign:'right' }}>
+                                        <span style={{ fontSize:'1rem', marginRight:'4px' }}>{currencyFlag(pos.currency)}</span>
+                                        <span style={{ color:'#6c757d', fontSize:'0.8rem' }}>{pos.currency}</span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                             </React.Fragment>
                           ))}
                         </tbody>
                         <tfoot>
                           <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
-                            <td colSpan={7} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
+                            <td colSpan={10} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
                               {sortedPositions.length} position{sortedPositions.length !== 1 ? 's' : ''}
                               {posSearch && <span style={{ fontWeight:'400', color:'#adb5bd' }}> (filtered)</span>}
                             </td>
