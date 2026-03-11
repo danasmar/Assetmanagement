@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -2696,25 +2697,26 @@ function PositionsViewer() {
   ];
 
   const EDITABLE_FIELDS = {
-    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','quantity','price','market_value','currency','source_bank','statement_date'],
+    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','price','market_value','currency','source_bank','statement_date'],
     cash: ['security_name','currency','market_value','source_bank','statement_date'],
   };
 
   // Field display config
   const FIELD_CFG = {
-    security_name:  { label: 'Security',       right: false, mono: false },
-    ticker:         { label: 'Ticker',          right: false, mono: true  },
-    isin:           { label: 'ISIN',            right: false, mono: true  },
-    asset_type:     { label: 'Asset Class',     right: false, mono: false, type: 'select' },
-    industry:       { label: 'Industry',        right: false, mono: false, type: 'select-industry' },
-    market_type:    { label: 'Market Type',     right: false, mono: false, type: 'select-market-type' },
-    deal_id:        { label: 'Linked Deal',     right: false, mono: false, type: 'select-deal' },
-    quantity:       { label: 'Qty',             right: true,  mono: false, type: 'number' },
-    price:          { label: 'Price',           right: true,  mono: false, type: 'number' },
-    market_value:   { label: 'Value',           right: true,  mono: false, type: 'number' },
-    currency:       { label: 'CCY',             right: false, mono: true  },
-    source_bank:    { label: 'Bank',            right: false, mono: false },
-    statement_date: { label: 'Date',            right: false, mono: false, type: 'date'   },
+    security_name:  { label: 'Security',        right: false, mono: false },
+    ticker:         { label: 'Ticker',           right: false, mono: true  },
+    isin:           { label: 'ISIN',             right: false, mono: true  },
+    asset_type:     { label: 'Asset Class',      right: false, mono: false, type: 'select' },
+    industry:       { label: 'Industry',         right: false, mono: false, type: 'select-industry' },
+    market_type:    { label: 'Market Type',      right: false, mono: false, type: 'select-market-type' },
+    deal_id:        { label: 'Linked Deal',      right: false, mono: false, type: 'select-deal' },
+    mandate_type:   { label: 'Mandate Type',     right: false, mono: false, type: 'select-mandate' },
+    quantity:       { label: 'Quantity',         right: true,  mono: false, type: 'number' },
+    price:          { label: 'Market Price',     right: true,  mono: false, type: 'number' },
+    market_value:   { label: 'Market Value',     right: true,  mono: false, type: 'number' },
+    currency:       { label: 'Currency',         right: false, mono: true  },
+    source_bank:    { label: 'Custody',          right: false, mono: false },
+    statement_date: { label: 'Date',             right: false, mono: false, type: 'date'   },
   };
 
   const load = async () => {
@@ -2964,6 +2966,19 @@ function PositionsViewer() {
           </td>
         );
       }
+      if (cfg.type === 'select-mandate') {
+        return (
+          <td style={cellStyle}>
+            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
+              style={{ ...inputStyle, cursor:'pointer', minWidth:'150px' }}>
+              <option value="">— None —</option>
+              <option value="Managed Account">Managed Account</option>
+              <option value="Execution-Only">Execution-Only</option>
+              <option value="Advisory">Advisory</option>
+            </select>
+          </td>
+        );
+      }
       return (
         <td style={cellStyle}>
           <input
@@ -3005,7 +3020,9 @@ function PositionsViewer() {
               ? <span style={{ color:'#2a9d5c' }}>✓ {displayVal || '—'}</span>
               : field === 'market_type' && displayVal
                 ? <span style={{ background: displayVal === 'Private' ? '#fff0f6' : '#e8f5e9', color: displayVal === 'Private' ? '#c2185b' : '#2a9d5c', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{displayVal}</span>
-                : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
+                : field === 'mandate_type' && displayVal
+                  ? <span style={{ background: displayVal === 'Managed Account' ? '#e8f0fe' : displayVal === 'Advisory' ? '#fff8e1' : '#f3e5f5', color: displayVal === 'Managed Account' ? '#1a56db' : displayVal === 'Advisory' ? '#b45309' : '#7b1fa2', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{displayVal}</span>
+                  : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
           }
         </div>
       </td>
@@ -3014,7 +3031,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','quantity','price','market_value','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','price','market_value','currency','source_bank','statement_date'];
 
   return (
     <div>
@@ -3124,3 +3141,4 @@ function PositionsViewer() {
     </div>
   );
 }
+
