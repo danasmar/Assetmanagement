@@ -2658,6 +2658,7 @@ function ReviewQueue() {
   );
 }
 
+
 // ─── Positions Viewer ─────────────────────────────────────────────────────────
 function PositionsViewer() {
   const [positions, setPositions] = useState([]);
@@ -2666,10 +2667,35 @@ function PositionsViewer() {
   const [search, setSearch] = useState('');
   const [filterInvestor, setFilterInvestor] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  const [filterType, setFilterType] = useState('all'); // all | positions | cash
+  const [filterType, setFilterType] = useState('all');
   const [sortCol, setSortCol] = useState('statement_date');
   const [sortDir, setSortDir] = useState('desc');
+  const [savingCell, setSavingCell] = useState(null); // { id, field }
+  const [editingCell, setEditingCell] = useState(null); // { id, field, type }
+  const [editValue, setEditValue] = useState('');
+  const [flashCell, setFlashCell] = useState(null); // { id, field } — green flash on save
   const [msg, setMsg] = useState('');
+
+  const ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
+
+  const EDITABLE_FIELDS = {
+    positions: ['security_name','ticker','isin','asset_type','quantity','price','market_value','currency','source_bank','statement_date'],
+    cash: ['security_name','currency','market_value','source_bank','statement_date'],
+  };
+
+  // Field display config
+  const FIELD_CFG = {
+    security_name:  { label: 'Security',       right: false, mono: false },
+    ticker:         { label: 'Ticker',          right: false, mono: true  },
+    isin:           { label: 'ISIN',            right: false, mono: true  },
+    asset_type:     { label: 'Asset Class',     right: false, mono: false, type: 'select' },
+    quantity:       { label: 'Qty',             right: true,  mono: false, type: 'number' },
+    price:          { label: 'Price',           right: true,  mono: false, type: 'number' },
+    market_value:   { label: 'Value',           right: true,  mono: false, type: 'number' },
+    currency:       { label: 'CCY',             right: false, mono: true  },
+    source_bank:    { label: 'Bank',            right: false, mono: false },
+    statement_date: { label: 'Date',            right: false, mono: false, type: 'date'   },
+  };
 
   const load = async () => {
     setLoading(true);
@@ -2697,7 +2723,6 @@ function PositionsViewer() {
 
   useEffect(() => { load(); }, []);
 
-  // All unique statement dates across both tables
   const allDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
 
   const filtered = positions.filter(p => {
@@ -2724,45 +2749,186 @@ function PositionsViewer() {
     return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
   });
 
-  const handleSort = (col) => setSortCol(prev => {
-    setSortDir(prev === col && sortDir === 'desc' ? 'asc' : 'desc');
-    return col;
-  });
+  const handleSort = (col) => {
+    setSortDir(prev => sortCol === col && prev === 'desc' ? 'asc' : 'desc');
+    setSortCol(col);
+  };
   const si = (col) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
 
-  const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
+  // ── Inline editing ───────────────────────────────────────────────────────────
+  const startEdit = (row, field) => {
+    const editable = EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'];
+    if (!editable.includes(field)) return;
+    setEditingCell({ id: row.id, field, type: row._type });
+    setEditValue(row[field] != null ? String(row[field]) : '');
+  };
 
+  const cancelEdit = () => { setEditingCell(null); setEditValue(''); };
+
+  const commitEdit = async () => {
+    if (!editingCell) return;
+    const { id, field, type } = editingCell;
+    const row = positions.find(p => p.id === id && p._type === type);
+    if (!row) { cancelEdit(); return; }
+
+    // Determine db table and field mapping
+    const table = type === 'cash' ? 'cash_positions' : 'positions';
+    let dbField = field;
+    let dbValue = editValue.trim();
+
+    // For cash, security_name maps to 'description', market_value maps to 'balance'
+    if (type === 'cash') {
+      if (field === 'security_name') dbField = 'description';
+      if (field === 'market_value') { dbField = 'balance'; dbValue = parseFloat(dbValue) || 0; }
+    }
+
+    // Numeric fields
+    if (['quantity', 'price', 'market_value'].includes(field) && type !== 'cash') {
+      dbValue = parseFloat(dbValue) || 0;
+    }
+
+    // No change
+    if (String(row[field] ?? '') === String(editValue.trim())) { cancelEdit(); return; }
+
+    setSavingCell({ id, field });
+    cancelEdit();
+
+    const { error } = await supabase.from(table).update({ [dbField]: dbValue }).eq('id', id);
+
+    setSavingCell(null);
+    if (error) {
+      alert('Save failed: ' + error.message);
+    } else {
+      // Optimistic update in local state
+      setPositions(prev => prev.map(p => {
+        if (p.id !== id || p._type !== type) return p;
+        return { ...p, [field]: editValue.trim() === '' ? null : (FIELD_CFG[field]?.type === 'number' ? parseFloat(editValue) || 0 : editValue.trim()) };
+      }));
+      setFlashCell({ id, field });
+      setTimeout(() => setFlashCell(null), 1200);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    if (e.key === 'Escape') cancelEdit();
+  };
+
+  // ── Delete ───────────────────────────────────────────────────────────────────
   const deleteRow = async (id, type) => {
     if (!window.confirm('Delete this position?')) return;
     const table = type === 'cash' ? 'cash_positions' : 'positions';
     await supabase.from(table).delete().eq('id', id);
     setMsg('✓ Position deleted.');
-    load();
+    setPositions(prev => prev.filter(p => !(p.id === id && p._type === type)));
   };
 
-  const COLS = [
-    { key: 'full_name', label: 'Investor', sortKey: null },
-    { key: '_type', label: 'Type' },
-    { key: 'security_name', label: 'Security' },
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'isin', label: 'ISIN' },
-    { key: 'asset_type', label: 'Asset Class' },
-    { key: 'quantity', label: 'Qty', right: true },
-    { key: 'price', label: 'Price', right: true },
-    { key: 'market_value', label: 'Value', right: true },
-    { key: 'currency', label: 'CCY' },
-    { key: 'source_bank', label: 'Bank' },
-    { key: 'statement_date', label: 'Date' },
-    { key: '_actions', label: '' },
-  ];
+  // ── Cell renderer ────────────────────────────────────────────────────────────
+  const renderCell = (row, field) => {
+    const cfg = FIELD_CFG[field] || {};
+    const isEditing = editingCell?.id === row.id && editingCell?.field === field && editingCell?.type === row._type;
+    const isSaving = savingCell?.id === row.id && savingCell?.field === field;
+    const isFlashing = flashCell?.id === row.id && flashCell?.field === field;
+    const editable = (EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'] || []).includes(field);
+    const rawVal = row[field];
+    const displayVal = rawVal != null ? String(rawVal) : '';
+
+    const cellStyle = {
+      padding: '0',
+      textAlign: cfg.right ? 'right' : 'left',
+      background: isFlashing ? '#f0fff4' : isSaving ? '#fffbeb' : 'transparent',
+      transition: 'background 0.4s',
+      maxWidth: field === 'security_name' ? '180px' : undefined,
+      minWidth: field === 'security_name' ? '120px' : undefined,
+      position: 'relative',
+    };
+
+    if (isEditing) {
+      const inputStyle = {
+        width: '100%',
+        padding: '0.5rem 0.65rem',
+        border: '2px solid #C9A84C',
+        borderRadius: '6px',
+        fontSize: '0.82rem',
+        fontFamily: cfg.mono ? 'monospace' : 'DM Sans,sans-serif',
+        outline: 'none',
+        background: '#fffbeb',
+        boxSizing: 'border-box',
+        textAlign: cfg.right ? 'right' : 'left',
+      };
+      if (cfg.type === 'select') {
+        return (
+          <td style={cellStyle}>
+            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
+              style={{ ...inputStyle, cursor:'pointer' }}>
+              <option value="">—</option>
+              {ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </td>
+        );
+      }
+      return (
+        <td style={cellStyle}>
+          <input
+            type={cfg.type === 'number' ? 'number' : cfg.type === 'date' ? 'date' : 'text'}
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            style={inputStyle}
+          />
+        </td>
+      );
+    }
+
+    return (
+      <td
+        style={cellStyle}
+        onClick={editable ? () => startEdit(row, field) : undefined}
+        title={editable ? 'Click to edit' : undefined}
+      >
+        <div style={{
+          padding: '0.65rem 0.9rem',
+          fontFamily: cfg.mono ? 'monospace' : 'inherit',
+          fontWeight: field === 'security_name' ? '600' : field === 'market_value' ? '700' : '400',
+          color: field === 'market_value' ? '#003770' : field === 'ticker' ? '#495057' : field === 'isin' || field === 'statement_date' ? '#adb5bd' : '#495057',
+          fontSize: field === 'isin' || field === 'statement_date' ? '0.75rem' : '0.82rem',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          cursor: editable ? 'pointer' : 'default',
+          borderRadius: '4px',
+          transition: 'background 0.15s',
+        }}
+          onMouseEnter={e => { if (editable) e.currentTarget.style.background = '#f8f9fa'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          {isSaving
+            ? <span style={{ color:'#C9A84C', fontSize:'0.75rem' }}>saving…</span>
+            : isFlashing
+              ? <span style={{ color:'#2a9d5c' }}>✓ {displayVal || '—'}</span>
+              : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
+          }
+        </div>
+      </td>
+    );
+  };
+
+  const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
+
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','quantity','price','market_value','currency','source_bank','statement_date'];
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
-        <PageHeader title="Positions" subtitle="All uploaded market positions and cash balances across all investors" />
-        <button onClick={load} style={{ background:'#f1f3f5', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'0.25rem' }}>
+        <PageHeader title="Positions" subtitle="All uploaded market positions and cash balances. Click any cell to edit." />
+        <button onClick={load} style={{ background:'#f1f3f5', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif', flexShrink:0, marginTop:'0.25rem' }}>
           ↻ Refresh
         </button>
+      </div>
+
+      {/* Edit hint */}
+      <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'1.25rem', fontSize:'0.78rem', color:'#adb5bd' }}>
+        <span style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'6px', padding:'2px 8px', color:'#92400e', fontWeight:'600' }}>✏ Click any cell to edit · Enter to save · Esc to cancel</span>
       </div>
 
       {msg && <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>}
@@ -2793,7 +2959,7 @@ function PositionsViewer() {
           </div>
           <div style={{ fontSize:'0.82rem', color:'#adb5bd', flexShrink:0 }}>
             {sorted.length} row{sorted.length !== 1 ? 's' : ''}
-            {totalMV > 0 && <span style={{ marginLeft:'8px', color:'#003770', fontWeight:'700' }}>· {totalMV.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 })}</span>}
+            {totalMV > 0 && <span style={{ marginLeft:'8px', color:'#003770', fontWeight:'700' }}>· {totalMV.toLocaleString('en-US', { maximumFractionDigits:0 })}</span>}
           </div>
         </div>
       </Card>
@@ -2808,37 +2974,41 @@ function PositionsViewer() {
       ) : (
         <Card style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>
-            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem', minWidth:'900px' }}>
+            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem', minWidth:'1000px' }}>
               <thead>
                 <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
-                  {COLS.map(col => (
-                    <th key={col.key}
-                      onClick={col.key !== '_actions' && col.key !== 'full_name' ? () => handleSort(col.sortKey || col.key) : undefined}
-                      style={{ padding:'0.75rem 0.9rem', textAlign: col.right ? 'right' : 'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', cursor: col.key !== '_actions' ? 'pointer' : 'default', userSelect:'none' }}>
-                      {col.label}{col.key !== '_actions' && col.key !== 'full_name' ? si(col.sortKey || col.key) : ''}
+                  {/* Fixed columns */}
+                  <th style={{ padding:'0.75rem 0.9rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>Investor</th>
+                  <th style={{ padding:'0.75rem 0.9rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>Type</th>
+                  {/* Sortable editable columns */}
+                  {DISPLAY_FIELDS.map(field => (
+                    <th key={field}
+                      onClick={() => handleSort(field)}
+                      style={{ padding:'0.75rem 0.9rem', textAlign: FIELD_CFG[field]?.right ? 'right' : 'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', cursor:'pointer', userSelect:'none' }}>
+                      {FIELD_CFG[field]?.label || field}{si(field)}
                     </th>
                   ))}
+                  <th style={{ padding:'0.75rem 0.9rem' }} />
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((row, i) => (
                   <tr key={row.id + row._type} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap' }}>{row.investors?.full_name || '—'}</td>
+                    {/* Investor — not editable */}
+                    <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap', fontSize:'0.82rem' }}>
+                      {row.investors?.full_name || '—'}
+                    </td>
+                    {/* Type badge — not editable */}
                     <td style={{ padding:'0.65rem 0.9rem' }}>
-                      <span style={{ background: row._type === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._type === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
+                      <span style={{ background: row._type === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._type === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700', whiteSpace:'nowrap' }}>
                         {row._type === 'cash' ? 'Cash' : 'Position'}
                       </span>
                     </td>
-                    <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#212529', maxWidth:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.security_name || '—'}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', fontFamily:'monospace', color:'#495057', fontWeight:'700' }}>{row.ticker || <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', fontFamily:'monospace', color:'#adb5bd', fontSize:'0.75rem' }}>{row.isin || <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d' }}>{row.asset_type || <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', color:'#495057' }}>{row.quantity != null ? Number(row.quantity).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', color:'#495057' }}>{row.price != null ? Number(row.price).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', fontWeight:'700', color:'#003770' }}>{row.market_value != null ? Number(row.market_value).toLocaleString() : <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d', fontFamily:'monospace' }}>{row.currency || '—'}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', color:'#6c757d', whiteSpace:'nowrap' }}>{row.source_bank || <span style={{ color:'#dee2e6' }}>—</span>}</td>
-                    <td style={{ padding:'0.65rem 0.9rem', color:'#adb5bd', fontSize:'0.78rem', whiteSpace:'nowrap' }}>{row.statement_date || '—'}</td>
+                    {/* Editable cells */}
+                    {DISPLAY_FIELDS.map(field => (
+                      <React.Fragment key={field}>{renderCell(row, field)}</React.Fragment>
+                    ))}
+                    {/* Delete */}
                     <td style={{ padding:'0.65rem 0.9rem', whiteSpace:'nowrap' }}>
                       <button onClick={() => deleteRow(row.id, row._type)}
                         style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>
