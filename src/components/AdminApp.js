@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -2663,6 +2664,7 @@ function ReviewQueue() {
 function PositionsViewer() {
   const [positions, setPositions] = useState([]);
   const [investors, setInvestors] = useState([]);
+  const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterInvestor, setFilterInvestor] = useState('');
@@ -2695,7 +2697,7 @@ function PositionsViewer() {
   ];
 
   const EDITABLE_FIELDS = {
-    positions: ['security_name','ticker','isin','asset_type','industry','quantity','price','market_value','currency','source_bank','statement_date'],
+    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','quantity','price','market_value','currency','source_bank','statement_date'],
     cash: ['security_name','currency','market_value','source_bank','statement_date'],
   };
 
@@ -2706,6 +2708,8 @@ function PositionsViewer() {
     isin:           { label: 'ISIN',            right: false, mono: true  },
     asset_type:     { label: 'Asset Class',     right: false, mono: false, type: 'select' },
     industry:       { label: 'Industry',        right: false, mono: false, type: 'select-industry' },
+    market_type:    { label: 'Market Type',     right: false, mono: false, type: 'select-market-type' },
+    deal_id:        { label: 'Linked Deal',     right: false, mono: false, type: 'select-deal' },
     quantity:       { label: 'Qty',             right: true,  mono: false, type: 'number' },
     price:          { label: 'Price',           right: true,  mono: false, type: 'number' },
     market_value:   { label: 'Value',           right: true,  mono: false, type: 'number' },
@@ -2716,10 +2720,11 @@ function PositionsViewer() {
 
   const load = async () => {
     setLoading(true);
-    const [posRes, cashRes, invRes] = await Promise.all([
+    const [posRes, cashRes, invRes, dealRes] = await Promise.all([
       supabase.from('positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
       supabase.from('cash_positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
       supabase.from('investors').select('id, full_name').order('full_name'),
+      supabase.from('deals').select('id, name, status').order('name'),
     ]);
     const pos = (posRes.data || []).map(r => ({ ...r, _type: 'position' }));
     const cash = (cashRes.data || []).map(r => ({
@@ -2735,6 +2740,7 @@ function PositionsViewer() {
     }));
     setPositions([...pos, ...cash]);
     setInvestors(invRes.data || []);
+    setDeals(dealRes.data || []);
     setLoading(false);
   };
 
@@ -2804,6 +2810,11 @@ function PositionsViewer() {
       dbValue = parseFloat(dbValue) || 0;
     }
 
+    // deal_id: empty string → null
+    if (field === 'deal_id') {
+      dbValue = dbValue === '' ? null : dbValue;
+    }
+
     // No change
     if (String(row[field] ?? '') === String(editValue.trim())) { cancelEdit(); return; }
 
@@ -2816,10 +2827,13 @@ function PositionsViewer() {
     if (error) {
       alert('Save failed: ' + error.message);
     } else {
-      // Optimistic update in local state
       setPositions(prev => prev.map(p => {
         if (p.id !== id || p._type !== type) return p;
-        return { ...p, [field]: editValue.trim() === '' ? null : (FIELD_CFG[field]?.type === 'number' ? parseFloat(editValue) || 0 : editValue.trim()) };
+        const cfg = FIELD_CFG[field];
+        let newVal = editValue.trim() === '' ? null : editValue.trim();
+        if (cfg?.type === 'number') newVal = parseFloat(editValue) || 0;
+        if (field === 'deal_id') newVal = editValue.trim() === '' ? null : editValue.trim();
+        return { ...p, [field]: newVal };
       }));
       setFlashCell({ id, field });
       setTimeout(() => setFlashCell(null), 1200);
@@ -2848,7 +2862,15 @@ function PositionsViewer() {
     const isFlashing = flashCell?.id === row.id && flashCell?.field === field;
     const editable = (EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'] || []).includes(field);
     const rawVal = row[field];
-    const displayVal = rawVal != null ? String(rawVal) : '';
+    // Resolve display value (deal_id → deal name, market_type → pretty label)
+    let displayVal = rawVal != null ? String(rawVal) : '';
+    if (field === 'deal_id' && rawVal) {
+      const d = deals.find(x => x.id === rawVal);
+      displayVal = d ? d.name + (d.status === 'closed' ? ' ✓' : '') : rawVal;
+    }
+    if (field === 'market_type') {
+      displayVal = rawVal === 'private' ? 'Private' : rawVal === 'public' ? 'Public' : '';
+    }
 
     const cellStyle = {
       padding: '0',
@@ -2895,6 +2917,28 @@ function PositionsViewer() {
           </td>
         );
       }
+      if (cfg.type === 'select-market-type') {
+        return (
+          <td style={cellStyle}>
+            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
+              style={{ ...inputStyle, cursor:'pointer' }}>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </td>
+        );
+      }
+      if (cfg.type === 'select-deal') {
+        return (
+          <td style={cellStyle}>
+            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
+              style={{ ...inputStyle, cursor:'pointer', minWidth:'160px' }}>
+              <option value="">— None —</option>
+              {deals.map(d => <option key={d.id} value={d.id}>{d.name}{d.status === 'closed' ? ' (Closed)' : ''}</option>)}
+            </select>
+          </td>
+        );
+      }
       return (
         <td style={cellStyle}>
           <input
@@ -2920,7 +2964,7 @@ function PositionsViewer() {
           padding: '0.65rem 0.9rem',
           fontFamily: cfg.mono ? 'monospace' : 'inherit',
           fontWeight: field === 'security_name' ? '600' : field === 'market_value' ? '700' : '400',
-          color: field === 'market_value' ? '#003770' : field === 'ticker' ? '#495057' : field === 'isin' || field === 'statement_date' ? '#adb5bd' : '#495057',
+          color: field === 'market_value' ? '#003770' : field === 'ticker' ? '#495057' : field === 'isin' || field === 'statement_date' ? '#adb5bd' : field === 'deal_id' ? '#003770' : '#495057',
           fontSize: field === 'isin' || field === 'statement_date' ? '0.75rem' : '0.82rem',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           cursor: editable ? 'pointer' : 'default',
@@ -2934,7 +2978,9 @@ function PositionsViewer() {
             ? <span style={{ color:'#C9A84C', fontSize:'0.75rem' }}>saving…</span>
             : isFlashing
               ? <span style={{ color:'#2a9d5c' }}>✓ {displayVal || '—'}</span>
-              : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
+              : field === 'market_type' && displayVal
+                ? <span style={{ background: displayVal === 'Private' ? '#fff0f6' : '#e8f5e9', color: displayVal === 'Private' ? '#c2185b' : '#2a9d5c', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{displayVal}</span>
+                : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
           }
         </div>
       </td>
@@ -2943,7 +2989,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','quantity','price','market_value','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','quantity','price','market_value','currency','source_bank','statement_date'];
 
   return (
     <div>
