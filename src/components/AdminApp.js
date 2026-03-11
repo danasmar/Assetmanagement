@@ -2715,6 +2715,7 @@ function PositionsViewer() {
     avg_cost_price: { label: 'Avg Cost Price',   right: true,  mono: false, type: 'number' },
     price:          { label: 'Market Price',     right: true,  mono: false, type: 'number' },
     market_value:   { label: 'Market Value',     right: true,  mono: false, type: 'number' },
+    performance_pct:{ label: 'Performance %',    right: true,  mono: false, computed: true },
     currency:       { label: 'Currency',         right: false, mono: true  },
     source_bank:    { label: 'Custody',          right: false, mono: false },
     statement_date: { label: 'Date',             right: false, mono: false, type: 'date'   },
@@ -2900,6 +2901,26 @@ function PositionsViewer() {
       displayVal = rawVal === 'private' ? 'Private' : rawVal === 'public' ? 'Public' : '';
     }
 
+    // ── Computed: Performance % ───────────────────────────────────────────────
+    if (field === 'performance_pct') {
+      const cost = parseFloat(row.avg_cost_price);
+      const qty  = parseFloat(row.quantity);
+      const mv   = parseFloat(row.market_value);
+      const costBasis = cost * qty;
+      const hasPerfData = !isNaN(cost) && !isNaN(qty) && !isNaN(mv) && costBasis > 0;
+      const perf = hasPerfData ? ((mv - costBasis) / costBasis) * 100 : null;
+      return (
+        <td style={{ padding:'0.65rem 0.9rem', textAlign:'right', whiteSpace:'nowrap' }}>
+          {perf !== null
+            ? <span style={{ fontWeight:'700', color: perf >= 0 ? '#2a9d5c' : '#e63946' }}>
+                {perf >= 0 ? '+' : ''}{perf.toFixed(2)}%
+              </span>
+            : <span style={{ color:'#dee2e6' }}>—</span>
+          }
+        </td>
+      );
+    }
+
     const cellStyle = {
       padding: '0',
       textAlign: cfg.right ? 'right' : 'left',
@@ -3032,7 +3053,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','performance_pct','currency','source_bank','statement_date'];
 
   return (
     <div>
