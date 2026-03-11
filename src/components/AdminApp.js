@@ -1709,9 +1709,6 @@ function PortfolioUpload() {
 
   const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
 
-  // A row needs review if it has no ISIN AND no ticker (unidentifiable)
-  const needsReview = (r) => r._class === 'public_markets' && !r.isin && !r.ticker;
-
   const confirm = async () => {
     if (!isMulti && !form.investor_id) { alert('Please go back and select an investor.'); return; }
     if (!form.statement_date) { alert('Please go back and enter a statement date.'); return; }
@@ -1719,55 +1716,13 @@ function PortfolioUpload() {
 
     const errors = [];
 
-    // Split a set of rows for one investor into: direct-save vs review-queue
+    // Split rows into positions vs cash — all go direct, nothing queued
     const splitRows = (rows, investorId) => {
-      const direct = { positions: [], cash: [] };
-      const queued = [];
+      const positions = [];
+      const cash = [];
       rows.forEach(r => {
-        if (needsReview(r)) {
-          queued.push({
-            investor_id: investorId,
-            raw_security_name: r.security_name || null,
-            raw_ticker: r.ticker || null,
-            raw_isin: r.isin || null,
-            raw_asset_type: r.asset_type || null,
-            raw_quantity: toNum(r.quantity) || null,
-            raw_price: toNum(r.price) || null,
-            raw_market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price) || null,
-            raw_currency: r.currency || null,
-            raw_cash_balance: null,
-            industry: r.industry || null,
-            market_type: r.market_type || null,
-            deal_id: r.deal_id || null,
-            mandate_type: r.mandate_type || null,
-            avg_cost_price: toNum(r.avg_cost_price) || null,
-            statement_date: r.statement_date || form.statement_date,
-            source_bank: r.source_bank || form.source_bank || null,
-            classification: 'public_markets',
-            status: 'pending',
-          });
-        } else if (r._class === 'public_markets') {
-          direct.positions.push({
-            investor_id: investorId,
-            security_name: r.security_name || 'Unknown',
-            ticker: r.ticker || null,
-            isin: r.isin || null,
-            asset_type: r.asset_type || 'Equity',
-            industry: r.industry || null,
-            market_type: r.market_type || 'public',
-            deal_id: r.deal_id || null,
-            mandate_type: r.mandate_type || null,
-            quantity: toNum(r.quantity),
-            avg_cost_price: toNum(r.avg_cost_price) || null,
-            price: toNum(r.price),
-            market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price),
-            currency: r.currency || 'USD',
-            statement_date: r.statement_date || form.statement_date,
-            source_bank: r.source_bank || form.source_bank || null,
-          });
-        } else {
-          // cash — never needs review
-          direct.cash.push({
+        if (r._class === 'cash') {
+          cash.push({
             investor_id: investorId,
             currency: r.currency || 'USD',
             balance: toNum(r.cash_balance) || toNum(r.market_value),
@@ -1775,13 +1730,31 @@ function PortfolioUpload() {
             statement_date: r.statement_date || form.statement_date,
             source_bank: r.source_bank || form.source_bank || null,
           });
+        } else {
+          positions.push({
+            investor_id: investorId,
+            security_name: r.security_name || 'Unknown',
+            ticker: r.ticker || null,
+            isin: r.isin || null,
+            asset_type: r.asset_type || null,
+            industry: r.industry || null,
+            market_type: r.market_type || 'public',
+            deal_id: r.deal_id || null,
+            mandate_type: r.mandate_type || null,
+            quantity: toNum(r.quantity) || null,
+            avg_cost_price: toNum(r.avg_cost_price) || null,
+            price: toNum(r.price) || null,
+            market_value: toNum(r.market_value) || (toNum(r.quantity) * toNum(r.price)) || null,
+            currency: r.currency || 'USD',
+            statement_date: r.statement_date || form.statement_date,
+            source_bank: r.source_bank || form.source_bank || null,
+          });
         }
       });
-      return { direct, queued };
+      return { positions, cash };
     };
 
-    let totalPos = 0; let totalCash = 0; let totalQueued = 0;
-    const allQueued = [];
+    let totalPos = 0; let totalCash = 0;
 
     if (isMulti) {
       const groups = {};
@@ -1792,33 +1765,26 @@ function PortfolioUpload() {
         groups[iid].push(row);
       });
       for (const [iid, rows] of Object.entries(groups)) {
-        const { direct, queued } = splitRows(rows, iid);
-        if (direct.positions.length) {
-          const { error } = await supabase.from('positions').insert(direct.positions);
-          if (error) errors.push('Positions: ' + error.message); else totalPos += direct.positions.length;
+        const { positions: pos, cash } = splitRows(rows, iid);
+        if (pos.length) {
+          const { error } = await supabase.from('positions').insert(pos);
+          if (error) errors.push('Positions: ' + error.message); else totalPos += pos.length;
         }
-        if (direct.cash.length) {
-          const { error } = await supabase.from('cash_positions').insert(direct.cash);
-          if (error) errors.push('Cash: ' + error.message); else totalCash += direct.cash.length;
+        if (cash.length) {
+          const { error } = await supabase.from('cash_positions').insert(cash);
+          if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
         }
-        allQueued.push(...queued);
       }
     } else {
-      const { direct, queued } = splitRows(mappedData, form.investor_id);
-      if (direct.positions.length) {
-        const { error } = await supabase.from('positions').insert(direct.positions);
-        if (error) errors.push('Positions: ' + error.message); else totalPos += direct.positions.length;
+      const { positions: pos, cash } = splitRows(mappedData, form.investor_id);
+      if (pos.length) {
+        const { error } = await supabase.from('positions').insert(pos);
+        if (error) errors.push('Positions: ' + error.message); else totalPos += pos.length;
       }
-      if (direct.cash.length) {
-        const { error } = await supabase.from('cash_positions').insert(direct.cash);
-        if (error) errors.push('Cash: ' + error.message); else totalCash += direct.cash.length;
+      if (cash.length) {
+        const { error } = await supabase.from('cash_positions').insert(cash);
+        if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
       }
-      allQueued.push(...queued);
-    }
-
-    if (allQueued.length) {
-      const { error } = await supabase.from('upload_review_queue').insert(allQueued);
-      if (error) errors.push('Review queue: ' + error.message); else totalQueued += allQueued.length;
     }
 
     setSaving(false);
@@ -1827,9 +1793,7 @@ function PortfolioUpload() {
     const suffix = isMulti
       ? ' across ' + Object.keys(clientAssignments).filter(k => clientAssignments[k]).length + ' clients.'
       : ' for ' + (investors.find(i => i.id === form.investor_id)?.full_name || '') + '.';
-    let successMsg = '\u2713 Imported ' + totalPos + ' market position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix;
-    if (totalQueued > 0) successMsg += ' \u26a0\ufe0f ' + totalQueued + ' position' + (totalQueued !== 1 ? 's' : '') + ' flagged for review (no ISIN or ticker) \u2014 check the Review Queue.';
-    setMsg(successMsg);
+    setMsg('\u2713 Imported ' + totalPos + ' position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix);
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName('');
     setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
@@ -1848,9 +1812,8 @@ function PortfolioUpload() {
 
   const assignedCount = Object.values(clientAssignments).filter(Boolean).length;
   const confirmStep = isMulti ? 4 : 3;
-  const pubCount = mappedData.filter(r => r._class === 'public_markets' && !needsReview(r)).length;
+  const pubCount = mappedData.filter(r => r._class === 'public_markets').length;
   const cashCount = mappedData.filter(r => r._class === 'cash').length;
-  const queueCount = mappedData.filter(r => needsReview(r)).length;
 
   const stepDot = (num) => {
     const active = step === num; const done = step > num;
@@ -2191,7 +2154,6 @@ function PortfolioUpload() {
               <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Positions</div>
                 <div style={{ background:'#e3f2fd', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#1565c0' }}>&#128181; {cashCount} Cash</div>
-                {queueCount > 0 && <div style={{ background:'#fff3e0', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#e65100' }}>&#9888; {queueCount} For Review</div>}
                 <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
               </div>
             </div>
@@ -2224,16 +2186,13 @@ function PortfolioUpload() {
                   {mappedData.map((row, i) => {
                     const invName = isMulti ? (investors.find(inv => inv.id === row._investorId)?.full_name || <span style={{ color:'#e63946' }}>Unassigned</span>) : null;
                     return (
-                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: needsReview(row) ? '#fffbeb' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
+                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                         <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem' }}>{i + 1}</td>
                         {isMulti && <td style={{ padding:'0.5rem 0.75rem', fontSize:'0.78rem', fontWeight:'600', color: row._investorId ? '#003770' : '#e63946' }}>{invName}</td>}
                         <td style={{ padding:'0.5rem 0.75rem' }}>
-                          {needsReview(row)
-                            ? <span style={{ background:'#fff3e0', color:'#e65100', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>&#9888; Review</span>
-                            : <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
-                                {row._class === 'cash' ? 'Cash' : 'Markets'}
-                              </span>
-                          }
+                          <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
+                            {row._class === 'cash' ? 'Cash' : 'Markets'}
+                          </span>
                         </td>
                         <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
                         <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
@@ -2251,7 +2210,6 @@ function PortfolioUpload() {
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#92400e', marginBottom:'1.25rem' }}>
               &#9888; Confirming will add these positions to the portfolio. Previous entries with the same statement date are not automatically removed.
-              {queueCount > 0 && <span style={{ display:'block', marginTop:'4px', fontWeight:'700', color:'#e65100' }}>&#9888; {queueCount} position{queueCount !== 1 ? 's' : ''} have no ISIN or ticker and will be sent to the Review Queue instead of saved directly.</span>}
               {isMulti && mappedData.some(r => !r._investorId) && <span style={{ display:'block', marginTop:'4px', fontWeight:'700' }}>&#9888; {mappedData.filter(r => !r._investorId).length} unassigned rows will be skipped.</span>}
             </div>
             <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
