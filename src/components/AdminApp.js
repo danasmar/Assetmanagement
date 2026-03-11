@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -1484,15 +1485,22 @@ function PortfolioUpload() {
   const isMulti = form.investor_id === 'multi';
 
   const STANDARD_FIELDS = [
-    { key: 'security_name', label: 'Security Name', required: true },
-    { key: 'ticker', label: 'Ticker' },
-    { key: 'isin', label: 'ISIN' },
-    { key: 'asset_type', label: 'Asset Type' },
-    { key: 'quantity', label: 'Quantity' },
-    { key: 'price', label: 'Price' },
-    { key: 'market_value', label: 'Market Value' },
-    { key: 'currency', label: 'Currency' },
-    { key: 'cash_balance', label: 'Cash Balance' },
+    { key: 'security_name',  label: 'Security Name',     required: true },
+    { key: 'ticker',         label: 'Ticker'                            },
+    { key: 'isin',           label: 'ISIN'                              },
+    { key: 'asset_type',     label: 'Asset Class'                       },
+    { key: 'industry',       label: 'Industry'                          },
+    { key: 'market_type',    label: 'Market Type'                       },
+    { key: 'deal_id',        label: 'Linked Deal'                       },
+    { key: 'mandate_type',   label: 'Mandate Type'                      },
+    { key: 'quantity',       label: 'Quantity'                          },
+    { key: 'avg_cost_price', label: 'Avg Cost Price'                    },
+    { key: 'price',          label: 'Market Price'                      },
+    { key: 'market_value',   label: 'Market Value'                      },
+    { key: 'currency',       label: 'Currency'                          },
+    { key: 'source_bank',    label: 'Custody / Bank'                    },
+    { key: 'statement_date', label: 'Statement Date'                    },
+    { key: 'cash_balance',   label: 'Cash Balance'                      },
   ];
 
   const TOTAL_STEPS = isMulti ? 4 : 3;
@@ -1728,8 +1736,13 @@ function PortfolioUpload() {
             raw_market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price) || null,
             raw_currency: r.currency || null,
             raw_cash_balance: null,
-            statement_date: form.statement_date,
-            source_bank: form.source_bank || null,
+            industry: r.industry || null,
+            market_type: r.market_type || null,
+            deal_id: r.deal_id || null,
+            mandate_type: r.mandate_type || null,
+            avg_cost_price: toNum(r.avg_cost_price) || null,
+            statement_date: r.statement_date || form.statement_date,
+            source_bank: r.source_bank || form.source_bank || null,
             classification: 'public_markets',
             status: 'pending',
           });
@@ -1740,12 +1753,17 @@ function PortfolioUpload() {
             ticker: r.ticker || null,
             isin: r.isin || null,
             asset_type: r.asset_type || 'Equity',
+            industry: r.industry || null,
+            market_type: r.market_type || 'public',
+            deal_id: r.deal_id || null,
+            mandate_type: r.mandate_type || null,
             quantity: toNum(r.quantity),
+            avg_cost_price: toNum(r.avg_cost_price) || null,
             price: toNum(r.price),
             market_value: toNum(r.market_value) || toNum(r.quantity) * toNum(r.price),
             currency: r.currency || 'USD',
-            statement_date: form.statement_date,
-            source_bank: form.source_bank || null,
+            statement_date: r.statement_date || form.statement_date,
+            source_bank: r.source_bank || form.source_bank || null,
           });
         } else {
           // cash — never needs review
@@ -1754,8 +1772,8 @@ function PortfolioUpload() {
             currency: r.currency || 'USD',
             balance: toNum(r.cash_balance) || toNum(r.market_value),
             description: r.security_name || 'Cash',
-            statement_date: form.statement_date,
-            source_bank: form.source_bank || null,
+            statement_date: r.statement_date || form.statement_date,
+            source_bank: r.source_bank || form.source_bank || null,
           });
         }
       });
