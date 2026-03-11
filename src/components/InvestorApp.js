@@ -305,6 +305,8 @@ function InvestorPortfolio({ session }) {
     { key: 'security_name', label: 'Security', align: 'left', sortable: true },
     { key: 'ticker', label: 'Ticker', align: 'right', sortable: true },
     { key: 'isin', label: 'ISIN', align: 'right', sortable: false },
+    { key: 'asset_type', label: 'Asset Class', align: 'left', sortable: true },
+    { key: 'industry', label: 'Industry', align: 'left', sortable: true },
     { key: 'quantity', label: 'Qty', align: 'right', sortable: true },
     { key: 'price', label: 'Price', align: 'right', sortable: true },
     { key: 'market_value', label: 'Market Value', align: 'right', sortable: true },
@@ -467,10 +469,11 @@ function InvestorPortfolio({ session }) {
                                 <tr key={pos.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                                   <td style={{ padding:'0.7rem 0.85rem' }}>
                                     <div style={{ fontWeight:'600', color:'#212529' }}>{pos.security_name}</div>
-                                    {pos.asset_type && posGroupBy === 'none' && <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>{pos.asset_type}</div>}
                                   </td>
                                   <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace', fontWeight:'600' }}>{pos.ticker || '\u2014'}</td>
                                   <td style={{ padding:'0.7rem 0.85rem', color:'#adb5bd', textAlign:'right', fontSize:'0.75rem', fontFamily:'monospace' }}>{pos.isin || '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'left', fontSize:'0.8rem' }}>{pos.asset_type || '\u2014'}</td>
+                                  <td style={{ padding:'0.7rem 0.85rem', color:'#6c757d', textAlign:'left', fontSize:'0.8rem' }}>{pos.industry || '\u2014'}</td>
                                   <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.quantity ? fmt.num(pos.quantity) : '\u2014'}</td>
                                   <td style={{ padding:'0.7rem 0.85rem', color:'#495057', textAlign:'right' }}>{pos.price ? fmt.currency(pos.price, pos.currency) : '\u2014'}</td>
                                   <td style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#003770', textAlign:'right' }}>{fmt.currency(pos.market_value, pos.currency)}</td>
@@ -485,7 +488,7 @@ function InvestorPortfolio({ session }) {
                         </tbody>
                         <tfoot>
                           <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
-                            <td colSpan={5} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
+                            <td colSpan={7} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
                               {sortedPositions.length} position{sortedPositions.length !== 1 ? 's' : ''}
                               {posSearch && <span style={{ fontWeight:'400', color:'#adb5bd' }}> (filtered)</span>}
                             </td>
