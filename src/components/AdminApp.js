@@ -1481,6 +1481,79 @@ function PortfolioUpload() {
   // Multi-client state
   const [clientIdentifierCol, setClientIdentifierCol] = useState('');
   const [clientAssignments, setClientAssignments] = useState({}); // { rawValue: investor_id }
+  const [reconcileResult, setReconcileResult] = useState(null);  // { [investorId]: { annotatedRows, toPosClose, toCashClose } }
+  const [analyzing, setAnalyzing] = useState(false);
+  // Reconciliation diff state
+  const [diff, setDiff] = useState(null);       // { byInvestor: { [id]: {toInsert,toUpdate,toClosed,toQueue} } }
+  const [diffLoading, setDiffLoading] = useState(false);
+  // ── Embedded Review Queue state ──────────────────────────────────────────────
+  const [queueItems, setQueueItems] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueFilter, setQueueFilter] = useState('pending');
+  const [queueEditItem, setQueueEditItem] = useState(null);
+  const [queueEditForm, setQueueEditForm] = useState({});
+  const [queueSaving, setQueueSaving] = useState(false);
+  const [queueMsg, setQueueMsg] = useState('');
+  const [showQueue, setShowQueue] = useState(false);
+
+  const QUEUE_ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
+
+  const loadQueue = async () => {
+    setQueueLoading(true);
+    const { data } = await supabase.from('upload_review_queue').select('*, investors(full_name)').order('created_at', { ascending: false });
+    setQueueItems(data || []);
+    setQueueLoading(false);
+  };
+
+  const queuePending = queueItems.filter(i => i.status === 'pending');
+  const queueFiltered = queueItems.filter(i => queueFilter === 'all' ? true : i.status === queueFilter);
+
+  const openQueueEdit = (item) => {
+    setQueueEditItem(item);
+    setQueueEditForm({
+      security_name: item.raw_security_name || '',
+      isin: item.raw_isin || '',
+      ticker: item.raw_ticker || '',
+      asset_class: item.raw_asset_type || '',
+      quantity: item.raw_quantity || '',
+      price: item.raw_price || '',
+      market_value: item.raw_market_value || '',
+      currency: item.raw_currency || '',
+      cash_balance: item.raw_cash_balance || '',
+      classification: item.classification || 'public_markets',
+    });
+  };
+
+  const approveQueueItem = async () => {
+    if (!queueEditItem) return;
+    setQueueSaving(true);
+    const toNumQ = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
+    const isCash = queueEditForm.classification === 'cash';
+    if (!isCash && (queueEditForm.security_name || queueEditForm.isin || queueEditForm.ticker)) {
+      const assetPayload = { security_name: queueEditForm.security_name || 'Unknown', isin: queueEditForm.isin || null, ticker: queueEditForm.ticker || null, asset_class: queueEditForm.asset_class || null, currency: queueEditForm.currency || null, updated_at: new Date().toISOString() };
+      let existing = null;
+      if (queueEditForm.isin) { const { data } = await supabase.from('asset_master').select('id').eq('isin', queueEditForm.isin).limit(1); existing = data && data[0]; }
+      if (!existing && queueEditForm.ticker) { const { data } = await supabase.from('asset_master').select('id').ilike('ticker', queueEditForm.ticker).limit(1); existing = data && data[0]; }
+      if (existing) { await supabase.from('asset_master').update(assetPayload).eq('id', existing.id); } else { await supabase.from('asset_master').insert(assetPayload); }
+    }
+    if (isCash) {
+      await supabase.from('cash_positions').insert({ investor_id: queueEditItem.investor_id, currency: queueEditForm.currency || 'USD', balance: toNumQ(queueEditForm.cash_balance) || toNumQ(queueEditForm.market_value), description: queueEditForm.security_name || 'Cash', statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: 'active' });
+    } else {
+      await supabase.from('positions').insert({ investor_id: queueEditItem.investor_id, security_name: queueEditForm.security_name || 'Unknown', ticker: queueEditForm.ticker || null, isin: queueEditForm.isin || null, asset_type: queueEditForm.asset_class || 'Equity', quantity: toNumQ(queueEditForm.quantity), price: toNumQ(queueEditForm.price), market_value: toNumQ(queueEditForm.market_value) || toNumQ(queueEditForm.quantity) * toNumQ(queueEditForm.price), currency: queueEditForm.currency || 'USD', statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: 'active' });
+    }
+    await supabase.from('upload_review_queue').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', queueEditItem.id);
+    setQueueSaving(false);
+    setQueueEditItem(null);
+    setQueueMsg('\u2713 Approved \u201c' + (queueEditForm.security_name || 'position') + '\u201d \u2014 saved to portfolio.');
+    loadQueue();
+  };
+
+  const rejectQueueItem = async (id, name) => {
+    if (!window.confirm('Reject and discard \u201c' + (name || 'this position') + '\u201d?')) return;
+    await supabase.from('upload_review_queue').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', id);
+    setQueueMsg('\u2713 Rejected \u201c' + (name || 'position') + '\u201d');
+    loadQueue();
+  };
 
   const isMulti = form.investor_id === 'multi';
 
@@ -1523,6 +1596,7 @@ function PortfolioUpload() {
   useEffect(() => {
     supabase.from('investors').select('id, full_name').order('full_name').then(({ data }) => setInvestors(data || []));
     loadTemplates();
+    loadQueue();
   }, []);
 
   const findTemplate = async (bankName) => {
@@ -1668,8 +1742,12 @@ function PortfolioUpload() {
             // Template found but still need client assignment step
             setStep(3);
           } else {
-            setMappedData(buildMappedRows(rows, validatedMap));
+            const mapped = buildMappedRows(rows, validatedMap);
+            setMappedData(mapped);
+            setUploading(false); e.target.value = '';
+            await buildPosDiff(mapped, form.investor_id);
             setStep(3);
+            return;
           }
           setUploading(false); e.target.value = ''; return;
         }
@@ -1683,19 +1761,85 @@ function PortfolioUpload() {
   };
 
   // Called from step 2 Map Columns
-  const applyMapping = () => {
+  // ── Reconciliation: compute diff for one investor ───────────────────────────
+  const computeInvestorDiff = async (mappedRows, investorId) => {
+    const [posRes, cashRes] = await Promise.all([
+      supabase.from('positions').select('id,isin,ticker,security_name,quantity,price,market_value,currency').eq('investor_id', investorId).eq('status', 'active'),
+      supabase.from('cash_positions').select('id,description,currency,balance').eq('investor_id', investorId).eq('status', 'active'),
+    ]);
+
+    // Build lookup indexes
+    const byIsin = {}, byTicker = {}, byCashKey = {};
+    (posRes.data || []).forEach(p => {
+      if (p.isin)   byIsin[p.isin.toUpperCase()] = p;
+      if (p.ticker) byTicker[p.ticker.toUpperCase()] = p;
+    });
+    (cashRes.data || []).forEach(c => {
+      const key = (c.description || '').toLowerCase() + '|' + (c.currency || '').toUpperCase();
+      byCashKey[key] = c;
+    });
+
+    const toInsert = [], toUpdate = [], toClosed = [], toQueue = [];
+    const matchedPosIds = new Set(), matchedCashIds = new Set();
+
+    mappedRows.forEach(r => {
+      if (r._class === 'cash') {
+        const key = (r.security_name || 'Cash').toLowerCase() + '|' + (r.currency || '').toUpperCase();
+        const ex = byCashKey[key];
+        if (ex) { matchedCashIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'cash', row: r, existing: ex }); }
+        else      { toInsert.push({ type: 'cash', row: r }); }
+      } else {
+        const isin   = (r.isin   || '').toUpperCase();
+        const ticker = (r.ticker || '').toUpperCase();
+        if (!isin && !ticker) { toQueue.push({ type: 'position', row: r }); return; }
+        const ex = (isin && byIsin[isin]) || (ticker && byTicker[ticker]);
+        if (ex) { matchedPosIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'position', row: r, existing: ex }); }
+        else    { toInsert.push({ type: 'position', row: r }); }
+      }
+    });
+
+    (posRes.data  || []).filter(p => !matchedPosIds.has(p.id)).forEach(p  => toClosed.push({ id: p.id,  type: 'position', existing: p }));
+    (cashRes.data || []).filter(c => !matchedCashIds.has(c.id)).forEach(c => toClosed.push({ id: c.id,  type: 'cash',     existing: c }));
+
+    return { toInsert, toUpdate, toClosed, toQueue };
+  };
+
+  const buildPosDiff = async (mapped, investorId) => {
+    setDiffLoading(true);
+    const d = await computeInvestorDiff(mapped, investorId);
+    setDiff({ byInvestor: { [investorId]: d } });
+    setDiffLoading(false);
+  };
+
+  const buildMultiDiff = async (mapped) => {
+    setDiffLoading(true);
+    const groups = {};
+    mapped.forEach(row => {
+      if (!row._investorId) return;
+      if (!groups[row._investorId]) groups[row._investorId] = [];
+      groups[row._investorId].push(row);
+    });
+    const byInvestor = {};
+    for (const [iid, rows] of Object.entries(groups)) {
+      byInvestor[iid] = await computeInvestorDiff(rows, iid);
+    }
+    setDiff({ byInvestor });
+    setDiffLoading(false);
+  };
+
+  const applyMapping = async () => {
     setOfferSaveTemplate(!!form.source_bank.trim());
     if (isMulti) {
-      // Go to client assignment step
       setStep(3);
     } else {
-      setMappedData(buildMappedRows(rawRows, mapping));
+      const mapped = buildMappedRows(rawRows, mapping);
+      setMappedData(mapped);
+      await buildPosDiff(mapped, form.investor_id);
       setStep(3);
     }
   };
 
-  // Called from step 3 (multi only) — Assign Clients → build final mapped data and go to step 4
-  const applyClientAssignments = () => {
+  const applyClientAssignments = async () => {
     const mapped = buildMappedRows(rawRows, mapping).map((row, i) => {
       const raw = rawRows[i];
       const clientVal = clientIdentifierCol ? (raw[clientIdentifierCol] || '') : '';
@@ -1704,104 +1848,125 @@ function PortfolioUpload() {
       return row;
     });
     setMappedData(mapped);
+    await buildMultiDiff(mapped);
     setStep(4);
   };
 
   const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
 
+  const buildPosPayload = (r, investorId) => ({
+    investor_id: investorId,
+    security_name: r.security_name || 'Unknown',
+    ticker: r.ticker || null,
+    isin: r.isin || null,
+    asset_type: r.asset_type || null,
+    industry: r.industry || null,
+    market_type: r.market_type || 'public',
+    deal_id: r.deal_id || null,
+    mandate_type: r.mandate_type || null,
+    quantity: toNum(r.quantity) || null,
+    avg_cost_price: toNum(r.avg_cost_price) || null,
+    price: toNum(r.price) || null,
+    market_value: toNum(r.market_value) || (toNum(r.quantity) * toNum(r.price)) || null,
+    currency: r.currency || 'USD',
+    statement_date: r.statement_date || form.statement_date,
+    source_bank: r.source_bank || form.source_bank || null,
+    status: 'active',
+  });
+
+  const buildCashPayload = (r, investorId) => ({
+    investor_id: investorId,
+    currency: r.currency || 'USD',
+    balance: toNum(r.cash_balance) || toNum(r.market_value),
+    description: r.security_name || 'Cash',
+    statement_date: r.statement_date || form.statement_date,
+    source_bank: r.source_bank || form.source_bank || null,
+    status: 'active',
+  });
+
+  const buildQueuePayload = (r, investorId) => ({
+    investor_id: investorId,
+    raw_security_name: r.security_name || null,
+    raw_ticker: r.ticker || null,
+    raw_isin: r.isin || null,
+    raw_asset_type: r.asset_type || null,
+    raw_quantity: toNum(r.quantity) || null,
+    raw_price: toNum(r.price) || null,
+    raw_market_value: toNum(r.market_value) || (toNum(r.quantity) * toNum(r.price)) || null,
+    raw_currency: r.currency || null,
+    raw_cash_balance: null,
+    industry: r.industry || null,
+    market_type: r.market_type || null,
+    deal_id: r.deal_id || null,
+    mandate_type: r.mandate_type || null,
+    avg_cost_price: toNum(r.avg_cost_price) || null,
+    statement_date: r.statement_date || form.statement_date,
+    source_bank: r.source_bank || form.source_bank || null,
+    classification: 'public_markets',
+    status: 'pending',
+  });
+
   const confirm = async () => {
-    if (!isMulti && !form.investor_id) { alert('Please go back and select an investor.'); return; }
-    if (!form.statement_date) { alert('Please go back and enter a statement date.'); return; }
+    if (!diff) return;
     setSaving(true);
-
     const errors = [];
+    const statementDate = form.statement_date;
 
-    // Split rows into positions vs cash — all go direct, nothing queued
-    const splitRows = (rows, investorId) => {
-      const positions = [];
-      const cash = [];
-      rows.forEach(r => {
-        if (r._class === 'cash') {
-          cash.push({
-            investor_id: investorId,
-            currency: r.currency || 'USD',
-            balance: toNum(r.cash_balance) || toNum(r.market_value),
-            description: r.security_name || 'Cash',
-            statement_date: r.statement_date || form.statement_date,
-            source_bank: r.source_bank || form.source_bank || null,
-          });
-        } else {
-          positions.push({
-            investor_id: investorId,
-            security_name: r.security_name || 'Unknown',
-            ticker: r.ticker || null,
-            isin: r.isin || null,
-            asset_type: r.asset_type || null,
-            industry: r.industry || null,
-            market_type: r.market_type || 'public',
-            deal_id: r.deal_id || null,
-            mandate_type: r.mandate_type || null,
-            quantity: toNum(r.quantity) || null,
-            avg_cost_price: toNum(r.avg_cost_price) || null,
-            price: toNum(r.price) || null,
-            market_value: toNum(r.market_value) || (toNum(r.quantity) * toNum(r.price)) || null,
-            currency: r.currency || 'USD',
-            statement_date: r.statement_date || form.statement_date,
-            source_bank: r.source_bank || form.source_bank || null,
-          });
-        }
-      });
-      return { positions, cash };
-    };
+    for (const [investorId, d] of Object.entries(diff.byInvestor)) {
+      const { toInsert, toUpdate, toClosed, toQueue } = d;
 
-    let totalPos = 0; let totalCash = 0;
+      // INSERT new positions / cash
+      const newPos  = toInsert.filter(x => x.type === 'position').map(x => buildPosPayload(x.row, investorId));
+      const newCash = toInsert.filter(x => x.type === 'cash').map(x => buildCashPayload(x.row, investorId));
+      if (newPos.length)  { const { error } = await supabase.from('positions').insert(newPos);       if (error) errors.push('Insert positions: ' + error.message); }
+      if (newCash.length) { const { error } = await supabase.from('cash_positions').insert(newCash); if (error) errors.push('Insert cash: ' + error.message); }
 
-    if (isMulti) {
-      const groups = {};
-      mappedData.forEach(row => {
-        const iid = row._investorId;
-        if (!iid) return;
-        if (!groups[iid]) groups[iid] = [];
-        groups[iid].push(row);
-      });
-      for (const [iid, rows] of Object.entries(groups)) {
-        const { positions: pos, cash } = splitRows(rows, iid);
-        if (pos.length) {
-          const { error } = await supabase.from('positions').insert(pos);
-          if (error) errors.push('Positions: ' + error.message); else totalPos += pos.length;
-        }
-        if (cash.length) {
-          const { error } = await supabase.from('cash_positions').insert(cash);
-          if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
-        }
+      // UPDATE existing (one by one — each row may change different fields)
+      for (const u of toUpdate) {
+        const payload = u.type === 'position' ? buildPosPayload(u.row, investorId) : buildCashPayload(u.row, investorId);
+        const table   = u.type === 'position' ? 'positions' : 'cash_positions';
+        const { error } = await supabase.from(table).update(payload).eq('id', u.id);
+        if (error) errors.push('Update ' + table + ': ' + error.message);
       }
-    } else {
-      const { positions: pos, cash } = splitRows(mappedData, form.investor_id);
-      if (pos.length) {
-        const { error } = await supabase.from('positions').insert(pos);
-        if (error) errors.push('Positions: ' + error.message); else totalPos += pos.length;
-      }
-      if (cash.length) {
-        const { error } = await supabase.from('cash_positions').insert(cash);
-        if (error) errors.push('Cash: ' + error.message); else totalCash += cash.length;
-      }
+
+      // CLOSE positions not in this upload
+      const posToClose  = toClosed.filter(x => x.type === 'position').map(x => x.id);
+      const cashToClose = toClosed.filter(x => x.type === 'cash').map(x => x.id);
+      if (posToClose.length)  { const { error } = await supabase.from('positions').update({ status: 'closed', closed_at: statementDate }).in('id', posToClose);       if (error) errors.push('Close positions: ' + error.message); }
+      if (cashToClose.length) { const { error } = await supabase.from('cash_positions').update({ status: 'closed', closed_at: statementDate }).in('id', cashToClose); if (error) errors.push('Close cash: ' + error.message); }
+
+      // QUEUE unmatched rows (no ISIN, no ticker)
+      const queued = toQueue.map(x => buildQueuePayload(x.row, investorId));
+      if (queued.length) { const { error } = await supabase.from('upload_review_queue').insert(queued); if (error) errors.push('Queue: ' + error.message); }
     }
 
     setSaving(false);
     if (errors.length) { alert('Errors:\n' + errors.join('\n')); return; }
 
+    // Build summary
+    let totalNew = 0, totalUpdated = 0, totalClosed = 0, totalQueued = 0;
+    Object.values(diff.byInvestor).forEach(d => {
+      totalNew     += d.toInsert.length;
+      totalUpdated += d.toUpdate.length;
+      totalClosed  += d.toClosed.length;
+      totalQueued  += d.toQueue.length;
+    });
     const suffix = isMulti
-      ? ' across ' + Object.keys(clientAssignments).filter(k => clientAssignments[k]).length + ' clients.'
+      ? ' across ' + Object.keys(diff.byInvestor).length + ' clients.'
       : ' for ' + (investors.find(i => i.id === form.investor_id)?.full_name || '') + '.';
-    setMsg('\u2713 Imported ' + totalPos + ' position' + (totalPos !== 1 ? 's' : '') + ' and ' + totalCash + ' cash entr' + (totalCash !== 1 ? 'ies' : 'y') + suffix);
+    let msg = '\u2713 ' + totalNew + ' new, ' + totalUpdated + ' updated, ' + totalClosed + ' closed' + suffix;
+    if (totalQueued > 0) msg += ' \u26a0\ufe0f ' + totalQueued + ' unidentified position' + (totalQueued !== 1 ? 's' : '') + ' sent to Review Queue.';
+    setMsg(msg);
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
-    setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName('');
+    setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setDiff(null);
     setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
+    loadQueue();
+    if (totalQueued > 0) { setShowQueue(true); setQueueFilter('pending'); }
   };
 
   const reset = () => {
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
-    setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setMsg('');
+    setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setMsg(''); setDiff(null);
     setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
   };
 
@@ -1812,6 +1977,13 @@ function PortfolioUpload() {
 
   const assignedCount = Object.values(clientAssignments).filter(Boolean).length;
   const confirmStep = isMulti ? 4 : 3;
+
+  // Aggregate diff counts across all investors
+  const diffTotals = diff ? Object.values(diff.byInvestor).reduce(
+    (acc, d) => ({ new: acc.new + d.toInsert.length, updated: acc.updated + d.toUpdate.length, closed: acc.closed + d.toClosed.length, queued: acc.queued + d.toQueue.length }),
+    { new: 0, updated: 0, closed: 0, queued: 0 }
+  ) : { new: 0, updated: 0, closed: 0, queued: 0 };
+
   const pubCount = mappedData.filter(r => r._class === 'public_markets').length;
   const cashCount = mappedData.filter(r => r._class === 'cash').length;
 
@@ -2145,79 +2317,295 @@ function PortfolioUpload() {
                 <h3 style={{ margin:0, fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>Review &amp; Confirm Import</h3>
                 <div style={{ fontSize:'0.78rem', color:'#6c757d', marginTop:'4px' }}>
                   {isMulti
-                    ? <span>&#128101; Multi-client &nbsp;&middot;&nbsp; <strong>{assignedCount}</strong> investors assigned</span>
+                    ? <span>&#128101; Multi-client &nbsp;&middot;&nbsp; <strong>{Object.keys(diff?.byInvestor || {}).length}</strong> investors</span>
                     : <span>Investor: <strong>{investors.find(i => i.id === form.investor_id)?.full_name}</strong></span>
                   }
                   &nbsp;&middot;&nbsp; Bank: <strong>{form.source_bank || '\u2014'}</strong> &nbsp;&middot;&nbsp; Date: <strong>{form.statement_date}</strong>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
-                <div style={{ background:'#e8f5e9', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#2a9d5c' }}>&#128200; {pubCount} Positions</div>
-                <div style={{ background:'#e3f2fd', borderRadius:'20px', padding:'0.3rem 0.75rem', fontSize:'0.78rem', fontWeight:'700', color:'#1565c0' }}>&#128181; {cashCount} Cash</div>
-                <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
-              </div>
+              <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
             </div>
 
-            {offerSaveTemplate && form.source_bank.trim() && (() => {
-              const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
-              return (
-                <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
-                  <div>
-                    <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
-                    <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Next time you upload from this bank, the mapping step will be skipped.'}</div>
+            {diffLoading ? (
+              <div style={{ textAlign:'center', padding:'2.5rem', color:'#adb5bd' }}>
+                <div style={{ fontSize:'1.5rem', marginBottom:'0.5rem' }}>&#128260;</div>
+                Comparing with existing positions...
+              </div>
+            ) : diff && (
+              <>
+                {/* Summary badges */}
+                <div style={{ display:'flex', gap:'0.6rem', flexWrap:'wrap', marginBottom:'1.25rem' }}>
+                  {[
+                    { label: '\u2795 ' + diffTotals.new     + ' New',           bg:'#e8f5e9', color:'#2e7d32'  },
+                    { label: '\u21bb ' + diffTotals.updated + ' Updated',       bg:'#e3f2fd', color:'#1565c0'  },
+                    { label: '\u2716 ' + diffTotals.closed  + ' Closed',        bg:'#fff0f0', color:'#c62828'  },
+                    diffTotals.queued > 0 && { label: '\u26a0 ' + diffTotals.queued + ' For Review', bg:'#fff3e0', color:'#e65100' },
+                  ].filter(Boolean).map((b, i) => (
+                    <span key={i} style={{ background: b.bg, color: b.color, borderRadius:'20px', padding:'0.3rem 0.85rem', fontSize:'0.78rem', fontWeight:'700' }}>{b.label}</span>
+                  ))}
+                </div>
+
+                {offerSaveTemplate && form.source_bank.trim() && (() => {
+                  const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
+                  return (
+                    <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
+                      <div>
+                        <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
+                        <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Next time you upload from this bank, the mapping step will be skipped.'}</div>
+                      </div>
+                      <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
+                        {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
+                      </Btn>
+                    </div>
+                  );
+                })()}
+
+                {/* Per-investor diff table */}
+                {Object.entries(diff.byInvestor).map(([investorId, d]) => {
+                  const invName = investors.find(i => i.id === investorId)?.full_name || investorId;
+                  const allRows = [
+                    ...d.toInsert.map(x => ({ ...x, action: 'new'     })),
+                    ...d.toUpdate.map(x => ({ ...x, action: 'updated' })),
+                    ...d.toQueue.map(x  => ({ ...x, action: 'queued'  })),
+                    ...d.toClosed.map(x => ({ ...x, action: 'closed'  })),
+                  ];
+                  const actionCfg = {
+                    new:     { label: 'New',       bg:'#e8f5e9', color:'#2e7d32' },
+                    updated: { label: 'Updated',   bg:'#e3f2fd', color:'#1565c0' },
+                    queued:  { label: 'For Review', bg:'#fff3e0', color:'#e65100' },
+                    closed:  { label: 'Closed',    bg:'#fff0f0', color:'#c62828' },
+                  };
+                  return (
+                    <div key={investorId} style={{ marginBottom:'1.5rem' }}>
+                      {isMulti && <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.85rem', marginBottom:'0.5rem' }}>&#128100; {invName}</div>}
+                      <div style={{ overflowX:'auto' }}>
+                        <table style={{ borderCollapse:'collapse', fontSize:'0.8rem', width:'100%', minWidth:'600px' }}>
+                          <thead>
+                            <tr style={{ background:'#f8f9fa' }}>
+                              {['Action','Type','Security Name','Ticker','ISIN','Qty','Value / Balance','Ccy'].map(h => (
+                                <th key={h} style={{ padding:'0.55rem 0.75rem', textAlign: ['Qty','Value / Balance'].includes(h) ? 'right' : 'left', color:'#6c757d', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allRows.map((item, i) => {
+                              const cfg = actionCfg[item.action];
+                              const row = item.row || item.existing;
+                              const isClosed = item.action === 'closed';
+                              const name   = isClosed ? (item.existing.security_name || item.existing.description) : (row?.security_name || '\u2014');
+                              const ticker = isClosed ? item.existing.ticker   : row?.ticker;
+                              const isin   = isClosed ? item.existing.isin     : row?.isin;
+                              const qty    = isClosed ? item.existing.quantity : row?.quantity;
+                              const val    = isClosed ? (item.existing.market_value || item.existing.balance) : (row?.market_value || row?.cash_balance);
+                              const ccy    = isClosed ? item.existing.currency  : row?.currency;
+                              return (
+                                <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa', opacity: isClosed ? 0.65 : 1 }}>
+                                  <td style={{ padding:'0.5rem 0.75rem' }}>
+                                    <span style={{ background: cfg.bg, color: cfg.color, borderRadius:'10px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700', whiteSpace:'nowrap' }}>{cfg.label}</span>
+                                  </td>
+                                  <td style={{ padding:'0.5rem 0.75rem' }}>
+                                    <span style={{ background: item.type === 'cash' ? '#e3f2fd' : '#f3e5f5', color: item.type === 'cash' ? '#1565c0' : '#6a1b9a', borderRadius:'10px', padding:'2px 7px', fontSize:'0.68rem', fontWeight:'700' }}>
+                                      {item.type === 'cash' ? 'Cash' : 'Position'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color: isClosed ? '#adb5bd' : '#212529', textDecoration: isClosed ? 'line-through' : 'none' }}>{name}</td>
+                                  <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', fontFamily:'monospace' }}>{ticker || '\u2014'}</td>
+                                  <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem', fontFamily:'monospace' }}>{isin || '\u2014'}</td>
+                                  <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{qty ?? '\u2014'}</td>
+                                  <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color: isClosed ? '#adb5bd' : '#003770', textAlign:'right' }}>{val ?? '\u2014'}</td>
+                                  <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', fontFamily:'monospace' }}>{ccy}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {diffTotals.queued > 0 && (
+                  <div style={{ background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#e65100', marginBottom:'1.25rem' }}>
+                    &#9888; <strong>{diffTotals.queued} position{diffTotals.queued !== 1 ? 's' : ''}</strong> have no ISIN or ticker and cannot be matched — they will be sent to the Review Queue for manual identification.
                   </div>
-                  <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
-                    {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
+                )}
+                {diffTotals.closed > 0 && (
+                  <div style={{ background:'#fff0f0', border:'1px solid #ffcdd2', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#c62828', marginBottom:'1.25rem' }}>
+                    &#10006; <strong>{diffTotals.closed} position{diffTotals.closed !== 1 ? 's' : ''}</strong> present in the system but missing from this statement will be marked as <strong>closed</strong> and hidden from the investor portal.
+                  </div>
+                )}
+
+                <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+                  <Btn variant="ghost" onClick={reset}>Cancel</Btn>
+                  <Btn onClick={confirm} disabled={saving}>
+                    {saving ? 'Importing...' : 'Confirm Import (' + (diffTotals.new + diffTotals.updated) + ' positions)'}
                   </Btn>
                 </div>
-              );
-            })()}
-
-            <div style={{ overflowX:'auto', marginBottom:'1.25rem' }}>
-              <table style={{ borderCollapse:'collapse', fontSize:'0.8rem', width:'100%', minWidth:'640px' }}>
-                <thead>
-                  <tr style={{ background:'#f8f9fa' }}>
-                    {['#', isMulti ? 'Client' : null, 'Class','Security Name','Ticker','ISIN','Qty','Market Value / Balance','Ccy'].filter(Boolean).map(h => (
-                      <th key={h} style={{ padding:'0.6rem 0.75rem', textAlign: h === 'Security Name' || h === '#' || h === 'Class' || h === 'Client' ? 'left' : 'right', color:'#6c757d', fontWeight:'600', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', borderBottom:'1px solid #dee2e6' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {mappedData.map((row, i) => {
-                    const invName = isMulti ? (investors.find(inv => inv.id === row._investorId)?.full_name || <span style={{ color:'#e63946' }}>Unassigned</span>) : null;
-                    return (
-                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                        <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', fontSize:'0.72rem' }}>{i + 1}</td>
-                        {isMulti && <td style={{ padding:'0.5rem 0.75rem', fontSize:'0.78rem', fontWeight:'600', color: row._investorId ? '#003770' : '#e63946' }}>{invName}</td>}
-                        <td style={{ padding:'0.5rem 0.75rem' }}>
-                          <span style={{ background: row._class === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._class === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>
-                            {row._class === 'cash' ? 'Cash' : 'Markets'}
-                          </span>
-                        </td>
-                        <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#212529' }}>{row.security_name || '\u2014'}</td>
-                        <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right', fontFamily:'monospace' }}>{row.ticker || '\u2014'}</td>
-                        <td style={{ padding:'0.5rem 0.75rem', color:'#adb5bd', textAlign:'right', fontSize:'0.72rem', fontFamily:'monospace' }}>{row.isin || '\u2014'}</td>
-                        <td style={{ padding:'0.5rem 0.75rem', color:'#495057', textAlign:'right' }}>{row.quantity || '\u2014'}</td>
-                        <td style={{ padding:'0.5rem 0.75rem', fontWeight:'600', color:'#003770', textAlign:'right' }}>
-                          {row._class === 'cash' ? (row.cash_balance || row.market_value || '\u2014') : (row.market_value || '\u2014')}
-                        </td>
-                        <td style={{ padding:'0.5rem 0.75rem', color:'#6c757d', textAlign:'right' }}>{row.currency || '\u2014'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color:'#92400e', marginBottom:'1.25rem' }}>
-              &#9888; Confirming will add these positions to the portfolio. Previous entries with the same statement date are not automatically removed.
-              {isMulti && mappedData.some(r => !r._investorId) && <span style={{ display:'block', marginTop:'4px', fontWeight:'700' }}>&#9888; {mappedData.filter(r => !r._investorId).length} unassigned rows will be skipped.</span>}
-            </div>
-            <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
-              <Btn variant="ghost" onClick={reset}>Cancel</Btn>
-              <Btn onClick={confirm} disabled={saving}>{saving ? 'Importing...' : 'Confirm Import (' + mappedData.filter(r => !isMulti || r._investorId).length + ' rows)'}</Btn>
-            </div>
+              </>
+            )}
           </Card>
         </div>
+      )}
+
+      {/* ── Embedded Review Queue ──────────────────────────────────────────── */}
+      <div style={{ marginTop:'2.5rem' }}>
+        <button
+          onClick={() => { setShowQueue(v => !v); if (!showQueue) loadQueue(); }}
+          style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:'none', border:'none', cursor:'pointer', padding:0, fontFamily:'DM Sans,sans-serif', marginBottom: showQueue ? '1rem' : 0 }}>
+          <span style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770' }}>
+            {showQueue ? '\u25bc' : '\u25ba'} Upload Review Queue
+          </span>
+          {queuePending.length > 0 && (
+            <span style={{ background:'#e65100', color:'#fff', borderRadius:'20px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>
+              {queuePending.length} pending
+            </span>
+          )}
+          {queuePending.length === 0 && queueItems.length > 0 && (
+            <span style={{ background:'#e8f5e9', color:'#2e7d32', borderRadius:'20px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>
+              \u2713 Clear
+            </span>
+          )}
+        </button>
+
+        {showQueue && (
+          <div>
+            <div style={{ fontSize:'0.8rem', color:'#6c757d', marginBottom:'1rem' }}>
+              Positions flagged during upload that have no ISIN or ticker \u2014 enrich and approve, or reject.
+            </div>
+
+            {queueMsg && (
+              <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1rem', fontWeight:'600' }}>{queueMsg}</div>
+            )}
+
+            {/* Filter tabs */}
+            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem', flexWrap:'wrap' }}>
+              {[['pending','Pending', queuePending.length], ['approved','Approved', null], ['rejected','Rejected', null], ['all','All', queueItems.length]].map(([val, label, count]) => (
+                <button key={val} onClick={() => setQueueFilter(val)}
+                  style={{ padding:'0.35rem 0.9rem', borderRadius:'20px', border:'1.5px solid', borderColor: queueFilter === val ? '#003770' : '#dee2e6', background: queueFilter === val ? '#003770' : '#fff', color: queueFilter === val ? '#fff' : '#6c757d', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                  {label}
+                  {count !== null && count > 0 && (
+                    <span style={{ background: queueFilter === val ? 'rgba(255,255,255,0.25)' : (val === 'pending' ? '#e65100' : '#adb5bd'), color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'0.68rem' }}>{count}</span>
+                  )}
+                </button>
+              ))}
+              <button onClick={loadQueue} style={{ marginLeft:'auto', padding:'0.35rem 0.75rem', borderRadius:'8px', border:'1.5px solid #dee2e6', background:'#fff', color:'#6c757d', fontSize:'0.75rem', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+                \u21bb Refresh
+              </button>
+            </div>
+
+            {queueLoading ? (
+              <Card><div style={{ textAlign:'center', padding:'1.5rem', color:'#adb5bd', fontSize:'0.88rem' }}>Loading queue...</div></Card>
+            ) : queueFiltered.length === 0 ? (
+              <Card>
+                <div style={{ textAlign:'center', padding:'2rem' }}>
+                  <div style={{ fontSize:'1.75rem', marginBottom:'0.4rem' }}>\u2713</div>
+                  <div style={{ color:'#adb5bd', fontSize:'0.88rem' }}>
+                    {queueFilter === 'pending' ? 'Queue is clear \u2014 no pending items.' : 'No items in this category.'}
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card style={{ padding:0, overflow:'hidden' }}>
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.8rem', minWidth:'900px' }}>
+                    <thead>
+                      <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
+                        {['Investor','Security Name','Ticker','ISIN','Asset Type','Qty','Market Value','CCY','Bank','Date','Status',''].map(h => (
+                          <th key={h} style={{ padding:'0.65rem 0.9rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {queueFiltered.map((item, i) => {
+                        const sCfg = { pending:['#fff3e0','#e65100','Pending'], approved:['#e8f5e9','#2e7d32','Approved'], rejected:['#fff5f5','#c53030','Rejected'] };
+                        const [sBg, sColor, sLabel] = sCfg[item.status] || ['#f5f5f5','#6c757d', item.status];
+                        return (
+                          <tr key={item.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding:'0.6rem 0.9rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap' }}>{item.investors?.full_name || <span style={{ color:'#adb5bd' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', color:'#212529', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.raw_security_name || <span style={{ color:'#adb5bd' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', fontFamily:'monospace', color:'#495057' }}>{item.raw_ticker || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', fontFamily:'monospace', color:'#adb5bd', fontSize:'0.7rem' }}>{item.raw_isin || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', color:'#6c757d' }}>{item.raw_asset_type || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', textAlign:'right', color:'#495057' }}>{item.raw_quantity ?? <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', textAlign:'right', fontWeight:'600', color:'#003770' }}>{item.raw_market_value ? item.raw_market_value.toLocaleString() : (item.raw_cash_balance ? item.raw_cash_balance.toLocaleString() : <span style={{ color:'#dee2e6' }}>\u2014</span>)}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', fontFamily:'monospace', color:'#6c757d' }}>{item.raw_currency || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', color:'#6c757d', whiteSpace:'nowrap' }}>{item.source_bank || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem', color:'#adb5bd', fontSize:'0.7rem', whiteSpace:'nowrap' }}>{item.statement_date || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
+                            <td style={{ padding:'0.6rem 0.9rem' }}>
+                              <span style={{ background: sBg, color: sColor, borderRadius:'12px', padding:'2px 9px', fontSize:'0.7rem', fontWeight:'700' }}>{sLabel}</span>
+                            </td>
+                            <td style={{ padding:'0.6rem 0.9rem', whiteSpace:'nowrap' }}>
+                              {item.status === 'pending' && (
+                                <>
+                                  <button onClick={() => openQueueEdit(item)} style={{ background:'#003770', border:'none', borderRadius:'6px', padding:'3px 9px', fontSize:'0.73rem', color:'#fff', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', marginRight:'5px' }}>Review</button>
+                                  <button onClick={() => rejectQueueItem(item.id, item.raw_security_name)} style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'3px 9px', fontSize:'0.73rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>Reject</button>
+                                </>
+                              )}
+                              {item.status !== 'pending' && <span style={{ color:'#adb5bd', fontSize:'0.75rem' }}>{item.reviewed_at ? new Date(item.reviewed_at).toLocaleDateString() : ''}</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Review item modal */}
+      {queueEditItem && (
+        <Modal title="Review Position" onClose={() => setQueueEditItem(null)} wide>
+          <div style={{ marginBottom:'1rem', background:'#fff3e0', border:'1px solid #ffcc80', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#e65100', fontWeight:'600' }}>
+            \u26a0 No ISIN or ticker detected. Enrich the data below before approving.
+          </div>
+          <div style={{ marginBottom:'1.25rem', fontSize:'0.82rem', color:'#6c757d' }}>
+            Investor: <strong style={{ color:'#003770' }}>{queueEditItem.investors?.full_name}</strong>
+            &nbsp;&middot;&nbsp; Bank: <strong>{queueEditItem.source_bank || '\u2014'}</strong>
+            &nbsp;&middot;&nbsp; Date: <strong>{queueEditItem.statement_date || '\u2014'}</strong>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+            <div style={{ gridColumn:'1/-1' }}>
+              <Input label="Security Name *" value={queueEditForm.security_name} onChange={e => setQueueEditForm({ ...queueEditForm, security_name: e.target.value })} />
+            </div>
+            <Input label="ISIN" value={queueEditForm.isin} onChange={e => setQueueEditForm({ ...queueEditForm, isin: e.target.value })} placeholder="e.g. US0378331005" />
+            <Input label="Ticker" value={queueEditForm.ticker} onChange={e => setQueueEditForm({ ...queueEditForm, ticker: e.target.value })} placeholder="e.g. AAPL" />
+            <div>
+              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Asset Class</label>
+              <select value={queueEditForm.asset_class} onChange={e => setQueueEditForm({ ...queueEditForm, asset_class: e.target.value })}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
+                <option value="">Select...</option>
+                {QUEUE_ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Classification</label>
+              <select value={queueEditForm.classification} onChange={e => setQueueEditForm({ ...queueEditForm, classification: e.target.value })}
+                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
+                <option value="public_markets">Public Markets (position)</option>
+                <option value="cash">Cash</option>
+              </select>
+            </div>
+            <Input label="Quantity" value={queueEditForm.quantity} onChange={e => setQueueEditForm({ ...queueEditForm, quantity: e.target.value })} />
+            <Input label="Price" value={queueEditForm.price} onChange={e => setQueueEditForm({ ...queueEditForm, price: e.target.value })} />
+            <Input label="Market Value" value={queueEditForm.market_value} onChange={e => setQueueEditForm({ ...queueEditForm, market_value: e.target.value })} />
+            <Input label="Cash Balance" value={queueEditForm.cash_balance} onChange={e => setQueueEditForm({ ...queueEditForm, cash_balance: e.target.value })} />
+            <Input label="Currency" value={queueEditForm.currency} onChange={e => setQueueEditForm({ ...queueEditForm, currency: e.target.value })} placeholder="e.g. USD" />
+          </div>
+          <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#2e7d32', marginBottom:'1.25rem' }}>
+            \ud83d\udcbe Approving saves this position to the portfolio and adds the security to the Asset Master.
+          </div>
+          <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setQueueEditItem(null)}>Cancel</Btn>
+            <button onClick={() => rejectQueueItem(queueEditItem.id, queueEditItem.raw_security_name).then(() => setQueueEditItem(null))}
+              style={{ padding:'0.55rem 1.25rem', border:'1px solid #e63946', borderRadius:'8px', background:'transparent', color:'#e63946', fontSize:'0.88rem', fontWeight:'700', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+              Reject
+            </button>
+            <Btn onClick={approveQueueItem} disabled={queueSaving}>{queueSaving ? 'Approving...' : 'Approve & Save'}</Btn>
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -2646,6 +3034,7 @@ function PositionsViewer() {
   const [filterInvestor, setFilterInvestor] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [showClosed, setShowClosed] = useState(false);
   const [sortCol, setSortCol] = useState('statement_date');
   const [sortDir, setSortDir] = useState('desc');
   const [savingCell, setSavingCell] = useState(null); // { id, field }
@@ -2728,6 +3117,7 @@ function PositionsViewer() {
   const allDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
 
   const filtered = positions.filter(p => {
+    if (!showClosed && p.status === 'closed') return false;
     if (filterType === 'positions' && p._type !== 'position') return false;
     if (filterType === 'cash' && p._type !== 'cash') return false;
     if (filterInvestor && p.investor_id !== filterInvestor) return false;
@@ -3070,6 +3460,10 @@ function PositionsViewer() {
                 {label}
               </button>
             ))}
+            <button onClick={() => setShowClosed(v => !v)}
+              style={{ padding:'0.45rem 0.85rem', border:'1.5px solid', borderColor: showClosed ? '#c62828' : '#dee2e6', borderRadius:'8px', background: showClosed ? '#fff0f0' : '#fff', color: showClosed ? '#c62828' : '#adb5bd', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
+              {showClosed ? '\u2716 Hide Closed' : 'Show Closed'}
+            </button>
           </div>
           <div style={{ fontSize:'0.82rem', color:'#adb5bd', flexShrink:0 }}>
             {sorted.length} row{sorted.length !== 1 ? 's' : ''}
@@ -3107,10 +3501,11 @@ function PositionsViewer() {
               </thead>
               <tbody>
                 {sorted.map((row, i) => (
-                  <tr key={row.id + row._type} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <tr key={row.id + row._type} style={{ borderBottom:'1px solid #f1f3f5', background: row.status === 'closed' ? '#fff5f5' : (i % 2 === 0 ? '#fff' : '#fafafa'), opacity: row.status === 'closed' ? 0.7 : 1 }}>
                     {/* Investor — not editable */}
                     <td style={{ padding:'0.65rem 0.9rem', fontWeight:'600', color:'#003770', whiteSpace:'nowrap', fontSize:'0.82rem' }}>
                       {row.investors?.full_name || '—'}
+                      {row.status === 'closed' && <span style={{ marginLeft:'6px', background:'#ffcdd2', color:'#c62828', borderRadius:'10px', padding:'1px 7px', fontSize:'0.65rem', fontWeight:'700' }}>CLOSED</span>}
                     </td>
                     {/* Type badge — not editable */}
                     <td style={{ padding:'0.65rem 0.9rem' }}>
