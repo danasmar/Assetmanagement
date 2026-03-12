@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -19,7 +17,6 @@ export default function AdminApp({ session, onLogout }) {
     assumptions: <Assumptions />,
     portfolio_upload: <PortfolioUpload />,
     review_queue: <ReviewQueue />,
-    asset_master: <AssetMaster />,
     positions: <PositionsViewer />,
   };
   return (
@@ -501,7 +498,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
     const load = async () => {
       setLoading(true);
       const [{ data: inv }, { data: dist }] = await Promise.all([
-        supabase.from('investments').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('created_at', { ascending: false }),
+        supabase.from('private_markets_investments').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('created_at', { ascending: false }),
         supabase.from('investor_distributions').select('*,distributions(distribution_date,deals(name,currency))').eq('investor_id', investor.id).order('created_at', { ascending: false }),
       ]);
       setInvestments(inv || []);
@@ -687,7 +684,7 @@ function InvestorManagement() {
     const deal = deals.find(d=>d.id===invForm.deal_id);
     const nav = deal?.nav_per_unit||1;
     const units = invForm.amount_invested/nav;
-    await supabase.from('investments').insert({...invForm, investor_id:selected.id, units, nav_at_entry:nav, amount_invested:parseFloat(invForm.amount_invested)||0});
+    await supabase.from('private_markets_investments').insert({...invForm, investor_id:selected.id, units, nav_at_entry:nav, amount_invested:parseFloat(invForm.amount_invested)||0});
     setSaving(false); setModal(null); setInvForm({});
   };
 
@@ -782,7 +779,7 @@ function InvestorManagement() {
 function InvestorInvestments({ investorId }) {
   const [investments, setInvestments] = useState([]);
   useEffect(()=>{
-    supabase.from('investments').select('*,deals(name,nav_per_unit)').eq('investor_id',investorId).then(({data})=>setInvestments(data||[]));
+    supabase.from('private_markets_investments').select('*,deals(name,nav_per_unit)').eq('investor_id',investorId).then(({data})=>setInvestments(data||[]));
   },[investorId]);
   if (!investments.length) return <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'1rem 0',fontSize:'0.85rem'}}>No investments yet.</p></Card>;
   return (
@@ -960,7 +957,7 @@ function DistributionMgmt() {
     const incomePerUnit = ndi / totalUnits;
     const { data: dist } = await supabase.from('distributions').insert({ deal_id:selected, net_distributable_income:ndi, total_units:totalUnits, income_per_unit:incomePerUnit, distribution_date:form.date }).select().single();
     // Create investor distributions
-    const { data: invs } = await supabase.from('investments').select('investor_id,units').eq('deal_id',selected);
+    const { data: invs } = await supabase.from('private_markets_investments').select('investor_id,units').eq('deal_id',selected);
     if (invs && dist) {
       const rows = invs.map(i=>({ distribution_id:dist.id, investor_id:i.investor_id, units:i.units, amount:i.units*incomePerUnit }));
       if(rows.length) await supabase.from('investor_distributions').insert(rows);
@@ -1473,11 +1470,7 @@ function PortfolioUpload() {
   const [msg, setMsg] = useState('');
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [templateApplied, setTemplateApplied] = useState(false);
-  const [offerSaveTemplate, setOfferSaveTemplate] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [templates, setTemplates] = useState([]);
-  const [showTemplates, setShowTemplates] = useState(false);
+
   // Multi-client state
   const [clientIdentifierCol, setClientIdentifierCol] = useState('');
   const [clientAssignments, setClientAssignments] = useState({}); // { rawValue: investor_id }
@@ -1529,17 +1522,14 @@ function PortfolioUpload() {
     setQueueSaving(true);
     const toNumQ = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
     const isCash = queueEditForm.classification === 'cash';
-    if (!isCash && (queueEditForm.security_name || queueEditForm.isin || queueEditForm.ticker)) {
-      const assetPayload = { security_name: queueEditForm.security_name || 'Unknown', isin: queueEditForm.isin || null, ticker: queueEditForm.ticker || null, asset_class: queueEditForm.asset_class || null, currency: queueEditForm.currency || null, updated_at: new Date().toISOString() };
-      let existing = null;
-      if (queueEditForm.isin) { const { data } = await supabase.from('asset_master').select('id').eq('isin', queueEditForm.isin).limit(1); existing = data && data[0]; }
-      if (!existing && queueEditForm.ticker) { const { data } = await supabase.from('asset_master').select('id').ilike('ticker', queueEditForm.ticker).limit(1); existing = data && data[0]; }
-      if (existing) { await supabase.from('asset_master').update(assetPayload).eq('id', existing.id); } else { await supabase.from('asset_master').insert(assetPayload); }
-    }
+
+    const posPayload = { investor_id: queueEditItem.investor_id, security_name: queueEditForm.security_name || 'Unknown', ticker: queueEditForm.ticker || null, isin: queueEditForm.isin || null, asset_type: queueEditForm.asset_class || 'Equity', quantity: toNumQ(queueEditForm.quantity), price: toNumQ(queueEditForm.price), market_value: toNumQ(queueEditForm.market_value) || toNumQ(queueEditForm.quantity) * toNumQ(queueEditForm.price), currency: queueEditForm.currency || 'USD', statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: 'active' };
     if (isCash) {
       await supabase.from('cash_positions').insert({ investor_id: queueEditItem.investor_id, currency: queueEditForm.currency || 'USD', balance: toNumQ(queueEditForm.cash_balance) || toNumQ(queueEditForm.market_value), description: queueEditForm.security_name || 'Cash', statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: 'active' });
+    } else if (queueEditForm.classification === 'private_markets') {
+      await supabase.from('private_markets_positions').insert(posPayload);
     } else {
-      await supabase.from('positions').insert({ investor_id: queueEditItem.investor_id, security_name: queueEditForm.security_name || 'Unknown', ticker: queueEditForm.ticker || null, isin: queueEditForm.isin || null, asset_type: queueEditForm.asset_class || 'Equity', quantity: toNumQ(queueEditForm.quantity), price: toNumQ(queueEditForm.price), market_value: toNumQ(queueEditForm.market_value) || toNumQ(queueEditForm.quantity) * toNumQ(queueEditForm.price), currency: queueEditForm.currency || 'USD', statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: 'active' });
+      await supabase.from('public_markets_positions').insert(posPayload);
     }
     await supabase.from('upload_review_queue').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', queueEditItem.id);
     setQueueSaving(false);
@@ -1563,7 +1553,6 @@ function PortfolioUpload() {
     { key: 'isin',           label: 'ISIN'                              },
     { key: 'asset_type',     label: 'Asset Class'                       },
     { key: 'industry',       label: 'Industry'                          },
-    { key: 'market_type',    label: 'Market Type'                       },
     { key: 'deal_id',        label: 'Linked Deal'                       },
     { key: 'mandate_type',   label: 'Mandate Type'                      },
     { key: 'quantity',       label: 'Quantity'                          },
@@ -1590,39 +1579,10 @@ function PortfolioUpload() {
     document.head.appendChild(script);
   });
 
-  const loadTemplates = () =>
-    supabase.from('bank_mapping_templates').select('*').order('bank_name').then(({ data }) => setTemplates(data || []));
-
   useEffect(() => {
     supabase.from('investors').select('id, full_name').order('full_name').then(({ data }) => setInvestors(data || []));
-    loadTemplates();
     loadQueue();
   }, []);
-
-  const findTemplate = async (bankName) => {
-    if (!bankName || !bankName.trim()) return null;
-    const { data } = await supabase.from('bank_mapping_templates').select('*').ilike('bank_name', bankName.trim()).limit(1);
-    return data && data[0] ? data[0] : null;
-  };
-
-  const saveTemplateNow = async () => {
-    if (!form.source_bank.trim()) return;
-    setSavingTemplate(true);
-    const existing = await findTemplate(form.source_bank);
-    const payload = { bank_name: form.source_bank.trim(), column_mappings: mapping, updated_at: new Date().toISOString() };
-    if (existing) await supabase.from('bank_mapping_templates').update(payload).eq('id', existing.id);
-    else await supabase.from('bank_mapping_templates').insert(payload);
-    setSavingTemplate(false);
-    setOfferSaveTemplate(false);
-    loadTemplates();
-    setMsg('\u2713 Mapping template saved for ' + form.source_bank.trim() + '. Future uploads from this bank will be mapped automatically.');
-  };
-
-  const deleteTemplate = async (id, bankName) => {
-    if (!window.confirm('Delete mapping template for ' + bankName + '?')) return;
-    await supabase.from('bank_mapping_templates').delete().eq('id', id);
-    loadTemplates();
-  };
 
   const parseCSV = (text) => {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -1679,18 +1639,14 @@ function PortfolioUpload() {
     return '';
   };
 
-  const applyMappingFromTemplate = (tplMapping, hdrs) => {
-    const validatedMap = {};
-    Object.entries(tplMapping).forEach(([field, col]) => { if (hdrs.includes(col)) validatedMap[field] = col; });
-    return validatedMap;
-  };
-
   const classifyRow = (row) => {
     const at = (row.asset_type || '').toLowerCase();
     const sn = (row.security_name || '').toLowerCase();
     const cashKw = ['cash','money market','fiduciary','deposit','mmf','liquidity','bank balance','current account','savings account','cash equivalent'];
     if (cashKw.some(k => at.includes(k) || sn.includes(k))) return 'cash';
     if (row.cash_balance && !row.market_value) return 'cash';
+    const privateKw = ['private equity','private credit','private debt','private markets','real assets','infrastructure','direct lending','venture capital','buyout','pe fund'];
+    if (privateKw.some(k => at.includes(k) || sn.includes(k))) return 'private_markets';
     return 'public_markets';
   };
 
@@ -1705,7 +1661,7 @@ function PortfolioUpload() {
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploading(true); setFileName(file.name); setTemplateApplied(false); setOfferSaveTemplate(false);
+    setUploading(true); setFileName(file.name);
     setClientIdentifierCol(''); setClientAssignments({});
     const ext = file.name.split('.').pop().toLowerCase();
     try {
@@ -1727,79 +1683,53 @@ function PortfolioUpload() {
         alert('Please upload a CSV or Excel (.xlsx/.xls) file.'); setUploading(false); return;
       }
       setHeaders(hdrs); setRawRows(rows);
-
-      // Auto-detect client identifier column for multi mode
       if (isMulti) setClientIdentifierCol(autoDetectClientCol(hdrs));
-
-      // Check for saved template
-      const tpl = await findTemplate(form.source_bank);
-      if (tpl && tpl.column_mappings) {
-        const validatedMap = applyMappingFromTemplate(tpl.column_mappings, hdrs);
-        if (Object.keys(validatedMap).length > 0) {
-          setMapping(validatedMap);
-          setTemplateApplied(true);
-          if (isMulti) {
-            // Template found but still need client assignment step
-            setStep(3);
-          } else {
-            const mapped = buildMappedRows(rows, validatedMap);
-            setMappedData(mapped);
-            setUploading(false); e.target.value = '';
-            await buildPosDiff(mapped, form.investor_id);
-            setStep(3);
-            return;
-          }
-          setUploading(false); e.target.value = ''; return;
-        }
-      }
-      // No template — go to map step
       setMapping(autoMap(hdrs));
-      setOfferSaveTemplate(!!form.source_bank.trim());
       setStep(2);
     } catch (err) { alert('Error parsing file: ' + err.message); }
     setUploading(false); e.target.value = '';
   };
 
-  // Called from step 2 Map Columns
   // ── Reconciliation: compute diff for one investor ───────────────────────────
   const computeInvestorDiff = async (mappedRows, investorId) => {
-    const [posRes, cashRes] = await Promise.all([
-      supabase.from('positions').select('id,isin,ticker,security_name,quantity,price,market_value,currency').eq('investor_id', investorId).eq('status', 'active'),
+    const [pubRes, privRes, cashRes] = await Promise.all([
+      supabase.from('public_markets_positions').select('id,isin,ticker,security_name,quantity,price,market_value,currency').eq('investor_id', investorId).eq('status', 'active'),
+      supabase.from('private_markets_positions').select('id,isin,ticker,security_name,quantity,price,market_value,currency').eq('investor_id', investorId).eq('status', 'active'),
       supabase.from('cash_positions').select('id,description,currency,balance').eq('investor_id', investorId).eq('status', 'active'),
     ]);
 
-    // Build lookup indexes
-    const byIsin = {}, byTicker = {}, byCashKey = {};
-    (posRes.data || []).forEach(p => {
-      if (p.isin)   byIsin[p.isin.toUpperCase()] = p;
-      if (p.ticker) byTicker[p.ticker.toUpperCase()] = p;
-    });
-    (cashRes.data || []).forEach(c => {
-      const key = (c.description || '').toLowerCase() + '|' + (c.currency || '').toUpperCase();
-      byCashKey[key] = c;
-    });
+    const byPubIsin = {}, byPubTicker = {}, byPrivIsin = {}, byPrivTicker = {}, byCashKey = {};
+    (pubRes.data  || []).forEach(p => { if (p.isin) byPubIsin[p.isin.toUpperCase()] = p; if (p.ticker) byPubTicker[p.ticker.toUpperCase()] = p; });
+    (privRes.data || []).forEach(p => { if (p.isin) byPrivIsin[p.isin.toUpperCase()] = p; if (p.ticker) byPrivTicker[p.ticker.toUpperCase()] = p; });
+    (cashRes.data || []).forEach(c => { const key = (c.description || '').toLowerCase() + '|' + (c.currency || '').toUpperCase(); byCashKey[key] = c; });
 
     const toInsert = [], toUpdate = [], toClosed = [], toQueue = [];
-    const matchedPosIds = new Set(), matchedCashIds = new Set();
+    const matchedPubIds = new Set(), matchedPrivIds = new Set(), matchedCashIds = new Set();
 
     mappedRows.forEach(r => {
       if (r._class === 'cash') {
         const key = (r.security_name || 'Cash').toLowerCase() + '|' + (r.currency || '').toUpperCase();
         const ex = byCashKey[key];
         if (ex) { matchedCashIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'cash', row: r, existing: ex }); }
-        else      { toInsert.push({ type: 'cash', row: r }); }
+        else     { toInsert.push({ type: 'cash', row: r }); }
+      } else if (r._class === 'private_markets') {
+        const isin = (r.isin || '').toUpperCase(); const ticker = (r.ticker || '').toUpperCase();
+        if (!isin && !ticker) { toQueue.push({ type: 'private_position', row: r }); return; }
+        const ex = (isin && byPrivIsin[isin]) || (ticker && byPrivTicker[ticker]);
+        if (ex) { matchedPrivIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'private_position', row: r, existing: ex }); }
+        else    { toInsert.push({ type: 'private_position', row: r }); }
       } else {
-        const isin   = (r.isin   || '').toUpperCase();
-        const ticker = (r.ticker || '').toUpperCase();
+        const isin = (r.isin || '').toUpperCase(); const ticker = (r.ticker || '').toUpperCase();
         if (!isin && !ticker) { toQueue.push({ type: 'position', row: r }); return; }
-        const ex = (isin && byIsin[isin]) || (ticker && byTicker[ticker]);
-        if (ex) { matchedPosIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'position', row: r, existing: ex }); }
+        const ex = (isin && byPubIsin[isin]) || (ticker && byPubTicker[ticker]);
+        if (ex) { matchedPubIds.add(ex.id); toUpdate.push({ id: ex.id, type: 'position', row: r, existing: ex }); }
         else    { toInsert.push({ type: 'position', row: r }); }
       }
     });
 
-    (posRes.data  || []).filter(p => !matchedPosIds.has(p.id)).forEach(p  => toClosed.push({ id: p.id,  type: 'position', existing: p }));
-    (cashRes.data || []).filter(c => !matchedCashIds.has(c.id)).forEach(c => toClosed.push({ id: c.id,  type: 'cash',     existing: c }));
+    (pubRes.data  || []).filter(p => !matchedPubIds.has(p.id)).forEach(p  => toClosed.push({ id: p.id, type: 'position',         existing: p }));
+    (privRes.data || []).filter(p => !matchedPrivIds.has(p.id)).forEach(p => toClosed.push({ id: p.id, type: 'private_position', existing: p }));
+    (cashRes.data || []).filter(c => !matchedCashIds.has(c.id)).forEach(c => toClosed.push({ id: c.id, type: 'cash',             existing: c }));
 
     return { toInsert, toUpdate, toClosed, toQueue };
   };
@@ -1828,7 +1758,6 @@ function PortfolioUpload() {
   };
 
   const applyMapping = async () => {
-    setOfferSaveTemplate(!!form.source_bank.trim());
     if (isMulti) {
       setStep(3);
     } else {
@@ -1861,7 +1790,6 @@ function PortfolioUpload() {
     isin: r.isin || null,
     asset_type: r.asset_type || null,
     industry: r.industry || null,
-    market_type: r.market_type || 'public',
     deal_id: r.deal_id || null,
     mandate_type: r.mandate_type || null,
     quantity: toNum(r.quantity) || null,
@@ -1896,13 +1824,12 @@ function PortfolioUpload() {
     raw_currency: r.currency || null,
     raw_cash_balance: null,
     industry: r.industry || null,
-    market_type: r.market_type || null,
     deal_id: r.deal_id || null,
     mandate_type: r.mandate_type || null,
     avg_cost_price: toNum(r.avg_cost_price) || null,
     statement_date: r.statement_date || form.statement_date,
     source_bank: r.source_bank || form.source_bank || null,
-    classification: 'public_markets',
+    classification: r._class || 'public_markets',
     status: 'pending',
   });
 
@@ -1915,25 +1842,29 @@ function PortfolioUpload() {
     for (const [investorId, d] of Object.entries(diff.byInvestor)) {
       const { toInsert, toUpdate, toClosed, toQueue } = d;
 
-      // INSERT new positions / cash
-      const newPos  = toInsert.filter(x => x.type === 'position').map(x => buildPosPayload(x.row, investorId));
+      // INSERT new rows into correct table
+      const newPub  = toInsert.filter(x => x.type === 'position').map(x => buildPosPayload(x.row, investorId));
+      const newPriv = toInsert.filter(x => x.type === 'private_position').map(x => buildPosPayload(x.row, investorId));
       const newCash = toInsert.filter(x => x.type === 'cash').map(x => buildCashPayload(x.row, investorId));
-      if (newPos.length)  { const { error } = await supabase.from('positions').insert(newPos);       if (error) errors.push('Insert positions: ' + error.message); }
-      if (newCash.length) { const { error } = await supabase.from('cash_positions').insert(newCash); if (error) errors.push('Insert cash: ' + error.message); }
+      if (newPub.length)  { const { error } = await supabase.from('public_markets_positions').insert(newPub);   if (error) errors.push('Insert public: ' + error.message); }
+      if (newPriv.length) { const { error } = await supabase.from('private_markets_positions').insert(newPriv); if (error) errors.push('Insert private: ' + error.message); }
+      if (newCash.length) { const { error } = await supabase.from('cash_positions').insert(newCash);            if (error) errors.push('Insert cash: ' + error.message); }
 
-      // UPDATE existing (one by one — each row may change different fields)
+      // UPDATE existing rows in correct table
       for (const u of toUpdate) {
-        const payload = u.type === 'position' ? buildPosPayload(u.row, investorId) : buildCashPayload(u.row, investorId);
-        const table   = u.type === 'position' ? 'positions' : 'cash_positions';
+        const payload = (u.type === 'cash') ? buildCashPayload(u.row, investorId) : buildPosPayload(u.row, investorId);
+        const table   = u.type === 'position' ? 'public_markets_positions' : u.type === 'private_position' ? 'private_markets_positions' : 'cash_positions';
         const { error } = await supabase.from(table).update(payload).eq('id', u.id);
         if (error) errors.push('Update ' + table + ': ' + error.message);
       }
 
       // CLOSE positions not in this upload
-      const posToClose  = toClosed.filter(x => x.type === 'position').map(x => x.id);
+      const pubToClose  = toClosed.filter(x => x.type === 'position').map(x => x.id);
+      const privToClose = toClosed.filter(x => x.type === 'private_position').map(x => x.id);
       const cashToClose = toClosed.filter(x => x.type === 'cash').map(x => x.id);
-      if (posToClose.length)  { const { error } = await supabase.from('positions').update({ status: 'closed', closed_at: statementDate }).in('id', posToClose);       if (error) errors.push('Close positions: ' + error.message); }
-      if (cashToClose.length) { const { error } = await supabase.from('cash_positions').update({ status: 'closed', closed_at: statementDate }).in('id', cashToClose); if (error) errors.push('Close cash: ' + error.message); }
+      if (pubToClose.length)  { const { error } = await supabase.from('public_markets_positions').update({ status: 'closed', closed_at: statementDate }).in('id', pubToClose);   if (error) errors.push('Close public: ' + error.message); }
+      if (privToClose.length) { const { error } = await supabase.from('private_markets_positions').update({ status: 'closed', closed_at: statementDate }).in('id', privToClose); if (error) errors.push('Close private: ' + error.message); }
+      if (cashToClose.length) { const { error } = await supabase.from('cash_positions').update({ status: 'closed', closed_at: statementDate }).in('id', cashToClose);            if (error) errors.push('Close cash: ' + error.message); }
 
       // QUEUE unmatched rows (no ISIN, no ticker)
       const queued = toQueue.map(x => buildQueuePayload(x.row, investorId));
@@ -1959,7 +1890,7 @@ function PortfolioUpload() {
     setMsg(msg);
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setDiff(null);
-    setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
+    setClientIdentifierCol(''); setClientAssignments({});
     loadQueue();
     if (totalQueued > 0) { setShowQueue(true); setQueueFilter('pending'); }
   };
@@ -1967,7 +1898,7 @@ function PortfolioUpload() {
   const reset = () => {
     setStep(1); setForm({ investor_id: '', source_bank: '', statement_date: '' });
     setRawRows([]); setHeaders([]); setMapping({}); setMappedData([]); setFileName(''); setMsg(''); setDiff(null);
-    setTemplateApplied(false); setOfferSaveTemplate(false); setClientIdentifierCol(''); setClientAssignments({});
+    setClientIdentifierCol(''); setClientAssignments({});
   };
 
   // Unique client values detected in the file
@@ -2006,43 +1937,12 @@ function PortfolioUpload() {
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'0.25rem' }}>
-        <PageHeader title="Portfolio Upload" subtitle="Upload and import investor portfolio statements from banks and custodians" />
-        <button onClick={() => setShowTemplates(!showTemplates)}
-          style={{ background: showTemplates ? '#003770' : '#f1f3f5', color: showTemplates ? '#fff' : '#495057', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0, marginTop:'0.25rem' }}>
-          &#9881; Saved Templates {templates.length > 0 && <span style={{ background: showTemplates ? 'rgba(255,255,255,0.25)' : '#003770', color:'#fff', borderRadius:'20px', padding:'1px 7px', fontSize:'0.72rem' }}>{templates.length}</span>}
-        </button>
-      </div>
+      <PageHeader title="Portfolio Upload" subtitle="Upload and import investor portfolio statements from banks and custodians" />
 
       {msg && (
         <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'1rem 1.25rem', color:'#276749', fontSize:'0.9rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>
       )}
 
-      {/* Saved Templates Panel */}
-      {showTemplates && (
-        <Card style={{ marginBottom:'1.25rem', border:'1px solid #e9ecef' }}>
-          <div style={{ fontWeight:'700', color:'#003770', fontSize:'0.9rem', marginBottom:'1rem' }}>Saved Bank Mapping Templates</div>
-          {templates.length === 0 ? (
-            <p style={{ color:'#adb5bd', fontSize:'0.85rem', margin:0 }}>No templates saved yet.</p>
-          ) : (
-            <div style={{ display:'grid', gap:'0.5rem' }}>
-              {templates.map(tpl => (
-                <div key={tpl.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', borderRadius:'8px', padding:'0.75rem 1rem' }}>
-                  <div>
-                    <div style={{ fontWeight:'700', color:'#212529', fontSize:'0.88rem' }}>{tpl.bank_name}</div>
-                    <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'2px' }}>
-                      {Object.entries(tpl.column_mappings || {}).filter(([,v]) => v).map(([k, v]) => k.replace(/_/g, ' ') + ' \u2192 ' + v).join(' \u00b7 ')}
-                    </div>
-                    <div style={{ fontSize:'0.7rem', color:'#adb5bd', marginTop:'3px' }}>Updated: {tpl.updated_at ? new Date(tpl.updated_at).toLocaleDateString() : '\u2014'}</div>
-                  </div>
-                  <button onClick={() => deleteTemplate(tpl.id, tpl.bank_name)}
-                    style={{ background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'6px', padding:'0.3rem 0.65rem', fontSize:'0.75rem', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', flexShrink:0 }}>Delete</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
 
       <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.5rem', alignItems:'center', flexWrap:'wrap' }}>
         {Array.from({ length: TOTAL_STEPS }, (_, i) => stepDot(i + 1))}
@@ -2069,11 +1969,7 @@ function PortfolioUpload() {
               )}
             </div>
             <Input label="Source Bank / Custodian" value={form.source_bank} onChange={e => setForm({ ...form, source_bank: e.target.value })} placeholder="e.g. Audi Capital, JP Morgan" />
-            {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) && (
-              <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px', padding:'0.5rem 0.85rem', fontSize:'0.78rem', color:'#2e7d32', marginTop:'-0.5rem', marginBottom:'1rem', fontWeight:'600' }}>
-                \u2713 Saved template found \u2014 mapping will be applied automatically
-              </div>
-            )}
+
             <DateInput fieldKey="statement_date" label="Statement Date" form={form} setForm={setForm} />
             <div style={{ marginTop:'0.5rem' }}>
               <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'8px', letterSpacing:'0.04em' }}>Portfolio Statement File</label>
@@ -2093,7 +1989,6 @@ function PortfolioUpload() {
             {[
               ['Single Investor', 'Select one investor and upload their statement. All rows are assigned to that investor.'],
               ['Multi-Client Upload', 'Select "Multi-Client Upload" if one file contains data for several clients. You will pick the column that identifies each client and map each value to an investor.'],
-              ['Bank Templates', 'Enter the bank name to apply a saved column mapping automatically, skipping the mapping step.'],
             ].map(([t, d]) => (
               <div key={t} style={{ marginBottom:'0.85rem' }}>
                 <div style={{ fontSize:'0.82rem', fontWeight:'700', color:'#003770' }}>{t}</div>
@@ -2137,15 +2032,7 @@ function PortfolioUpload() {
               </div>
             )}
 
-            {form.source_bank.trim() && templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase()) ? (
-              <div style={{ background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#c53030', marginBottom:'1rem' }}>
-                &#9888; A saved template exists for <strong>{form.source_bank}</strong> but its column names did not match this file. Re-map below to update the template.
-              </div>
-            ) : (
-              <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.8rem', color:'#92400e', marginBottom:'1rem' }}>
-                No saved template for <strong>{form.source_bank || 'this bank'}</strong>. Map columns below, then save the template to skip this step next time.
-              </div>
-            )}
+
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'0.75rem' }}>
               {STANDARD_FIELDS.map(({ key, label, required }) => (
                 <div key={key}>
@@ -2159,22 +2046,7 @@ function PortfolioUpload() {
                   </select>
                 </div>
               ))}
-            </div>
-            {offerSaveTemplate && form.source_bank.trim() && (() => {
-              const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
-              return (
-                <div style={{ marginTop:'1.25rem', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem' }}>
-                  <div>
-                    <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
-                    <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Future uploads from this bank will skip the mapping step.'}</div>
-                  </div>
-                  <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
-                    {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
-                  </Btn>
-                </div>
-              );
-            })()}
-            <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+            </div>            <div style={{ marginTop:'1.25rem', display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={reset}>Cancel</Btn>
               <Btn onClick={applyMapping} disabled={!mapping.security_name && !mapping.cash_balance || (isMulti && !clientIdentifierCol)}>
                 {isMulti ? 'Next: Assign Clients \u2192' : 'Apply Mapping & Preview \u2192'}
@@ -2204,11 +2076,6 @@ function PortfolioUpload() {
       {/* ── STEP 3 (MULTI ONLY): Assign Clients ── */}
       {step === 3 && isMulti && (
         <div>
-          {templateApplied && (
-            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600' }}>
-              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 column mapping step skipped.
-            </div>
-          )}
           <Card>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem', flexWrap:'wrap', gap:'1rem' }}>
               <div>
@@ -2306,11 +2173,7 @@ function PortfolioUpload() {
       {/* ── STEP 3 (SINGLE) or STEP 4 (MULTI): Confirm ── */}
       {step === confirmStep && (
         <div>
-          {templateApplied && !isMulti && (
-            <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#2e7d32', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600' }}>
-              \u26a1 Saved template applied for <strong>{form.source_bank}</strong> \u2014 mapping step skipped automatically.
-            </div>
-          )}
+
           <Card>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem', flexWrap:'wrap', gap:'1rem' }}>
               <div>
@@ -2323,7 +2186,7 @@ function PortfolioUpload() {
                   &nbsp;&middot;&nbsp; Bank: <strong>{form.source_bank || '\u2014'}</strong> &nbsp;&middot;&nbsp; Date: <strong>{form.statement_date}</strong>
                 </div>
               </div>
-              <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => { setTemplateApplied(false); setStep(isMulti ? 3 : 2); }}>&larr; Back</Btn>
+              <Btn variant="ghost" style={{ fontSize:'0.8rem' }} onClick={() => setStep(isMulti ? 3 : 2)}>&larr; Back</Btn>
             </div>
 
             {diffLoading ? (
@@ -2345,20 +2208,6 @@ function PortfolioUpload() {
                   ))}
                 </div>
 
-                {offerSaveTemplate && form.source_bank.trim() && (() => {
-                  const exists = templates.find(t => t.bank_name.toLowerCase() === form.source_bank.trim().toLowerCase());
-                  return (
-                    <div style={{ background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'10px', padding:'0.85rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.75rem', marginBottom:'1.25rem' }}>
-                      <div>
-                        <div style={{ fontWeight:'700', color:'#2e7d32', fontSize:'0.85rem' }}>&#128190; {exists ? 'Update' : 'Save'} mapping template for {form.source_bank}?</div>
-                        <div style={{ fontSize:'0.75rem', color:'#388e3c', marginTop:'2px' }}>{exists ? 'This will overwrite the existing template.' : 'Next time you upload from this bank, the mapping step will be skipped.'}</div>
-                      </div>
-                      <Btn onClick={saveTemplateNow} disabled={savingTemplate} style={{ background:'#2a9d5c', fontSize:'0.82rem', padding:'0.4rem 1rem' }}>
-                        {savingTemplate ? 'Saving...' : (exists ? 'Update Template' : 'Save Template')}
-                      </Btn>
-                    </div>
-                  );
-                })()}
 
                 {/* Per-investor diff table */}
                 {Object.entries(diff.byInvestor).map(([investorId, d]) => {
@@ -2611,157 +2460,6 @@ function PortfolioUpload() {
   );
 }
 
-// ─── Asset Master ─────────────────────────────────────────────────────────────
-function AssetMaster() {
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
-  const emptyForm = { security_name:'', isin:'', ticker:'', asset_class:'', sector:'', country:'', exchange:'', currency:'' };
-  const [form, setForm] = useState(emptyForm);
-
-  const ASSET_CLASSES = ['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'];
-
-  const load = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('asset_master').select('*').order('security_name');
-    setAssets(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const filtered = assets.filter(a => {
-    const q = search.toLowerCase();
-    return !q || a.security_name?.toLowerCase().includes(q) || a.isin?.toLowerCase().includes(q) || a.ticker?.toLowerCase().includes(q) || a.asset_class?.toLowerCase().includes(q);
-  });
-
-  const openAdd = () => { setForm(emptyForm); setEditId(null); setShowAdd(true); };
-  const openEdit = (a) => { setForm({ security_name: a.security_name||'', isin: a.isin||'', ticker: a.ticker||'', asset_class: a.asset_class||'', sector: a.sector||'', country: a.country||'', exchange: a.exchange||'', currency: a.currency||'' }); setEditId(a.id); setShowAdd(true); };
-
-  const save = async () => {
-    if (!form.security_name.trim()) { alert('Security name is required.'); return; }
-    setSaving(true);
-    const payload = { ...form, updated_at: new Date().toISOString() };
-    if (editId) {
-      await supabase.from('asset_master').update(payload).eq('id', editId);
-    } else {
-      await supabase.from('asset_master').insert(payload);
-    }
-    setSaving(false);
-    setShowAdd(false);
-    setMsg('\u2713 Security ' + (editId ? 'updated' : 'added') + ': ' + form.security_name);
-    load();
-  };
-
-  const del = async (id, name) => {
-    if (!window.confirm('Delete "' + name + '" from Asset Master?')) return;
-    await supabase.from('asset_master').delete().eq('id', id);
-    setMsg('\u2713 Deleted: ' + name);
-    load();
-  };
-
-  const classColor = (c) => {
-    const map = { 'Equity':'#e8f5e9', 'Fixed Income':'#e3f2fd', 'Fund':'#ede7f6', 'ETF':'#fff3e0', 'Alternative':'#fce4ec', 'Cash & Equivalent':'#e0f7fa', 'Commodity':'#fff8e1', 'Real Estate':'#f3e5f5' };
-    return map[c] || '#f5f5f5';
-  };
-  const classText = (c) => {
-    const map = { 'Equity':'#2e7d32', 'Fixed Income':'#1565c0', 'Fund':'#4527a0', 'ETF':'#e65100', 'Alternative':'#880e4f', 'Cash & Equivalent':'#00695c', 'Commodity':'#f57f17', 'Real Estate':'#6a1b9a' };
-    return map[c] || '#495057';
-  };
-
-  return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
-        <PageHeader title="Asset Master" subtitle="Central database of known securities used to enrich uploaded positions" />
-        <Btn onClick={openAdd} style={{ flexShrink:0 }}>+ Add Security</Btn>
-      </div>
-
-      {msg && <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.85rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>}
-
-      <Card style={{ marginBottom:'1.25rem' }}>
-        <div style={{ display:'flex', gap:'1rem', alignItems:'center', flexWrap:'wrap' }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, ISIN, ticker or asset class..." style={{ flex:1, minWidth:'220px', padding:'0.6rem 0.9rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
-          <div style={{ fontSize:'0.82rem', color:'#adb5bd', flexShrink:0 }}>{filtered.length} of {assets.length} securities</div>
-        </div>
-      </Card>
-
-      {loading ? (
-        <Card><div style={{ textAlign:'center', padding:'2rem', color:'#adb5bd' }}>Loading asset master...</div></Card>
-      ) : filtered.length === 0 ? (
-        <Card><div style={{ textAlign:'center', padding:'2rem' }}>
-          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>&#128200;</div>
-          <div style={{ color:'#adb5bd', fontSize:'0.9rem' }}>{assets.length === 0 ? 'No securities yet. Add manually or upload positions to auto-populate.' : 'No results for "' + search + '"'}</div>
-        </div></Card>
-      ) : (
-        <Card style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ borderCollapse:'collapse', width:'100%', fontSize:'0.82rem' }}>
-              <thead>
-                <tr style={{ background:'#f8f9fa', borderBottom:'2px solid #e9ecef' }}>
-                  {['Security Name','ISIN','Ticker','Asset Class','Sector','Country','Exchange','CCY',''].map(h => (
-                    <th key={h} style={{ padding:'0.75rem 1rem', textAlign:'left', color:'#6c757d', fontWeight:'700', fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((a, i) => (
-                  <tr key={a.id} style={{ borderBottom:'1px solid #f1f3f5', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding:'0.7rem 1rem', fontWeight:'600', color:'#212529', maxWidth:'220px' }}>{a.security_name}</td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#495057', fontFamily:'monospace', fontSize:'0.78rem' }}>{a.isin || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#495057', fontFamily:'monospace', fontSize:'0.78rem', fontWeight:'700' }}>{a.ticker || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem' }}>
-                      {a.asset_class ? <span style={{ background: classColor(a.asset_class), color: classText(a.asset_class), borderRadius:'12px', padding:'3px 10px', fontSize:'0.72rem', fontWeight:'700', whiteSpace:'nowrap' }}>{a.asset_class}</span> : <span style={{ color:'#dee2e6' }}>\u2014</span>}
-                    </td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.sector || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.country || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d' }}>{a.exchange || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem', color:'#6c757d', fontFamily:'monospace' }}>{a.currency || <span style={{ color:'#dee2e6' }}>\u2014</span>}</td>
-                    <td style={{ padding:'0.7rem 1rem', whiteSpace:'nowrap' }}>
-                      <button onClick={() => openEdit(a)} style={{ background:'transparent', border:'1px solid #dee2e6', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600', marginRight:'6px' }}>Edit</button>
-                      <button onClick={() => del(a.id, a.security_name)} style={{ background:'transparent', border:'1px solid #e63946', borderRadius:'6px', padding:'3px 10px', fontSize:'0.75rem', color:'#e63946', cursor:'pointer', fontFamily:'DM Sans,sans-serif', fontWeight:'600' }}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {showAdd && (
-        <Modal title={(editId ? 'Edit' : 'Add') + ' Security'} onClose={() => setShowAdd(false)}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
-            <div style={{ gridColumn:'1/-1' }}>
-              <Input label="Security Name *" value={form.security_name} onChange={e => setForm({ ...form, security_name: e.target.value })} placeholder="e.g. Apple Inc." />
-            </div>
-            <Input label="ISIN" value={form.isin} onChange={e => setForm({ ...form, isin: e.target.value })} placeholder="e.g. US0378331005" />
-            <Input label="Ticker" value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} placeholder="e.g. AAPL" />
-            <div>
-              <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' }}>Asset Class</label>
-              <select value={form.asset_class} onChange={e => setForm({ ...form, asset_class: e.target.value })}
-                style={{ width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box' }}>
-                <option value="">Select...</option>
-                {ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <Input label="Sector" value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })} placeholder="e.g. Technology" />
-            <Input label="Country" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} placeholder="e.g. United States" />
-            <Input label="Exchange" value={form.exchange} onChange={e => setForm({ ...form, exchange: e.target.value })} placeholder="e.g. NASDAQ" />
-            <Input label="Currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} placeholder="e.g. USD" />
-          </div>
-          <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'1.5rem' }}>
-            <Btn variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : (editId ? 'Update Security' : 'Add Security')}</Btn>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
 
 // ─── Review Queue ─────────────────────────────────────────────────────────────
 function ReviewQueue() {
@@ -2813,34 +2511,7 @@ function ReviewQueue() {
     const toNum = v => parseFloat((v || '').toString().replace(/,/g, '')) || 0;
     const isCash = editForm.classification === 'cash';
 
-    // 1. Upsert into asset_master (by ISIN if available, else by name)
-    if (!isCash && (editForm.security_name || editForm.isin || editForm.ticker)) {
-      const assetPayload = {
-        security_name: editForm.security_name || 'Unknown',
-        isin: editForm.isin || null,
-        ticker: editForm.ticker || null,
-        asset_class: editForm.asset_class || null,
-        currency: editForm.currency || null,
-        updated_at: new Date().toISOString(),
-      };
-      // Try to match existing by ISIN first, then ticker
-      let existing = null;
-      if (editForm.isin) {
-        const { data } = await supabase.from('asset_master').select('id').eq('isin', editForm.isin).limit(1);
-        existing = data && data[0];
-      }
-      if (!existing && editForm.ticker) {
-        const { data } = await supabase.from('asset_master').select('id').ilike('ticker', editForm.ticker).limit(1);
-        existing = data && data[0];
-      }
-      if (existing) {
-        await supabase.from('asset_master').update(assetPayload).eq('id', existing.id);
-      } else {
-        await supabase.from('asset_master').insert(assetPayload);
-      }
-    }
-
-    // 2. Save to positions or cash_positions
+    // Save to correct table
     if (isCash) {
       await supabase.from('cash_positions').insert({
         investor_id: editItem.investor_id,
@@ -2851,7 +2522,8 @@ function ReviewQueue() {
         source_bank: editItem.source_bank,
       });
     } else {
-      await supabase.from('positions').insert({
+      const posTable = editForm.classification === 'private_markets' ? 'private_markets_positions' : 'public_markets_positions';
+      await supabase.from(posTable).insert({
         investor_id: editItem.investor_id,
         security_name: editForm.security_name || 'Unknown',
         ticker: editForm.ticker || null,
@@ -2863,15 +2535,16 @@ function ReviewQueue() {
         currency: editForm.currency || 'USD',
         statement_date: editItem.statement_date,
         source_bank: editItem.source_bank,
+        status: 'active',
       });
     }
 
-    // 3. Mark queue item as approved
+    // Mark queue item as approved
     await supabase.from('upload_review_queue').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', editItem.id);
 
     setSaving(false);
     setEditItem(null);
-    setMsg('\u2713 Approved: "' + (editForm.security_name || 'position') + '" \u2014 added to Asset Master and saved to portfolio.');
+    setMsg('\u2713 Approved: "' + (editForm.security_name || 'position') + '" \u2014 saved to portfolio.');
     load();
   };
 
@@ -3062,7 +2735,7 @@ function PositionsViewer() {
   ];
 
   const EDITABLE_FIELDS = {
-    positions: ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'],
+    positions: ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'],
     cash: ['security_name','currency','market_value','source_bank','statement_date'],
   };
 
@@ -3073,7 +2746,6 @@ function PositionsViewer() {
     isin:           { label: 'ISIN',             right: false, mono: true  },
     asset_type:     { label: 'Asset Class',      right: false, mono: false, type: 'select' },
     industry:       { label: 'Industry',         right: false, mono: false, type: 'select-industry' },
-    market_type:    { label: 'Market Type',      right: false, mono: false, type: 'select-market-type' },
     deal_id:        { label: 'Linked Deal',      right: false, mono: false, type: 'select-deal' },
     mandate_type:   { label: 'Mandate Type',     right: false, mono: false, type: 'select-mandate' },
     quantity:       { label: 'Quantity',         right: true,  mono: false, type: 'number' },
@@ -3088,13 +2760,15 @@ function PositionsViewer() {
 
   const load = async () => {
     setLoading(true);
-    const [posRes, cashRes, invRes, dealRes] = await Promise.all([
-      supabase.from('positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
+    const [pubRes, privRes, cashRes, invRes, dealRes] = await Promise.all([
+      supabase.from('public_markets_positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
+      supabase.from('private_markets_positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
       supabase.from('cash_positions').select('*, investors(full_name)').order('statement_date', { ascending: false }),
       supabase.from('investors').select('id, full_name').order('full_name'),
       supabase.from('deals').select('id, name, status').order('name'),
     ]);
-    const pos = (posRes.data || []).map(r => ({ ...r, _type: 'position' }));
+    const pub  = (pubRes.data  || []).map(r => ({ ...r, _type: 'position',         _market: 'public' }));
+    const priv = (privRes.data || []).map(r => ({ ...r, _type: 'private_position', _market: 'private' }));
     const cash = (cashRes.data || []).map(r => ({
       ...r,
       security_name: r.description || 'Cash',
@@ -3105,8 +2779,9 @@ function PositionsViewer() {
       price: null,
       market_value: r.balance,
       _type: 'cash',
+      _market: 'cash',
     }));
-    setPositions([...pos, ...cash]);
+    setPositions([...pub, ...priv, ...cash]);
     setInvestors(invRes.data || []);
     setDeals(dealRes.data || []);
     setLoading(false);
@@ -3118,7 +2793,7 @@ function PositionsViewer() {
 
   const filtered = positions.filter(p => {
     if (!showClosed && p.status === 'closed') return false;
-    if (filterType === 'positions' && p._type !== 'position') return false;
+    if (filterType === 'positions' && p._type !== 'position' && p._type !== 'private_position') return false;
     if (filterType === 'cash' && p._type !== 'cash') return false;
     if (filterInvestor && p.investor_id !== filterInvestor) return false;
     if (filterDate && p.statement_date !== filterDate) return false;
@@ -3149,7 +2824,7 @@ function PositionsViewer() {
 
   // ── Inline editing ───────────────────────────────────────────────────────────
   const startEdit = (row, field) => {
-    const editable = EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'];
+    const editable = EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'] || [];
     if (!editable.includes(field)) return;
     setEditingCell({ id: row.id, field, type: row._type });
     setEditValue(row[field] != null ? String(row[field]) : '');
@@ -3164,7 +2839,7 @@ function PositionsViewer() {
     if (!row) { cancelEdit(); return; }
 
     // Determine db table and field mapping
-    const table = type === 'cash' ? 'cash_positions' : 'positions';
+    const table = type === 'cash' ? 'cash_positions' : type === 'private_position' ? 'private_markets_positions' : 'public_markets_positions';
     let dbField = field;
     let dbValue = editValue.trim();
 
@@ -3201,12 +2876,12 @@ function PositionsViewer() {
     // ── Ticker sync: if security_name changed on a position with a ticker,
     //    propagate the new name to ALL positions sharing that ticker ────────────
     let syncedCount = 0;
-    if (field === 'security_name' && type === 'position' && row.ticker) {
+    if (field === 'security_name' && (type === 'position' || type === 'private_position') && row.ticker) {
       const ticker = row.ticker.trim();
-      // Find all OTHER position rows with the same ticker
-      const siblings = positions.filter(p => p._type === 'position' && p.ticker === ticker && p.id !== id);
+      const syncTable = type === 'private_position' ? 'private_markets_positions' : 'public_markets_positions';
+      const siblings = positions.filter(p => p._type === type && p.ticker === ticker && p.id !== id);
       if (siblings.length > 0) {
-        await supabase.from('positions').update({ security_name: dbValue }).eq('ticker', ticker).neq('id', id);
+        await supabase.from(syncTable).update({ security_name: dbValue }).eq('ticker', ticker).neq('id', id);
         syncedCount = siblings.length;
       }
     }
@@ -3257,16 +2932,12 @@ function PositionsViewer() {
     const isFlashing = flashCell?.id === row.id && flashCell?.field === field;
     const editable = (EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'] || []).includes(field);
     const rawVal = row[field];
-    // Resolve display value (deal_id → deal name, market_type → pretty label)
+    // Resolve display value (deal_id → deal name)
     let displayVal = rawVal != null ? String(rawVal) : '';
     if (field === 'deal_id' && rawVal) {
       const d = deals.find(x => x.id === rawVal);
       displayVal = d ? d.name + (d.status === 'closed' ? ' ✓' : '') : rawVal;
     }
-    if (field === 'market_type') {
-      displayVal = rawVal === 'private' ? 'Private' : rawVal === 'public' ? 'Public' : '';
-    }
-
     // ── Computed: Performance % ───────────────────────────────────────────────
     if (field === 'performance_pct') {
       const cost = parseFloat(row.avg_cost_price);
@@ -3332,17 +3003,7 @@ function PositionsViewer() {
           </td>
         );
       }
-      if (cfg.type === 'select-market-type') {
-        return (
-          <td style={cellStyle}>
-            <select value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} autoFocus
-              style={{ ...inputStyle, cursor:'pointer' }}>
-              <option value="public">Public</option>
-              <option value="private">Private</option>
-            </select>
-          </td>
-        );
-      }
+
       if (cfg.type === 'select-deal') {
         return (
           <td style={cellStyle}>
@@ -3406,9 +3067,7 @@ function PositionsViewer() {
             ? <span style={{ color:'#C9A84C', fontSize:'0.75rem' }}>saving…</span>
             : isFlashing
               ? <span style={{ color:'#2a9d5c' }}>✓ {displayVal || '—'}</span>
-              : field === 'market_type' && displayVal
-                ? <span style={{ background: displayVal === 'Private' ? '#fff0f6' : '#e8f5e9', color: displayVal === 'Private' ? '#c2185b' : '#2a9d5c', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{displayVal}</span>
-                : field === 'mandate_type' && displayVal
+              : field === 'mandate_type' && displayVal
                   ? <span style={{ background: displayVal === 'Managed Account' ? '#e8f0fe' : displayVal === 'Advisory' ? '#fff8e1' : '#f3e5f5', color: displayVal === 'Managed Account' ? '#1a56db' : displayVal === 'Advisory' ? '#b45309' : '#7b1fa2', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{displayVal}</span>
                   : displayVal || <span style={{ color:'#dee2e6' }}>—</span>
           }
@@ -3419,7 +3078,7 @@ function PositionsViewer() {
 
   const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
 
-  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','market_type','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','performance_pct','currency','source_bank','statement_date'];
+  const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','performance_pct','currency','source_bank','statement_date'];
 
   return (
     <div>
