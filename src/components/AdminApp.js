@@ -1,3 +1,5 @@
+AdminApp.js
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -498,7 +500,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
     const load = async () => {
       setLoading(true);
       const [{ data: inv }, { data: dist }] = await Promise.all([
-        supabase.from('private_markets_investments').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('created_at', { ascending: false }),
+        supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).not('deal_id','is',null).order('created_at', { ascending: false }),
         supabase.from('investor_distributions').select('*,distributions(distribution_date,deals(name,currency))').eq('investor_id', investor.id).order('created_at', { ascending: false }),
       ]);
       setInvestments(inv || []);
@@ -523,7 +525,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
   };
 
   const totalInvested = investments.reduce((s, i) => s + toSAR(parseFloat(i.amount_invested) || 0, i.deals?.currency), 0);
-  const totalCurrentNAV = investments.reduce((s, i) => s + toSAR((i.units || 0) * (i.deals?.nav_per_unit || 0), i.deals?.currency), 0);
+  const totalCurrentNAV = investments.reduce((s, i) => s + toSAR((i.quantity || 0) * (i.deals?.nav_per_unit || 0), i.deals?.currency), 0);
   const totalDistributed = distributions.reduce((s, d) => s + toSAR(parseFloat(d.amount) || 0, d.distributions?.deals?.currency), 0);
   const formatByCurrency = () => ''; // unused, kept to avoid ref errors
 
@@ -572,7 +574,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
           {loading ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>Loading...</p> :
            investments.length === 0 ? <p style={{color:'#adb5bd',fontSize:'0.85rem',textAlign:'center',padding:'1rem 0'}}>No investments yet.</p> :
            investments.map((inv, i) => {
-             const nav = (inv.units||0) * (inv.deals?.nav_per_unit||0);
+             const nav = (inv.quantity||0) * (inv.deals?.nav_per_unit||0);
              const gain = nav - (inv.amount_invested||0);
              const gainPct = inv.amount_invested ? (gain/inv.amount_invested*100).toFixed(1) : 0;
              return (
@@ -580,7 +582,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
                  <div style={{fontWeight:'700',color:'#212529',fontSize:'0.9rem',marginBottom:'0.4rem'}}>{inv.deals?.name || '—'}</div>
                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.3rem 1rem'}}>
                    {[['Amount Invested', fmt.currency(inv.amount_invested, inv.deals?.currency||'SAR')],
-                     ['Units', fmt.num(inv.units)],
+                     ['Units', fmt.num(inv.quantity)],
                      ['Current NAV', fmt.currency(nav, inv.deals?.currency||'SAR')],
                      ['Gain / Loss', <span style={{color: gain >= 0 ? '#2a9d5c' : '#e63946', fontWeight:'700'}}>{gain >= 0 ? '+' : ''}{fmt.currency(gain, inv.deals?.currency||'SAR')} ({gainPct}%)</span>],
                      ['Date', fmt.date(inv.created_at)],
@@ -683,8 +685,19 @@ function InvestorManagement() {
     setSaving(true);
     const deal = deals.find(d=>d.id===invForm.deal_id);
     const nav = deal?.nav_per_unit||1;
-    const units = invForm.amount_invested/nav;
-    await supabase.from('private_markets_investments').insert({...invForm, investor_id:selected.id, units, nav_at_entry:nav, amount_invested:parseFloat(invForm.amount_invested)||0});
+    const units = (parseFloat(invForm.amount_invested)||0) / nav;
+    await supabase.from('private_markets_positions').insert({
+      investor_id: selected.id,
+      deal_id: invForm.deal_id,
+      security_name: deal?.name || 'Private Investment',
+      quantity: units,
+      avg_cost_price: nav,
+      amount_invested: parseFloat(invForm.amount_invested)||0,
+      market_value: units * nav,
+      currency: deal?.currency || 'SAR',
+      status: 'active',
+      statement_date: new Date().toISOString().slice(0,10),
+    });
     setSaving(false); setModal(null); setInvForm({});
   };
 
@@ -779,18 +792,18 @@ function InvestorManagement() {
 function InvestorInvestments({ investorId }) {
   const [investments, setInvestments] = useState([]);
   useEffect(()=>{
-    supabase.from('private_markets_investments').select('*,deals(name,nav_per_unit)').eq('investor_id',investorId).then(({data})=>setInvestments(data||[]));
+    supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit)').eq('investor_id',investorId).not('deal_id','is',null).then(({data})=>setInvestments(data||[]));
   },[investorId]);
   if (!investments.length) return <Card><p style={{color:'#adb5bd',textAlign:'center',padding:'1rem 0',fontSize:'0.85rem'}}>No investments yet.</p></Card>;
   return (
     <div style={{display:'grid',gap:'0.5rem'}}>
       {investments.map(inv=>{
-        const nav=(inv.units||0)*(inv.deals?.nav_per_unit||0);
+        const nav=(inv.quantity||0)*(inv.deals?.nav_per_unit||0);
         return (
           <Card key={inv.id} style={{padding:'1rem'}}>
             <div style={{fontWeight:'600',color:'#212529',fontSize:'0.9rem'}}>{inv.deals?.name}</div>
             <div style={{display:'flex',gap:'1rem',marginTop:'0.4rem',flexWrap:'wrap'}}>
-              {[['Invested',fmt.currency(inv.amount_invested)],['Units',fmt.num(inv.units)],['NAV',fmt.currency(nav)]].map(([k,v])=>(
+              {[['Invested',fmt.currency(inv.amount_invested)],['Units',fmt.num(inv.quantity)],['NAV',fmt.currency(nav)]].map(([k,v])=>(
                 <div key={k}><span style={{fontSize:'0.7rem',color:'#6c757d',fontWeight:'600',textTransform:'uppercase'}}>{k}: </span><span style={{fontSize:'0.82rem',fontWeight:'600',color:'#212529'}}>{v}</span></div>
               ))}
             </div>
@@ -957,9 +970,9 @@ function DistributionMgmt() {
     const incomePerUnit = ndi / totalUnits;
     const { data: dist } = await supabase.from('distributions').insert({ deal_id:selected, net_distributable_income:ndi, total_units:totalUnits, income_per_unit:incomePerUnit, distribution_date:form.date }).select().single();
     // Create investor distributions
-    const { data: invs } = await supabase.from('private_markets_investments').select('investor_id,units').eq('deal_id',selected);
+    const { data: invs } = await supabase.from('private_markets_positions').select('investor_id,quantity').eq('deal_id',selected).not('deal_id','is',null);
     if (invs && dist) {
-      const rows = invs.map(i=>({ distribution_id:dist.id, investor_id:i.investor_id, units:i.units, amount:i.units*incomePerUnit }));
+      const rows = invs.map(i=>({ distribution_id:dist.id, investor_id:i.investor_id, units:i.quantity, amount:i.quantity*incomePerUnit }));
       if(rows.length) await supabase.from('investor_distributions').insert(rows);
     }
     setMsg('Distribution recorded successfully.'); setForm({}); setSaving(false);
