@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, INVESTOR_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -36,12 +35,12 @@ function InvestorDashboard({ session, onPage }) {
   useEffect(() => {
     const load = async () => {
       const [inv, dist, upd, assump, posRes, cashRes] = await Promise.all([
-        supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
+        supabase.from('private_markets_investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id),
         supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
-        supabase.from('positions').select('market_value, currency, statement_date').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
-        supabase.from('cash_positions').select('balance, currency, statement_date').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('public_markets_positions').select('market_value, currency, statement_date').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
+        supabase.from('cash_positions').select('balance, currency, statement_date').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
       ]);
       setInvestments(inv.data || []);
       setDistributions(dist.data || []);
@@ -139,6 +138,7 @@ function InvestorDashboard({ session, onPage }) {
 function InvestorPortfolio({ session }) {
   const [investments, setInvestments] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [privatePositions, setPrivatePositions] = useState([]);
   const [cashPositions, setCashPositions] = useState([]);
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -154,16 +154,18 @@ function InvestorPortfolio({ session }) {
 
   useEffect(() => {
     const load = async () => {
-      const [invRes, distRes, posRes, cashRes, assumpRes, dealRes] = await Promise.all([
-        supabase.from('investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
+      const [invRes, distRes, posRes, privPosRes, cashRes, assumpRes, dealRes] = await Promise.all([
+        supabase.from('private_markets_investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
-        supabase.from('positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
-        supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).order('statement_date', { ascending: false }),
+        supabase.from('public_markets_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
+        supabase.from('private_markets_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
+        supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
         supabase.from('deals').select('id, name, strategy, currency, status'),
       ]);
       setInvestments(invRes.data || []);
       setPositions(posRes.data || []);
+      setPrivatePositions(privPosRes.data || []);
       setCashPositions(cashRes.data || []);
       setDeals(dealRes.data || []);
       if (assumpRes.data && assumpRes.data[0]) setFx(assumpRes.data[0]);
@@ -174,8 +176,7 @@ function InvestorPortfolio({ session }) {
       });
       setDistByDeal(byDeal);
       // Default to latest public position date
-      const pubPos = (posRes.data || []).filter(p => !p.market_type || p.market_type === 'public');
-      const latest = pubPos.length ? pubPos[0].statement_date : '';
+      const latest = (posRes.data || []).length ? (posRes.data || [])[0].statement_date : '';
       setSelectedPosDate(latest);
       setLoading(false);
     };
@@ -198,17 +199,13 @@ function InvestorPortfolio({ session }) {
   };
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  // Split by market type (default: public if not set)
-  const publicPositions = positions.filter(p => !p.market_type || p.market_type === 'public');
-  const privatePositions = positions.filter(p => p.market_type === 'private');
-
   // All unique statement dates for PUBLIC positions (sorted desc)
-  const allPosDates = [...new Set(publicPositions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
+  const allPosDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
 
   // Public positions for selected date
-  const displayPositions = selectedPosDate ? publicPositions.filter(p => p.statement_date === selectedPosDate) : [];
+  const displayPositions = selectedPosDate ? positions.filter(p => p.statement_date === selectedPosDate) : [];
 
-  // Private positions for selected date (or latest date they have)
+  // Private markets positions (from separate table) — latest date
   const latestPrivateDate = privatePositions.length ? privatePositions[0].statement_date : null;
   const displayPrivatePositions = latestPrivateDate ? privatePositions.filter(p => p.statement_date === latestPrivateDate) : [];
 
@@ -999,7 +996,7 @@ function InvestorReports({ session }) {
     const load = async () => {
       // First get the deals this investor is invested in
       const { data: investments } = await supabase
-        .from('investments')
+        .from('private_markets_investments')
         .select('deal_id')
         .eq('investor_id', session.user.id);
 
