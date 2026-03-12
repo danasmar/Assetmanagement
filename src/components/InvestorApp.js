@@ -1,3 +1,5 @@
+InvestorApp.js
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, INVESTOR_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -35,7 +37,7 @@ function InvestorDashboard({ session, onPage }) {
   useEffect(() => {
     const load = async () => {
       const [inv, dist, upd, assump, posRes, cashRes] = await Promise.all([
-        supabase.from('private_markets_investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
+        supabase.from('private_markets_positions').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id).not('deal_id','is',null).eq('status','active'),
         supabase.from('investor_distributions').select('*, distributions(*, deals(name, currency))').eq('investor_id', session.user.id),
         supabase.from('updates').select('*').order('created_at', { ascending: false }).limit(3),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
@@ -72,7 +74,7 @@ function InvestorDashboard({ session, onPage }) {
     const navUpdates = i.deals?.nav_updates || [];
     const sorted = navUpdates.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
     const latestNavPerUnit = sorted.length > 0 ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
-    return s + toSAR((i.units||0) * latestNavPerUnit, i.deals?.currency);
+    return s + toSAR((i.quantity||0) * latestNavPerUnit, i.deals?.currency);
   }, 0);
   const totalDist = distributions.reduce((s,d) => s + toSAR(d.amount||0, d.distributions?.deals?.currency), 0);
   const totalPublicMV = positions.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
@@ -103,7 +105,7 @@ function InvestorDashboard({ session, onPage }) {
               const navUpdates2 = inv.deals?.nav_updates || [];
               const sortedNav2 = navUpdates2.slice().sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
               const latestNav2 = sortedNav2.length > 0 ? sortedNav2[0].nav_per_unit : (inv.deals?.nav_per_unit || 0);
-              const nav = (inv.units||0) * latestNav2;
+              const nav = (inv.quantity||0) * latestNav2;
               const ret = totalInvested > 0 ? ((nav - inv.amount_invested) / inv.amount_invested * 100) : 0;
               return (
                 <div key={inv.id} style={{ padding:'0.75rem 0', borderBottom:'1px solid #f1f3f5' }}>
@@ -155,10 +157,10 @@ function InvestorPortfolio({ session }) {
   useEffect(() => {
     const load = async () => {
       const [invRes, distRes, posRes, privPosRes, cashRes, assumpRes, dealRes] = await Promise.all([
-        supabase.from('private_markets_investments').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id),
+        supabase.from('private_markets_positions').select('*, deals(*, nav_updates(nav_per_unit, effective_date))').eq('investor_id', session.user.id).not('deal_id','is',null).eq('status','active'),
         supabase.from('investor_distributions').select('*, distributions(deal_id, deals(currency))').eq('investor_id', session.user.id),
         supabase.from('public_markets_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
-        supabase.from('private_markets_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
+        supabase.from('private_markets_positions').select('*').eq('investor_id', session.user.id).is('deal_id', null).eq('status', 'active').order('statement_date', { ascending: false }),
         supabase.from('cash_positions').select('*').eq('investor_id', session.user.id).eq('status', 'active').order('statement_date', { ascending: false }),
         supabase.from('assumptions').select('*').order('updated_at', { ascending: false }).limit(1),
         supabase.from('deals').select('id, name, strategy, currency, status'),
@@ -217,7 +219,7 @@ function InvestorPortfolio({ session }) {
   const privateNAV = investments.reduce((s, i) => {
     const sorted = (i.deals?.nav_updates || []).slice().sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
     const nav = sorted.length ? sorted[0].nav_per_unit : (i.deals?.nav_per_unit || 0);
-    return s + toSAR((i.units || 0) * nav, i.deals?.currency);
+    return s + toSAR((i.quantity || 0) * nav, i.deals?.currency);
   }, 0) + displayPrivatePositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
 
   const totalPublicMV_SAR = displayPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
@@ -414,7 +416,7 @@ function InvestorPortfolio({ session }) {
           const latestNavEntry = navSorted.length > 0 ? navSorted[0] : null;
           const latestNav = latestNavEntry ? latestNavEntry.nav_per_unit : (inv.deals?.nav_per_unit || 0);
           const latestNavDate = latestNavEntry ? latestNavEntry.effective_date : null;
-          const nav = (inv.units || 0) * latestNav;
+          const nav = (inv.quantity || 0) * latestNav;
           const dealDist = distByDeal[inv.deal_id] || 0;
           const ret = inv.amount_invested > 0 ? ((nav + dealDist - inv.amount_invested) / inv.amount_invested * 100) : 0;
           const linkedPos = posByDeal[inv.deal_id] || [];
@@ -428,7 +430,7 @@ function InvestorPortfolio({ session }) {
                 <span style={{ fontSize:'1.2rem', fontWeight:'700', color: ret >= 0 ? '#2a9d5c' : '#e63946' }}>{ret >= 0 ? '+' : ''}{fmt.pct(ret)}</span>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'1rem', marginTop:'1rem' }}>
-                {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency || 'SAR')], ['Units', fmt.num(inv.units)], ['Current NAV', fmt.currency(nav, inv.deals?.currency || 'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret >= 0 ? '+' : ''}${fmt.pct(ret)}`]].map(([k, v]) => (
+                {[['Invested', fmt.currency(inv.amount_invested, inv.deals?.currency || 'SAR')], ['Units', fmt.num(inv.quantity)], ['Current NAV', fmt.currency(nav, inv.deals?.currency || 'SAR') + (latestNavDate ? ' (' + fmt.date(latestNavDate) + ')' : '')], ['Return', `${ret >= 0 ? '+' : ''}${fmt.pct(ret)}`]].map(([k, v]) => (
                   <div key={k}>
                     <div style={{ fontSize:'0.72rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.06em' }}>{k}</div>
                     <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#212529', marginTop:'2px' }}>{v}</div>
@@ -996,9 +998,10 @@ function InvestorReports({ session }) {
     const load = async () => {
       // First get the deals this investor is invested in
       const { data: investments } = await supabase
-        .from('private_markets_investments')
+        .from('private_markets_positions')
         .select('deal_id')
-        .eq('investor_id', session.user.id);
+        .eq('investor_id', session.user.id)
+        .not('deal_id', 'is', null);
 
       const dealIds = (investments||[]).map(i => i.deal_id).filter(Boolean);
 
