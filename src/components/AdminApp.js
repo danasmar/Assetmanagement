@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -3142,10 +3143,36 @@ function PositionsViewer() {
  // ── Delete ───────────────────────────────────────────────────────────────────
  const deleteRow = async (id, type) => {
    if (!window.confirm('Delete this position?')) return;
-   const table = type === 'cash' ? 'cash_positions' : 'positions';
+   const table = type === 'cash' ? 'cash_positions' : type === 'private_position' ? 'private_markets_positions' : 'public_markets_positions';
    await supabase.from(table).delete().eq('id', id);
    setMsg('✓ Position deleted.');
    setPositions(prev => prev.filter(p => !(p.id === id && p._type === type)));
+ };
+
+ // ── Reclassify: move row between public ↔ private tables ──────────────────
+ const reclassify = async (row, newMarket) => {
+   if (row._market === newMarket) return;
+   if (row._type === 'cash') return; // cash cannot be reclassified
+   const fromTable = row._market === 'private' ? 'private_markets_positions' : 'public_markets_positions';
+   const toTable   = newMarket === 'private'   ? 'private_markets_positions' : 'public_markets_positions';
+   const newType   = newMarket === 'private'   ? 'private_position' : 'position';
+
+   // Build insert payload from existing row (omit local-only fields)
+   const { _type, _market, investors, ...payload } = row;
+
+   const { data: inserted, error: insErr } = await supabase.from(toTable).insert(payload).select().single();
+   if (insErr) { alert('Reclassify failed: ' + insErr.message); return; }
+
+   await supabase.from(fromTable).delete().eq('id', row.id);
+
+   // Update local state: swap the row
+   setPositions(prev => prev.map(p =>
+     p.id === row.id && p._type === row._type
+       ? { ...inserted, _type: newType, _market: newMarket, investors: row.investors }
+       : p
+   ));
+   setMsg('✓ Moved to ' + (newMarket === 'private' ? 'Private Markets' : 'Public Markets') + '.');
+   setTimeout(() => setMsg(''), 4000);
  };
  
  // ── Cell renderer ────────────────────────────────────────────────────────────
@@ -3390,11 +3417,20 @@ function PositionsViewer() {
                      {row.investors?.full_name || '—'}
                      {row.status === 'closed' && <span style={{ marginLeft:'6px', background:'#ffcdd2', color:'#c62828', borderRadius:'10px', padding:'1px 7px', fontSize:'0.65rem', fontWeight:'700' }}>CLOSED</span>}
                    </td>
-                   {/* Type badge — not editable */}
-                   <td style={{ padding:'0.65rem 0.9rem' }}>
-                     <span style={{ background: row._type === 'cash' ? '#e3f2fd' : '#e8f5e9', color: row._type === 'cash' ? '#1565c0' : '#2a9d5c', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700', whiteSpace:'nowrap' }}>
-                       {row._type === 'cash' ? 'Cash' : 'Position'}
-                     </span>
+                   {/* Type — dropdown for positions, static badge for cash */}
+                   <td style={{ padding:'0.65rem 0.9rem', whiteSpace:'nowrap' }}>
+                     {row._type === 'cash' ? (
+                       <span style={{ background:'#e3f2fd', color:'#1565c0', borderRadius:'12px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'700' }}>Cash</span>
+                     ) : (
+                       <select
+                         value={row._market}
+                         onChange={e => reclassify(row, e.target.value)}
+                         style={{ fontSize:'0.72rem', fontWeight:'700', border:'1px solid #dee2e6', borderRadius:'10px', padding:'2px 8px', cursor:'pointer', fontFamily:'DM Sans,sans-serif', background: row._market === 'private' ? '#f3e5f5' : '#e8f5e9', color: row._market === 'private' ? '#7b1fa2' : '#2a9d5c', outline:'none' }}
+                       >
+                         <option value="public">Public Markets</option>
+                         <option value="private">Private Markets</option>
+                       </select>
+                     )}
                    </td>
                    {/* Editable cells */}
                    {DISPLAY_FIELDS.map(field => (
@@ -3418,3 +3454,4 @@ function PositionsViewer() {
  );
 }
  
+
