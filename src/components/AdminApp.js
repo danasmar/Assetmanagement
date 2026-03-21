@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -3157,8 +3158,11 @@ function PositionsViewer() {
    const toTable   = newMarket === 'private'   ? 'private_markets_positions' : 'public_markets_positions';
    const newType   = newMarket === 'private'   ? 'private_position' : 'position';
 
-   // Build insert payload from existing row (omit local-only fields)
-   const { _type, _market, investors, ...payload } = row;
+   // Build insert payload — strip local-only fields and columns that don't exist on the target table
+   const { _type, _market, investors, ...rest } = row;
+   // amount_invested only exists on private_markets_positions
+   const { amount_invested, ...publicPayload } = rest;
+   const payload = newMarket === 'private' ? rest : publicPayload;
 
    const { data: inserted, error: insErr } = await supabase.from(toTable).insert(payload).select().single();
    if (insErr) { alert('Reclassify failed: ' + insErr.message); return; }
