@@ -541,28 +541,6 @@ function InvestorPortfolio({ session }) {
                <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No public market positions for this date.</p></Card>
              ) : (
                <>
-                 {/* Asset class allocation cards */}
-                 {Object.keys(assetClassTotals).length > 0 && (
-                   <div style={{ marginBottom:'1.25rem' }}>
-                     <div style={{ fontSize:'0.78rem', fontWeight:'700', color:'#6c757d', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.6rem' }}>Allocation by Asset Class</div>
-                     {/* Bar */}
-                     <div style={{ display:'flex', height:'8px', borderRadius:'8px', overflow:'hidden', marginBottom:'0.75rem', gap:'2px' }}>
-                       {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
-                         <div key={cls} style={{ flex: val / totalForAlloc, background: getColor(cls), minWidth: val / totalForAlloc > 0.005 ? '4px' : 0 }} title={cls + ': ' + ((val / totalForAlloc) * 100).toFixed(1) + '%'} />
-                       ))}
-                     </div>
-                     {/* Cards */}
-                     <div style={{ display:'flex', gap:'0.6rem', flexWrap:'wrap' }}>
-                       {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
-                         <div key={cls} style={{ background:'#fff', border:'1.5px solid', borderColor: getColor(cls), borderRadius:'10px', padding:'0.6rem 0.9rem', minWidth:'130px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
-                           <div style={{ fontSize:'0.72rem', fontWeight:'700', color: getColor(cls), textTransform:'uppercase', letterSpacing:'0.05em' }}>{cls}</div>
-                           <div style={{ fontSize:'1rem', fontWeight:'700', color:'#212529', marginTop:'3px' }}>{((val / totalForAlloc) * 100).toFixed(1)}%</div>
-                           <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'1px' }}>{fmt.currency(val)}</div>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 )}
  
                  {/* Positions table */}
                  <Card style={{ padding:0, overflow:'hidden' }}>
@@ -584,8 +562,8 @@ function InvestorPortfolio({ session }) {
                            <React.Fragment key={groupLabel || 'all'}>
                              {groupLabel && (
                                <tr>
-                                 <td colSpan={POS_COLS.length} style={{ padding:'0.6rem 0.85rem', background:'#f1f3f5', fontWeight:'700', fontSize:'0.78rem', color: getColor(posGroupBy === 'asset_class' ? groupLabel : undefined), borderBottom:'1px solid #dee2e6' }}>
-                                   <span style={{ display:'inline-block', width:'8px', height:'8px', borderRadius:'50%', background: posGroupBy === 'asset_class' ? getColor(groupLabel) : '#495057', marginRight:'6px', verticalAlign:'middle' }} />
+                                 <td colSpan={POS_COLS.length} style={{ padding:'0.6rem 0.85rem', background:'#f1f3f5', fontWeight:'700', fontSize:'0.78rem', color:'#495057', borderBottom:'1px solid #dee2e6' }}>
+                                   <span style={{ display:'inline-block', width:'8px', height:'8px', borderRadius:'50%', background:'#495057', marginRight:'6px', verticalAlign:'middle' }} />
                                    {groupLabel}
                                    <span style={{ fontWeight:'400', color:'#adb5bd', marginLeft:'8px' }}>
                                      {rows.length} position{rows.length !== 1 ? 's' : ''} &middot; {fmt.currency(rows.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0))}
