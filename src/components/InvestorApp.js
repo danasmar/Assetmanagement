@@ -558,32 +558,7 @@ function InvestorPortfolio({ session }) {
          {/* ── Public Markets ── */}
          {activeTab === 'public' && (
            <div>
-             {/* Controls bar */}
-             <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'center' }}>
-               {/* Statement date selector */}
-               <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexShrink:0 }}>
-                 <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'#6c757d' }}>Statement:</span>
-                 <select value={selectedPosDate} onChange={e => setSelectedPosDate(e.target.value)}
-                   style={{ padding:'0.45rem 0.75rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background:'#fff', cursor:'pointer' }}>
-                   {allPosDates.length === 0 && <option value="">No data</option>}
-                   {allPosDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
-                 </select>
-               </div>
-               {/* Search */}
-               <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
-                 placeholder="Search name, ticker, ISIN..."
-                 style={{ flex:1, minWidth:'180px', padding:'0.45rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
-               {/* Group by */}
-               <div style={{ display:'flex', gap:'0.4rem', flexShrink:0 }}>
-                 {[['none','Flat'],['asset_class','Asset Class'],['sector','Sector']].map(([val, label]) => (
-                   <button key={val} onClick={() => setPosGroupBy(val)}
-                     style={{ padding:'0.4rem 0.85rem', border:'1.5px solid', borderColor: posGroupBy === val ? '#003770' : '#dee2e6', borderRadius:'8px', background: posGroupBy === val ? '#003770' : '#fff', color: posGroupBy === val ? '#fff' : '#6c757d', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
-                     {label}
-                   </button>
-                 ))}
-               </div>
-             </div>
- 
+
              {displayPositions.length === 0 ? (
                <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No public market positions for this date.</p></Card>
              ) : (
