@@ -287,19 +287,7 @@ function InvestorPortfolio({ session }) {
    return posSort.dir === 'asc' ? ' \u2191' : ' \u2193';
  };
  
- // Asset class allocation
- const assetClassTotals = {};
- displayPositions.forEach(p => {
-   const cls = p.asset_type || 'Unclassified';
-   assetClassTotals[cls] = (assetClassTotals[cls] || 0) + toSAR(p.market_value || 0, p.currency);
- });
- const totalForAlloc = Object.values(assetClassTotals).reduce((s, v) => s + v, 0);
- const assetClassColors = {
-   'Equity': '#2a9d5c', 'Fixed Income': '#1565c0', 'Fund': '#4527a0', 'ETF': '#e65100',
-   'Alternative': '#880e4f', 'Cash & Equivalent': '#00695c', 'Commodity': '#f57f17',
-   'Real Estate': '#6a1b9a', 'Unclassified': '#adb5bd', 'Other': '#6c757d',
- };
- const getColor = (cls) => assetClassColors[cls] || '#495057';
+
  
  // Grouped positions
  const groupedPositions = () => {
@@ -625,28 +613,6 @@ function InvestorPortfolio({ session }) {
                <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No public market positions for this date.</p></Card>
              ) : (
                <>
-                 {/* Asset class allocation cards */}
-                 {Object.keys(assetClassTotals).length > 0 && (
-                   <div style={{ marginBottom:'1.25rem' }}>
-                     <div style={{ fontSize:'0.78rem', fontWeight:'700', color:'#6c757d', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.6rem' }}>Allocation by Asset Class</div>
-                     {/* Bar */}
-                     <div style={{ display:'flex', height:'8px', borderRadius:'8px', overflow:'hidden', marginBottom:'0.75rem', gap:'2px' }}>
-                       {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
-                         <div key={cls} style={{ flex: val / totalForAlloc, background: getColor(cls), minWidth: val / totalForAlloc > 0.005 ? '4px' : 0 }} title={cls + ': ' + ((val / totalForAlloc) * 100).toFixed(1) + '%'} />
-                       ))}
-                     </div>
-                     {/* Cards */}
-                     <div style={{ display:'flex', gap:'0.6rem', flexWrap:'wrap' }}>
-                       {Object.entries(assetClassTotals).sort((a, b) => b[1] - a[1]).map(([cls, val]) => (
-                         <div key={cls} style={{ background:'#fff', border:'1.5px solid', borderColor: getColor(cls), borderRadius:'10px', padding:'0.6rem 0.9rem', minWidth:'130px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
-                           <div style={{ fontSize:'0.72rem', fontWeight:'700', color: getColor(cls), textTransform:'uppercase', letterSpacing:'0.05em' }}>{cls}</div>
-                           <div style={{ fontSize:'1rem', fontWeight:'700', color:'#212529', marginTop:'3px' }}>{((val / totalForAlloc) * 100).toFixed(1)}%</div>
-                           <div style={{ fontSize:'0.72rem', color:'#adb5bd', marginTop:'1px' }}>{fmt.currency(val)}</div>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 )}
  
                  {/* Positions table */}
                  <Card style={{ padding:0, overflow:'hidden' }}>
