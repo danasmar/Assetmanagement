@@ -205,7 +205,7 @@ function InvestorPortfolio({ session }) {
  const allPosDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
  
  // Public positions for selected date
- const displayPositions = selectedPosDate ? positions.filter(p => p.statement_date === selectedPosDate) : [];
+ const displayPositions = positions.filter(p => p.statement_date === (selectedPosDate || allPosDates[0]));
  
  // Private markets positions (from separate table) — latest date
  const latestPrivateDate = privatePositions.length ? privatePositions[0].statement_date : null;
@@ -225,6 +225,10 @@ function InvestorPortfolio({ session }) {
  const totalPublicMV_SAR = displayPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0);
  const totalCash_SAR = displayCash.reduce((s, c) => s + toSAR(c.balance || 0, c.currency), 0);
  const totalAUM = privateNAV + totalPublicMV_SAR + totalCash_SAR;
+
+ // Unique values for Asset Class + Sector dropdowns (from public positions)
+ const uniqueAssetClasses = [...new Set(positions.map(p => p.asset_type).filter(Boolean))].sort();
+ const uniqueSectors = [...new Set(positions.map(p => p.industry).filter(Boolean))].sort();
  
  // ── Public Markets: search + sort + filter ───────────────────────────────────
  const searchedPositions = displayPositions.filter(p => {
