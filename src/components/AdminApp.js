@@ -1474,8 +1474,16 @@ function NAVManagement() {
    setMsg("");
    await supabase.from("deals").update({ nav_per_unit: parseFloat(navValue) }).eq("id", selected);
    await supabase.from("nav_updates").insert({ deal_id: selected, nav_per_unit: parseFloat(navValue), effective_date: navDate });
-   // Sync price on all private positions linked to this deal
-   await supabase.from("private_markets_positions").update({ price: parseFloat(navValue) }).eq("deal_id", selected);
+   // Sync price and market_value (quantity × new NAV) on all linked private positions
+   const newNav = parseFloat(navValue);
+   await supabase.from("private_markets_positions").update({ price: newNav }).eq("deal_id", selected);
+   // market_value = quantity × price — must be done per-row since quantity differs per investor
+   const { data: linkedPos } = await supabase.from("private_markets_positions").select("id, quantity").eq("deal_id", selected);
+   if (linkedPos && linkedPos.length > 0) {
+     await Promise.all(linkedPos.map(p =>
+       supabase.from("private_markets_positions").update({ market_value: (p.quantity || 0) * newNav }).eq("id", p.id)
+     ));
+   }
    setMsg("NAV updated successfully.");
    setNavValue("");
    supabase.from("nav_updates").select("*").eq("deal_id", selected).order("effective_date", { ascending: false }).then(({ data }) => setHistory(data || []));
@@ -3079,7 +3087,7 @@ function PositionsViewer() {
    }
  
    // Numeric fields
-   if (['quantity', 'price', 'market_value'].includes(field) && type !== 'cash') {
+   if (['quantity', 'price', 'market_value', 'amount_invested'].includes(field) && type !== 'cash') {
      dbValue = parseFloat(dbValue) || 0;
    }
  
@@ -3107,9 +3115,12 @@ function PositionsViewer() {
    if (field === 'deal_id' && type === 'private_position' && dbValue) {
      const linkedDeal = deals.find(d => d.id === dbValue);
      if (linkedDeal) {
+       const nav = linkedDeal.nav_per_unit || 0;
+       const qty = parseFloat(row.quantity) || 0;
        await supabase.from('private_markets_positions').update({
          security_name: linkedDeal.name,
-         price: linkedDeal.nav_per_unit || null,
+         price: nav || null,
+         market_value: qty && nav ? qty * nav : (row.market_value || null),
        }).eq('id', id);
        dealNameSynced = linkedDeal.name;
      }
@@ -3140,7 +3151,11 @@ function PositionsViewer() {
        if (field === 'deal_id' && dealNameSynced) {
          updated.security_name = dealNameSynced;
          const linkedDeal = deals.find(d => d.id === newVal);
-         if (linkedDeal?.nav_per_unit) updated.price = linkedDeal.nav_per_unit;
+         if (linkedDeal?.nav_per_unit) {
+           updated.price = linkedDeal.nav_per_unit;
+           const qty = parseFloat(row.quantity) || 0;
+           if (qty) updated.market_value = qty * linkedDeal.nav_per_unit;
+         }
        }
        return updated;
      }
