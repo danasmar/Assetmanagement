@@ -1474,6 +1474,8 @@ function NAVManagement() {
    setMsg("");
    await supabase.from("deals").update({ nav_per_unit: parseFloat(navValue) }).eq("id", selected);
    await supabase.from("nav_updates").insert({ deal_id: selected, nav_per_unit: parseFloat(navValue), effective_date: navDate });
+   // Sync price on all private positions linked to this deal
+   await supabase.from("private_markets_positions").update({ price: parseFloat(navValue) }).eq("deal_id", selected);
    setMsg("NAV updated successfully.");
    setNavValue("");
    supabase.from("nav_updates").select("*").eq("deal_id", selected).order("effective_date", { ascending: false }).then(({ data }) => setHistory(data || []));
@@ -3105,7 +3107,10 @@ function PositionsViewer() {
    if (field === 'deal_id' && type === 'private_position' && dbValue) {
      const linkedDeal = deals.find(d => d.id === dbValue);
      if (linkedDeal) {
-       await supabase.from('private_markets_positions').update({ security_name: linkedDeal.name }).eq('id', id);
+       await supabase.from('private_markets_positions').update({
+         security_name: linkedDeal.name,
+         price: linkedDeal.nav_per_unit || null,
+       }).eq('id', id);
        dealNameSynced = linkedDeal.name;
      }
    }
@@ -3132,8 +3137,11 @@ function PositionsViewer() {
  
      if (p.id === id && p._type === type) {
        const updated = { ...p, [field]: newVal };
-       // If deal_id was just linked, also reflect the deal name in security_name locally
-       if (field === 'deal_id' && dealNameSynced) updated.security_name = dealNameSynced;
+       if (field === 'deal_id' && dealNameSynced) {
+         updated.security_name = dealNameSynced;
+         const linkedDeal = deals.find(d => d.id === newVal);
+         if (linkedDeal?.nav_per_unit) updated.price = linkedDeal.nav_per_unit;
+       }
        return updated;
      }
      // Also update ticker siblings for security_name
