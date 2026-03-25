@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -2961,7 +2960,7 @@ function PositionsViewer() {
  ];
  
  const EDITABLE_FIELDS = {
-   positions: ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','currency','source_bank','statement_date'],
+   positions: ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','amount_invested','currency','source_bank','statement_date'],
    cash: ['security_name','currency','market_value','source_bank','statement_date'],
  };
  
@@ -2976,6 +2975,7 @@ function PositionsViewer() {
    mandate_type:   { label: 'Mandate Type',     right: false, mono: false, type: 'select-mandate' },
    quantity:       { label: 'Quantity',         right: true,  mono: false, type: 'number' },
    avg_cost_price: { label: 'Avg Cost Price',   right: true,  mono: false, type: 'number' },
+  amount_invested:{ label: 'Amt Invested',     right: true,  mono: false, type: 'number' },
    price:          { label: 'Market Price',     right: true,  mono: false, type: 'number' },
    market_value:   { label: 'Market Value',     right: true,  mono: false, type: 'number' },
    performance_pct:{ label: 'Performance %',    right: true,  mono: false, computed: true },
@@ -3052,6 +3052,7 @@ function PositionsViewer() {
  const startEdit = (row, field) => {
    const editable = EDITABLE_FIELDS[row._type === 'cash' ? 'cash' : 'positions'] || [];
    if (!editable.includes(field)) return;
+   if (field === 'amount_invested' && row._type !== 'private_position') return;
    setEditingCell({ id: row.id, field, type: row._type });
    setEditValue(row[field] != null ? String(row[field]) : '');
  };
@@ -3333,7 +3334,7 @@ function PositionsViewer() {
  
  const totalMV = filtered.filter(p => p.market_value).reduce((s, p) => s + (p.market_value || 0), 0);
  
- const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','performance_pct','currency','source_bank','statement_date'];
+ const DISPLAY_FIELDS = ['security_name','ticker','isin','asset_type','industry','deal_id','mandate_type','quantity','avg_cost_price','price','market_value','amount_invested','performance_pct','currency','source_bank','statement_date'];
  
  return (
    <div>
