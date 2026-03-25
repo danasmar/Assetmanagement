@@ -496,10 +496,57 @@ function InvestorPortfolio({ session }) {
        </div>
      )}
  
-     <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
-       {tabBtn('private', 'Private Markets', investments.length + displayPrivatePositions.length)}
-       {tabBtn('public', 'Public Markets', displayPositions.length)}
-       {tabBtn('cash', 'Cash', displayCash.length)}
+     {/* ── Filter bar: 4 dropdowns ── */}
+     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'flex-end' }}>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Asset Type</label>
+         <select value={activeTab} onChange={e => { setActiveTab(e.target.value); setFilterMandate('all'); setFilterAssetClass('all'); setFilterSector('all'); }}
+           style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
+           <option value="private">Private Markets ({investments.length + displayPrivatePositions.length})</option>
+           <option value="public">Public Markets ({displayPositions.length})</option>
+           <option value="cash">Cash ({displayCash.length})</option>
+         </select>
+       </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Mandate Type</label>
+         <select value={filterMandate} onChange={e => setFilterMandate(e.target.value)} disabled={activeTab !== 'public'}
+           style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor: activeTab !== 'public' ? 'not-allowed' : 'pointer', outline:'none', opacity: activeTab !== 'public' ? 0.4 : 1 }}>
+           <option value="all">All Mandates</option>
+           <option value="Advisory">Advisory</option>
+           <option value="Managed Account">Managed Account</option>
+           <option value="Execution-Only">Execution-Only</option>
+         </select>
+       </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Asset Class</label>
+         <select value={filterAssetClass} onChange={e => setFilterAssetClass(e.target.value)} disabled={activeTab !== 'public'}
+           style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor: activeTab !== 'public' ? 'not-allowed' : 'pointer', outline:'none', opacity: activeTab !== 'public' ? 0.4 : 1 }}>
+           <option value="all">All Asset Classes</option>
+           {uniqueAssetClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+         </select>
+       </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Sector</label>
+         <select value={filterSector} onChange={e => setFilterSector(e.target.value)} disabled={activeTab !== 'public'}
+           style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor: activeTab !== 'public' ? 'not-allowed' : 'pointer', outline:'none', opacity: activeTab !== 'public' ? 0.4 : 1 }}>
+           <option value="all">All Sectors</option>
+           {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
+         </select>
+       </div>
+     </div>
+     {/* ── Shared statement date + search (all tabs) ── */}
+     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1.25rem', flexWrap:'wrap', alignItems:'center' }}>
+       <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexShrink:0 }}>
+         <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'#6c757d' }}>Statement:</span>
+         <select value={selectedPosDate} onChange={e => setSelectedPosDate(e.target.value)}
+           style={{ padding:'0.45rem 0.75rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background:'#fff', cursor:'pointer' }}>
+           {allPosDates.length === 0 && <option value="">No data</option>}
+           {allPosDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
+         </select>
+       </div>
+       <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
+         placeholder="Search name, ticker, ISIN..."
+         style={{ flex:1, minWidth:'180px', padding:'0.45rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
      </div>
  
      {loading ? <p style={{ color:'#adb5bd' }}>Loading...</p> : (
