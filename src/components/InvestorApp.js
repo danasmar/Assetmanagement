@@ -6,19 +6,22 @@ import { Layout, INVESTOR_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal,
 export default function InvestorApp({ session, onLogout }) {
  const [page, setPage] = useState('dashboard');
  
- const screens = {
-   dashboard: <InvestorDashboard session={session} onPage={setPage} />,
-   portfolio: <InvestorPortfolio session={session} />,
-   opportunities: <InvestorOpportunities session={session} />,
-   reports: <InvestorReports session={session} />,
-   distributions: <InvestorDistributions session={session} />,
-   messages: <InvestorMessages session={session} />,
-   profile: <InvestorProfile session={session} onLogout={onLogout} />,
+ const renderPage = () => {
+   switch(page) {
+     case 'dashboard':     return <InvestorDashboard session={session} onPage={setPage} />;
+     case 'portfolio':     return <InvestorPortfolio session={session} />;
+     case 'opportunities': return <InvestorOpportunities session={session} />;
+     case 'reports':       return <InvestorReports session={session} />;
+     case 'distributions': return <InvestorDistributions session={session} />;
+     case 'messages':      return <InvestorMessages session={session} />;
+     case 'profile':       return <InvestorProfile session={session} onLogout={onLogout} />;
+     default:              return <InvestorDashboard session={session} onPage={setPage} />;
+   }
  };
- 
+
  return (
    <Layout page={page} onPageChange={setPage} session={session} onLogout={onLogout} navItems={INVESTOR_NAV}>
-     <div style={{ padding:'1rem 0.75rem' }}>{screens[page]}</div>
+     <div style={{ padding:'1rem 0.75rem' }}>{renderPage()}</div>
    </Layout>
  );
 }
@@ -205,7 +208,8 @@ function InvestorPortfolio({ session }) {
  const allPosDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a, b) => new Date(b) - new Date(a));
  
  // Public positions for selected date
- const displayPositions = positions.filter(p => p.statement_date === (selectedPosDate || allPosDates[0]));
+ const effectiveDate = selectedPosDate || allPosDates[0] || null;
+ const displayPositions = effectiveDate ? positions.filter(p => p.statement_date === effectiveDate) : positions;
  
  // Private markets positions (from separate table) — latest date
  const latestPrivateDate = privatePositions.length ? privatePositions[0].statement_date : null;
