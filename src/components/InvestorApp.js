@@ -1,3 +1,5 @@
+InvestorApp.js
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, INVESTOR_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -145,6 +147,7 @@ function InvestorPortfolio({ session }) {
  const [distByDeal, setDistByDeal] = useState({});
  const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
  const [activeTab, setActiveTab] = useState('private');
+ const [filterMandate, setFilterMandate] = useState('all');
  
  // Public Markets controls
  const [selectedPosDate, setSelectedPosDate] = useState('');
@@ -226,6 +229,7 @@ function InvestorPortfolio({ session }) {
  
  // ── Public Markets: search + sort + group ────────────────────────────────────
  const searchedPositions = displayPositions.filter(p => {
+   if (filterMandate !== 'all' && (p.mandate_type || '') !== filterMandate) return false;
    if (!posSearch.trim()) return true;
    const q = posSearch.toLowerCase();
    return (p.security_name || '').toLowerCase().includes(q)
@@ -524,10 +528,26 @@ function InvestorPortfolio({ session }) {
        </div>
      )}
  
-     <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
-       {tabBtn('private', 'Private Markets', investments.length + displayPrivatePositions.length)}
-       {tabBtn('public', 'Public Markets', displayPositions.length)}
-       {tabBtn('cash', 'Cash', displayCash.length)}
+     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1.25rem', flexWrap:'wrap', alignItems:'flex-end' }}>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Market</label>
+         <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
+           style={{ padding:'0.5rem 2.2rem 0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
+           <option value="private">Private Markets ({investments.length + displayPrivatePositions.length})</option>
+           <option value="public">Public Markets ({displayPositions.length})</option>
+           <option value="cash">Cash ({displayCash.length})</option>
+         </select>
+       </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Mandate Type</label>
+         <select value={filterMandate} onChange={e => setFilterMandate(e.target.value)} disabled={activeTab !== 'public'}
+           style={{ padding:'0.5rem 2.2rem 0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor: activeTab !== 'public' ? 'not-allowed' : 'pointer', outline:'none', opacity: activeTab !== 'public' ? 0.4 : 1 }}>
+           <option value="all">All Mandates</option>
+           <option value="Advisory">Advisory</option>
+           <option value="Managed Account">Managed Account</option>
+           <option value="Execution-Only">Execution-Only</option>
+         </select>
+       </div>
      </div>
  
      {loading ? <p style={{ color:'#adb5bd' }}>Loading...</p> : (
@@ -1303,3 +1323,4 @@ function InvestorProfile({ session, onLogout }) {
    </div>
  );
 }
+
