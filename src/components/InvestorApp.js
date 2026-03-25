@@ -226,15 +226,38 @@ function InvestorPortfolio({ session }) {
  const totalCash_SAR = displayCash.reduce((s, c) => s + toSAR(c.balance || 0, c.currency), 0);
  const totalAUM = privateNAV + totalPublicMV_SAR + totalCash_SAR;
  
- // ── Public Markets: search + sort + group ────────────────────────────────────
+ // ── Public Markets: search + sort + filter ───────────────────────────────────
  const searchedPositions = displayPositions.filter(p => {
    if (filterMandate !== 'all' && (p.mandate_type || '') !== filterMandate) return false;
+   if (filterAssetClass !== 'all' && (p.asset_type || '') !== filterAssetClass) return false;
+   if (filterSector !== 'all' && (p.industry || '') !== filterSector) return false;
    if (!posSearch.trim()) return true;
    const q = posSearch.toLowerCase();
    return (p.security_name || '').toLowerCase().includes(q)
      || (p.ticker || '').toLowerCase().includes(q)
      || (p.isin || '').toLowerCase().includes(q)
      || (p.asset_type || '').toLowerCase().includes(q);
+ });
+
+ // ── Private + Cash: search + filter (all 4 dropdowns active) ─────────────────
+ const filteredInvestments = investments.filter(i => {
+   if (filterMandate !== 'all' && (i.mandate_type || '') !== filterMandate) return false;
+   if (filterAssetClass !== 'all' && (i.asset_type || '') !== filterAssetClass) return false;
+   if (filterSector !== 'all' && (i.industry || '') !== filterSector) return false;
+   if (!posSearch.trim()) return true;
+   const q = posSearch.toLowerCase();
+   return (i.security_name || '').toLowerCase().includes(q) || (i.deals?.name || '').toLowerCase().includes(q);
+ });
+ const filteredPrivatePositions = displayPrivatePositions.filter(p => {
+   if (filterAssetClass !== 'all' && (p.asset_type || '') !== filterAssetClass) return false;
+   if (filterSector !== 'all' && (p.industry || '') !== filterSector) return false;
+   if (!posSearch.trim()) return true;
+   return (p.security_name || '').toLowerCase().includes(posSearch.toLowerCase());
+ });
+ const filteredCash = displayCash.filter(c => {
+   if (!posSearch.trim()) return true;
+   const q = posSearch.toLowerCase();
+   return (c.description || '').toLowerCase().includes(q) || (c.source_bank || '').toLowerCase().includes(q);
  });
  
  const sortedPositions = [...searchedPositions].sort((a, b) => {
