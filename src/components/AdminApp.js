@@ -3099,7 +3099,17 @@ function PositionsViewer() {
      alert('Save failed: ' + error.message);
      return;
    }
- 
+
+   // ── Deal name sync: when deal_id is set on a private_position, sync security_name = deal.name
+   let dealNameSynced = null;
+   if (field === 'deal_id' && type === 'private_position' && dbValue) {
+     const linkedDeal = deals.find(d => d.id === dbValue);
+     if (linkedDeal) {
+       await supabase.from('private_markets_positions').update({ security_name: linkedDeal.name }).eq('id', id);
+       dealNameSynced = linkedDeal.name;
+     }
+   }
+
    // ── Ticker sync: if security_name changed on a position with a ticker,
    //    propagate the new name to ALL positions sharing that ticker ────────────
    let syncedCount = 0;
@@ -3120,7 +3130,12 @@ function PositionsViewer() {
      if (cfg?.type === 'number') newVal = parseFloat(editValue) || 0;
      if (field === 'deal_id') newVal = editValue.trim() === '' ? null : editValue.trim();
  
-     if (p.id === id && p._type === type) return { ...p, [field]: newVal };
+     if (p.id === id && p._type === type) {
+       const updated = { ...p, [field]: newVal };
+       // If deal_id was just linked, also reflect the deal name in security_name locally
+       if (field === 'deal_id' && dealNameSynced) updated.security_name = dealNameSynced;
+       return updated;
+     }
      // Also update ticker siblings for security_name
      if (field === 'security_name' && type === 'position' && p._type === 'position' && row.ticker && p.ticker === row.ticker) {
        return { ...p, security_name: newVal };
@@ -3193,6 +3208,11 @@ function PositionsViewer() {
    if (field === 'deal_id' && rawVal) {
      const d = deals.find(x => x.id === rawVal);
      displayVal = d ? d.name + (d.status === 'closed' ? ' ✓' : '') : rawVal;
+   }
+   // For private positions with a linked deal, show deal name instead of uploaded security_name
+   if (field === 'security_name' && row._type === 'private_position' && row.deal_id) {
+     const linkedDeal = deals.find(x => x.id === row.deal_id);
+     if (linkedDeal) displayVal = linkedDeal.name;
    }
    // ── Computed: Performance % ───────────────────────────────────────────────
    if (field === 'performance_pct') {
