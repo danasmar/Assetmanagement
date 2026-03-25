@@ -610,7 +610,7 @@ function InvestorPortfolio({ session }) {
                        </tbody>
                        <tfoot>
                          <tr style={{ borderTop:'2px solid #dee2e6', background:'#f8f9fa' }}>
-                           <td colSpan={10} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
+                           <td colSpan={9} style={{ padding:'0.7rem 0.85rem', fontWeight:'700', color:'#495057', fontSize:'0.85rem' }}>
                              {sortedPositions.length} position{sortedPositions.length !== 1 ? 's' : ''}
                              {posSearch && <span style={{ fontWeight:'400', color:'#adb5bd' }}> (filtered)</span>}
                            </td>
@@ -618,7 +618,7 @@ function InvestorPortfolio({ session }) {
                              {fmt.currency(sortedPositions.reduce((s, p) => s + toSAR(p.market_value || 0, p.currency), 0))}
                              <div style={{ fontSize:'0.7rem', color:'#adb5bd', fontWeight:'400' }}>SAR equiv.</div>
                            </td>
-                           <td />
+                           <td colSpan={2} />
                          </tr>
                        </tfoot>
                      </table>
