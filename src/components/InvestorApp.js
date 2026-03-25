@@ -290,7 +290,7 @@ function InvestorPortfolio({ session }) {
  
  // Cash grouped by bank
  const cashByBank = {};
- displayCash.forEach(c => {
+ filteredCash.forEach(c => {
    const bank = c.source_bank || 'Other';
    if (!cashByBank[bank]) cashByBank[bank] = [];
    cashByBank[bank].push(c);
@@ -332,12 +332,12 @@ function InvestorPortfolio({ session }) {
  // ── Private Markets JSX (computed here to access toSAR, fmt, state directly) ─
  const posByDeal = {};
  // Build set of deal_ids the investor actually has an investment record for
- const investmentDealIds = new Set(investments.map(inv => inv.deal_id).filter(Boolean));
+ const investmentDealIds = new Set(filteredInvestments.map(inv => inv.deal_id).filter(Boolean));
  
  const positionOnlyDealIds = {}; // deal_id → [positions] where no investment record exists
  const unlinkedPrivate = [];    // positions with no deal_id at all
  
- displayPrivatePositions.forEach(p => {
+ filteredPrivatePositions.forEach(p => {
    if (p.deal_id && investmentDealIds.has(p.deal_id)) {
      // Has investment record → attach to that card as linked positions
      (posByDeal[p.deal_id] = posByDeal[p.deal_id] || []).push(p);
@@ -408,11 +408,11 @@ function InvestorPortfolio({ session }) {
    );
  });
  
- const privateMarketsJSX = (investments.length === 0 && displayPrivatePositions.length === 0)
+ const privateMarketsJSX = (filteredInvestments.length === 0 && filteredPrivatePositions.length === 0)
    ? <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No private market investments yet.</p></Card>
    : (
      <div style={{ display:'grid', gap:'1rem' }}>
-       {investments.map(inv => {
+       {filteredInvestments.map(inv => {
          const navUpdates = inv.deals?.nav_updates || [];
          const navSorted = navUpdates.slice().sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
          const latestNavEntry = navSorted.length > 0 ? navSorted[0] : null;
@@ -528,26 +528,54 @@ function InvestorPortfolio({ session }) {
        </div>
      )}
  
-     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1.25rem', flexWrap:'wrap', alignItems:'flex-end' }}>
+     {/* ── Filter bar: 4 dropdowns ── */}
+     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'flex-end' }}>
        <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Market</label>
-         <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
-           style={{ padding:'0.5rem 2.2rem 0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
-           <option value="private">Private Markets ({investments.length + displayPrivatePositions.length})</option>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Asset Type</label>
+         <select value={activeTab} onChange={e => { setActiveTab(e.target.value); setFilterMandate('all'); setFilterAssetClass('all'); setFilterSector('all'); }}
+           style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
+           <option value="private">Private Markets ({filteredInvestments.length + filteredPrivatePositions.length})</option>
            <option value="public">Public Markets ({displayPositions.length})</option>
            <option value="cash">Cash ({displayCash.length})</option>
          </select>
        </div>
        <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
          <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Mandate Type</label>
-         <select value={filterMandate} onChange={e => setFilterMandate(e.target.value)} disabled={activeTab !== 'public'}
-           style={{ padding:'0.5rem 2.2rem 0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.88rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor: activeTab !== 'public' ? 'not-allowed' : 'pointer', outline:'none', opacity: activeTab !== 'public' ? 0.4 : 1 }}>
+         <select value={filterMandate} onChange={e => setFilterMandate(e.target.value)} style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
            <option value="all">All Mandates</option>
            <option value="Advisory">Advisory</option>
            <option value="Managed Account">Managed Account</option>
            <option value="Execution-Only">Execution-Only</option>
          </select>
        </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Asset Class</label>
+         <select value={filterAssetClass} onChange={e => setFilterAssetClass(e.target.value)} style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
+           <option value="all">All Asset Classes</option>
+           {uniqueAssetClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+         </select>
+       </div>
+       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+         <label style={{ fontSize:'0.68rem', fontWeight:'700', color:'#adb5bd', textTransform:'uppercase', letterSpacing:'0.06em' }}>Sector</label>
+         <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={{ padding:'0.5rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', fontWeight:'600', color:'#003770', background:'#fff', cursor:'pointer', outline:'none' }}>
+           <option value="all">All Sectors</option>
+           {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
+         </select>
+       </div>
+     </div>
+     {/* ── Shared statement date + search (all tabs) ── */}
+     <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1.25rem', flexWrap:'wrap', alignItems:'center' }}>
+       <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexShrink:0 }}>
+         <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'#6c757d' }}>Statement:</span>
+         <select value={selectedPosDate} onChange={e => setSelectedPosDate(e.target.value)}
+           style={{ padding:'0.45rem 0.75rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background:'#fff', cursor:'pointer' }}>
+           {allPosDates.length === 0 && <option value="">No data</option>}
+           {allPosDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
+         </select>
+       </div>
+       <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
+         placeholder="Search name, ticker, ISIN..."
+         style={{ flex:1, minWidth:'180px', padding:'0.45rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
      </div>
  
      {loading ? <p style={{ color:'#adb5bd' }}>Loading...</p> : (
@@ -559,31 +587,7 @@ function InvestorPortfolio({ session }) {
          {/* ── Public Markets ── */}
          {activeTab === 'public' && (
            <div>
-             {/* Controls bar */}
-             <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'center' }}>
-               {/* Statement date selector */}
-               <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexShrink:0 }}>
-                 <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'#6c757d' }}>Statement:</span>
-                 <select value={selectedPosDate} onChange={e => setSelectedPosDate(e.target.value)}
-                   style={{ padding:'0.45rem 0.75rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', background:'#fff', cursor:'pointer' }}>
-                   {allPosDates.length === 0 && <option value="">No data</option>}
-                   {allPosDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
-                 </select>
-               </div>
-               {/* Search */}
-               <input value={posSearch} onChange={e => setPosSearch(e.target.value)}
-                 placeholder="Search name, ticker, ISIN..."
-                 style={{ flex:1, minWidth:'180px', padding:'0.45rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.85rem', fontFamily:'DM Sans,sans-serif', outline:'none' }} />
-               {/* Group by */}
-               <div style={{ display:'flex', gap:'0.4rem', flexShrink:0 }}>
-                 {[['none','Flat'],['asset_class','Asset Class'],['sector','Sector']].map(([val, label]) => (
-                   <button key={val} onClick={() => setPosGroupBy(val)}
-                     style={{ padding:'0.4rem 0.85rem', border:'1.5px solid', borderColor: posGroupBy === val ? '#003770' : '#dee2e6', borderRadius:'8px', background: posGroupBy === val ? '#003770' : '#fff', color: posGroupBy === val ? '#fff' : '#6c757d', fontSize:'0.78rem', fontWeight:'600', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>
-                     {label}
-                   </button>
-                 ))}
-               </div>
-             </div>
+
  
              {displayPositions.length === 0 ? (
                <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No public market positions for this date.</p></Card>
@@ -701,12 +705,10 @@ function InvestorPortfolio({ session }) {
  
          {/* ── Cash ── */}
          {activeTab === 'cash' && (
-           displayCash.length === 0 ?
+           filteredCash.length === 0 ?
              <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem 0' }}>No cash positions yet.</p></Card> :
              <div>
-               {/* Header bar */}
-               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
-                 <div style={{ fontSize:'0.8rem', color:'#6c757d' }}>Statement date: <strong>{fmt.date(latestCashDate)}</strong></div>
+               <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'1rem' }}>
                  <div style={{ fontSize:'0.9rem', fontWeight:'700', color:'#003770' }}>
                    Total Cash: {fmt.currency(totalCash_SAR)}
                    <span style={{ fontSize:'0.72rem', color:'#adb5bd', fontWeight:'400', marginLeft:'4px' }}>SAR equiv.</span>
