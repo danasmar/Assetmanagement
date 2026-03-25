@@ -150,6 +150,8 @@ function InvestorPortfolio({ session }) {
  const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
  const [activeTab, setActiveTab] = useState('private');
  const [filterMandate, setFilterMandate] = useState('all');
+ const [filterAssetClass, setFilterAssetClass] = useState('all');
+ const [filterSector, setFilterSector] = useState('all');
  
  // Public Markets controls
  const [selectedPosDate, setSelectedPosDate] = useState('');
