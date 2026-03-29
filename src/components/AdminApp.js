@@ -568,17 +568,36 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
        statement_date: addForm.statement_date || today,
      });
    } else if (addModal === 'public') {
+     // Auto-sync industry and asset_type from existing positions for the same security
+     let syncedIndustry = addForm.industry || null;
+     let syncedAssetType = addForm.asset_type || null;
+     const secName = (addForm.security_name || '').trim();
+     const ticker = (addForm.ticker || '').trim();
+     if (!syncedIndustry || !syncedAssetType) {
+       let qb = supabase.from('public_markets_positions').select('industry, asset_type').limit(1);
+       if (ticker) {
+         qb = qb.eq('ticker', ticker);
+       } else if (secName) {
+         qb = qb.eq('security_name', secName);
+       }
+       const { data: existing } = await qb;
+       if (existing && existing.length > 0) {
+         if (!syncedIndustry)  syncedIndustry  = existing[0].industry   || null;
+         if (!syncedAssetType) syncedAssetType = existing[0].asset_type || null;
+       }
+     }
      await supabase.from('public_markets_positions').insert({
        investor_id: investor.id,
-       security_name: addForm.security_name || '',
-       ticker: addForm.ticker || null,
+       security_name: secName || '',
+       ticker: ticker || null,
        isin: addForm.isin || null,
        quantity: parseFloat(addForm.quantity) || 0,
        market_value: parseFloat(addForm.market_value) || 0,
        avg_cost_price: parseFloat(addForm.avg_cost_price) || null,
        currency: addForm.currency || 'SAR',
        mandate_type: addForm.mandate_type || null,
-       industry: addForm.industry || null,
+       industry: syncedIndustry,
+       asset_type: syncedAssetType,
        status: 'active',
        statement_date: addForm.statement_date || today,
      });
@@ -832,6 +851,16 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}}>
            <Input label="Mandate Type" value={addForm.mandate_type||''} onChange={e=>setAddForm({...addForm,mandate_type:e.target.value})} placeholder="e.g. Discretionary" />
            <Input label="Industry" value={addForm.industry||''} onChange={e=>setAddForm({...addForm,industry:e.target.value})} placeholder="e.g. Energy" />
+         </div>
+         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}}>
+           <div>
+             <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Asset Class</label>
+             <select value={addForm.asset_type||''} onChange={e=>setAddForm({...addForm,asset_type:e.target.value})}
+               style={{width:'100%',padding:'0.6rem 0.85rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box'}}>
+               <option value="">Auto-detect from existing</option>
+               {QUEUE_ASSET_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}
+             </select>
+           </div>
          </div>
          <Input label="Statement Date" type="date" value={addForm.statement_date||''} onChange={e=>setAddForm({...addForm,statement_date:e.target.value})} />
          <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
