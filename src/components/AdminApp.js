@@ -555,15 +555,32 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
      const deal = deals.find(d => d.id === addForm.deal_id);
      const nav = deal?.nav_per_unit || 1;
      const qty = (parseFloat(addForm.amount_invested) || 0) / nav;
+     const privSecName = deal ? deal.name : (addForm.security_name || 'Private Position');
+     // Auto-sync industry and asset_type from existing positions for the same security
+     let privSyncedIndustry = addForm.industry || null;
+     let privSyncedAssetType = addForm.asset_type || null;
+     if ((!privSyncedIndustry || !privSyncedAssetType) && privSecName) {
+       const { data: existingPriv } = await supabase
+         .from('private_markets_positions')
+         .select('industry, asset_type')
+         .eq('security_name', privSecName)
+         .limit(1);
+       if (existingPriv && existingPriv.length > 0) {
+         if (!privSyncedIndustry)  privSyncedIndustry  = existingPriv[0].industry   || null;
+         if (!privSyncedAssetType) privSyncedAssetType = existingPriv[0].asset_type || null;
+       }
+     }
      await supabase.from('private_markets_positions').insert({
        investor_id: investor.id,
        deal_id: addForm.deal_id || null,
-       security_name: deal ? deal.name : (addForm.security_name || 'Private Position'),
+       security_name: privSecName,
        quantity: qty,
        avg_cost_price: nav,
        amount_invested: parseFloat(addForm.amount_invested) || 0,
        market_value: qty * nav,
        currency: deal?.currency || addForm.currency || 'SAR',
+       industry: privSyncedIndustry,
+       asset_type: privSyncedAssetType,
        status: 'active',
        statement_date: addForm.statement_date || today,
      });
@@ -821,6 +838,17 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
          <Select label="Currency" value={addForm.currency||'SAR'} onChange={e=>setAddForm({...addForm,currency:e.target.value})}>
            <option>SAR</option><option>USD</option><option>EUR</option><option>GBP</option><option>AED</option>
          </Select>
+         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}}>
+           <Input label="Industry" value={addForm.industry||''} onChange={e=>setAddForm({...addForm,industry:e.target.value})} placeholder="e.g. Real Estate" />
+           <div>
+             <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Asset Class</label>
+             <select value={addForm.asset_type||''} onChange={e=>setAddForm({...addForm,asset_type:e.target.value})}
+               style={{width:'100%',padding:'0.6rem 0.85rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box'}}>
+               <option value="">Auto-detect from existing</option>
+               {QUEUE_ASSET_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}
+             </select>
+           </div>
+         </div>
          <Input label="Statement Date" type="date" value={addForm.statement_date||''} onChange={e=>setAddForm({...addForm,statement_date:e.target.value})} />
          {addForm.deal_id && (() => { const d = deals.find(x=>x.id===addForm.deal_id); const nav=d?.nav_per_unit||1; const amt=parseFloat(addForm.amount_invested)||0; return amt>0 ? <p style={{fontSize:'0.8rem',color:'#6c757d',marginBottom:'0.75rem'}}>→ {fmt.num(amt/nav)} units at NAV {fmt.currency(nav, d?.currency||'SAR')}</p> : null; })()}
          <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
