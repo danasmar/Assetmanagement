@@ -310,7 +310,7 @@ function DealManagement() {
  const load = () => supabase.from('deals').select('*').order('created_at',{ascending:false}).then(({data})=>setDeals(data||[]));
  useEffect(()=>{ load(); },[]);
  
- const defaultForm = { name:'', strategy:'', status:'Open', target_raise:'', total_fund_size:'', amount_raised:'', min_investment:'', nav_per_unit:'', total_units:'', distribution_pct:'', distribution_frequency:'Quarterly', currency:'SAR', target_irr:'', closing_date:'', description:'', investment_thesis:'' };
+ const defaultForm = { name:'', strategy:'', status:'Open', target_raise:'', total_fund_size:'', amount_raised:'', min_investment:'', nav_per_unit:'', nav_at_entry:'', placement_fee:'', total_units:'', distribution_pct:'', distribution_frequency:'Quarterly', currency:'SAR', target_irr:'', closing_date:'', description:'', investment_thesis:'' };
  
  const openNew = () => { setForm(defaultForm); setModal("new"); setImagePreview(null); };
  const openEdit = (d) => { setForm({...d}); setModal(d); setImagePreview(d.image_url||null); };
@@ -318,7 +318,7 @@ function DealManagement() {
  const save = async () => {
    setSaving(true);
    const data = { ...form };
-   ['target_raise','total_fund_size','amount_raised','min_investment','nav_per_unit','total_units','distribution_pct'].forEach(k => { if(data[k]) data[k] = parseFloat(data[k])||0; });
+   ['target_raise','total_fund_size','amount_raised','min_investment','nav_per_unit','nav_at_entry','placement_fee','total_units','distribution_pct'].forEach(k => { if(data[k]) data[k] = parseFloat(data[k])||0; });
    if (modal==='new') await supabase.from('deals').insert(data);
    else await supabase.from('deals').update(data).eq('id', modal.id);
    setSaving(false); setModal(null); load();
@@ -372,7 +372,25 @@ function DealManagement() {
            <CurrencyInput fieldKey="total_fund_size" label="Total Fund Size" form={form} setForm={setForm} />
            <CurrencyInput fieldKey="amount_raised" label="Amount Raised" form={form} setForm={setForm} />
            <CurrencyInput fieldKey="min_investment" label="Minimum Investment" form={form} setForm={setForm} />
-           <CurrencyInput fieldKey="nav_per_unit" label="NAV Per Unit" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="nav_per_unit" label="NAV Per Unit (Market Price)" form={form} setForm={setForm} />
+           <CurrencyInput fieldKey="nav_at_entry" label="NAV at Entry" form={form} setForm={setForm} />
+           <div style={{marginBottom:'1rem'}}>
+             <label style={{display:'block',fontSize:'0.78rem',fontWeight:'600',color:'#495057',marginBottom:'5px',letterSpacing:'0.04em'}}>Placement Fee</label>
+             <div style={{display:'flex',alignItems:'center',border:'1.5px solid #dee2e6',borderRadius:'8px',overflow:'hidden',background:'#fff'}}>
+               <input type="text" inputMode="decimal"
+                 value={form.placement_fee||''}
+                 onChange={e => {
+                   const raw = e.target.value.replace(/[^0-9.]/g,'');
+                   const parts = raw.split('.');
+                   const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : raw;
+                   setForm(f => ({...f, placement_fee: formatted}));
+                 }}
+                 placeholder="0.00"
+                 style={{flex:1,padding:'0.6rem 0.75rem',border:'none',outline:'none',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',background:'transparent'}}
+               />
+               <span style={{padding:'0.6rem 0.75rem',background:'#f1f3f5',color:'#6c757d',fontSize:'0.82rem',fontWeight:'700',borderLeft:'1.5px solid #dee2e6'}}>%</span>
+             </div>
+           </div>
            <NumberInput fieldKey="total_units" label="Total Fund Units" form={form} setForm={setForm} />
            <DistributionPctInput form={form} setForm={setForm} />
            {f('distribution_frequency','Distribution Frequency','select',['Monthly','Quarterly','Semi-Annually','Yearly','No Distributions'])}
@@ -555,6 +573,9 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
      const deal = deals.find(d => d.id === addForm.deal_id);
      const nav = deal?.nav_per_unit || 1;
      const qty = (parseFloat(addForm.amount_invested) || 0) / nav;
+     const navAtEntry = parseFloat(deal?.nav_at_entry) || nav;
+     const placementFeePct = parseFloat(deal?.placement_fee) || 0;
+     const dealAvgCostPrice = navAtEntry * (1 + placementFeePct / 100);
      const privSecName = deal ? deal.name : (addForm.security_name || 'Private Position');
      // Auto-sync industry and asset_type from existing positions for the same security
      let privSyncedIndustry = addForm.industry || null;
@@ -575,7 +596,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
        deal_id: addForm.deal_id || null,
        security_name: privSecName,
        quantity: qty,
-       avg_cost_price: nav,
+       avg_cost_price: dealAvgCostPrice,
        amount_invested: parseFloat(addForm.amount_invested) || 0,
        market_value: qty * nav,
        currency: deal?.currency || addForm.currency || 'SAR',
@@ -980,12 +1001,15 @@ function InvestorManagement() {
    const deal = deals.find(d=>d.id===invForm.deal_id);
    const nav = deal?.nav_per_unit||1;
    const units = (parseFloat(invForm.amount_invested)||0) / nav;
+   const invNavAtEntry = parseFloat(deal?.nav_at_entry) || nav;
+   const invPlacementFeePct = parseFloat(deal?.placement_fee) || 0;
+   const invAvgCostPrice = invNavAtEntry * (1 + invPlacementFeePct / 100);
    await supabase.from('private_markets_positions').insert({
      investor_id: selected.id,
      deal_id: invForm.deal_id,
      security_name: deal?.name || 'Private Investment',
      quantity: units,
-     avg_cost_price: nav,
+     avg_cost_price: invAvgCostPrice,
      amount_invested: parseFloat(invForm.amount_invested)||0,
      market_value: units * nav,
      currency: deal?.currency || 'SAR',
