@@ -845,7 +845,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
              <select value={addForm.asset_type||''} onChange={e=>setAddForm({...addForm,asset_type:e.target.value})}
                style={{width:'100%',padding:'0.6rem 0.85rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box'}}>
                <option value="">Auto-detect from existing</option>
-               {QUEUE_ASSET_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}
+               {['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'].map(c=><option key={c} value={c}>{c}</option>)}
              </select>
            </div>
          </div>
@@ -886,7 +886,7 @@ function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit })
              <select value={addForm.asset_type||''} onChange={e=>setAddForm({...addForm,asset_type:e.target.value})}
                style={{width:'100%',padding:'0.6rem 0.85rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'DM Sans,sans-serif',boxSizing:'border-box'}}>
                <option value="">Auto-detect from existing</option>
-               {QUEUE_ASSET_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}
+               {['Equity','Fixed Income','Fund','ETF','Alternative','Real Estate','Commodity','Cash & Equivalent','Other'].map(c=><option key={c} value={c}>{c}</option>)}
              </select>
            </div>
          </div>
