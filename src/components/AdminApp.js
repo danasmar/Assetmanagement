@@ -3126,16 +3126,28 @@ function PositionsViewer() {
      }
    }
 
-   // ── Ticker sync: if security_name changed on a position with a ticker,
-   //    propagate the new name to ALL positions sharing that ticker ────────────
+   // ── Cross-security sync: security_name, industry, asset_type, price ─────────
+   // Match key: ticker (preferred) or security_name
    let syncedCount = 0;
-   if (field === 'security_name' && (type === 'position' || type === 'private_position') && row.ticker) {
-     const ticker = row.ticker.trim();
+   const SYNC_FIELDS = ['security_name', 'industry', 'asset_type', 'price'];
+   if (SYNC_FIELDS.includes(field) && (type === 'position' || type === 'private_position')) {
      const syncTable = type === 'private_position' ? 'private_markets_positions' : 'public_markets_positions';
-     const siblings = positions.filter(p => p._type === type && p.ticker === ticker && p.id !== id);
-     if (siblings.length > 0) {
-       await supabase.from(syncTable).update({ security_name: dbValue }).eq('ticker', ticker).neq('id', id);
-       syncedCount = siblings.length;
+     // Determine match key: use ticker if available, else match by security_name
+     const matchByTicker = !!(row.ticker && row.ticker.trim());
+     const matchKey = matchByTicker ? 'ticker' : 'security_name';
+     const matchVal = matchByTicker ? row.ticker.trim() : row.security_name;
+     if (matchVal) {
+       const siblings = positions.filter(p =>
+         p._type === type &&
+         p.id !== id &&
+         (matchByTicker ? p.ticker === matchVal : p.security_name === matchVal)
+       );
+       if (siblings.length > 0) {
+         await supabase.from(syncTable).update({ [field]: dbValue })
+           .eq(matchKey, matchVal)
+           .neq('id', id);
+         syncedCount = siblings.length;
+       }
      }
    }
  
@@ -3159,9 +3171,12 @@ function PositionsViewer() {
        }
        return updated;
      }
-     // Also update ticker siblings for security_name
-     if (field === 'security_name' && type === 'position' && p._type === 'position' && row.ticker && p.ticker === row.ticker) {
-       return { ...p, security_name: newVal };
+     // Also update siblings for all synced fields (security_name, industry, asset_type, price)
+     const SYNC_FIELDS_LOCAL = ['security_name', 'industry', 'asset_type', 'price'];
+     if (SYNC_FIELDS_LOCAL.includes(field) && (type === 'position' || type === 'private_position') && p._type === type && p.id !== id) {
+       const matchByTicker = !!(row.ticker && row.ticker.trim());
+       const matches = matchByTicker ? p.ticker === row.ticker : p.security_name === row.security_name;
+       if (matches) return { ...p, [field]: newVal };
      }
      return p;
    }));
@@ -3170,7 +3185,9 @@ function PositionsViewer() {
    setTimeout(() => setFlashCell(null), 1200);
  
    if (syncedCount > 0) {
-     setMsg(`✓ Name updated and synced across ${syncedCount + 1} positions with ticker "${row.ticker}".`);
+     const syncLabel = { security_name:'Name', industry:'Industry', asset_type:'Asset Class', price:'Market Price' }[field] || field;
+     const matchDesc = row.ticker ? `ticker "${row.ticker}"` : `security "${row.security_name}"`;
+     setMsg(`✓ ${syncLabel} updated and synced across ${syncedCount + 1} positions with ${matchDesc}.`);
      setTimeout(() => setMsg(''), 4000);
    }
  };
