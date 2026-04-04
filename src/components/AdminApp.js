@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
+import PositionsViewer from "./PositionsViewer";
  
 export default function AdminApp({ session, onLogout }) {
  const [page, setPage] = useState('dashboard');
