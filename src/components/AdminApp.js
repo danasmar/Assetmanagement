@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Layout, ADMIN_NAV, Card, StatCard, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
- 
+
 export default function AdminApp({ session, onLogout }) {
   const [page, setPage] = useState('dashboard');
   const screens = {
@@ -25,7 +25,7 @@ export default function AdminApp({ session, onLogout }) {
     </Layout>
   );
 }
- 
+
 function AdminDashboard() {
   const [stats, setStats] = useState({ aum:0, funds:0, investors:0 });
   const [deals, setDeals] = useState([]);
@@ -89,7 +89,7 @@ function AdminDashboard() {
     </div>
   );
 }
- 
+
 function DocUploader({ onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const [docName, setDocName] = useState('');
@@ -120,7 +120,7 @@ function DocUploader({ onUploaded }) {
     </div>
   );
 }
- 
+
 function PhotoUploader({ onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const handleFile = async (e) => {
@@ -148,7 +148,7 @@ function PhotoUploader({ onUploaded }) {
     </label>
   );
 }
- 
+
 function fmtNum(val) {
   if (val === '' || val === null || val === undefined) return '';
   const n = String(val).replace(/[^0-9.]/g, '');
@@ -156,7 +156,7 @@ function fmtNum(val) {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return parts.join('.');
 }
- 
+
 function CurrencyInput({ fieldKey, label, form, setForm }) {
   const cur = form.currency || 'SAR';
   const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
@@ -173,7 +173,7 @@ function CurrencyInput({ fieldKey, label, form, setForm }) {
     </div>
   );
 }
- 
+
 function NumberInput({ fieldKey, label, form, setForm }) {
   const [display, setDisplay] = React.useState(fmtNum(form[fieldKey]||''));
   React.useEffect(() => { setDisplay(fmtNum(form[fieldKey]||'')); }, [form[fieldKey]]);
@@ -186,7 +186,7 @@ function NumberInput({ fieldKey, label, form, setForm }) {
     </div>
   );
 }
- 
+
 function DistributionPctInput({ form, setForm }) {
   const noDistrib = (form.distribution_frequency || '') === 'No Distributions';
   return (
@@ -202,7 +202,7 @@ function DistributionPctInput({ form, setForm }) {
     </div>
   );
 }
- 
+
 function IrrInput({ form, setForm }) {
   return (
     <div style={{marginBottom:'1rem'}}>
@@ -216,7 +216,7 @@ function IrrInput({ form, setForm }) {
     </div>
   );
 }
- 
+
 function DateInput({ fieldKey, label, form, setForm }) {
   return (
     <div style={{marginBottom:'1rem'}}>
@@ -228,7 +228,7 @@ function DateInput({ fieldKey, label, form, setForm }) {
     </div>
   );
 }
- 
+
 function DealManagement() {
   const [deals, setDeals] = useState([]);
   const [modal, setModal] = useState(null);
@@ -236,7 +236,7 @@ function DealManagement() {
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
- 
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("Image must be under 5MB"); return; }
@@ -414,18 +414,18 @@ function DealManagement() {
     </div>
   );
 }
- 
+
 // NOTE: InvestorDetailPage, InvestorManagement, Reporting, DistributionMgmt, UpdatesMgmt,
 // AdminUsers, Assumptions, NAVManagement, AdminMessages, PortfolioUpload, ReviewQueue
 // are UNCHANGED from the original file. Paste them in here as-is from the original AdminApp.js.
 // Only the PositionsViewer function below is new/changed.
- 
+
 // ============================================================
 // POSITIONS VIEWER - COMPLETELY NEW IMPLEMENTATION
 // Three asset-class tabs: Public Equities | Fixed Income | Alternatives
 // All columns per asset class as specified.
 // ============================================================
- 
+
 function PositionsViewer() {
   const [positions, setPositions] = useState([]);
   const [investors, setInvestors] = useState([]);
@@ -441,7 +441,7 @@ function PositionsViewer() {
   const [addModal, setAddModal] = useState(false);
   const [addForm, setAddForm] = useState({});
   const [saving, setSaving] = useState(false);
- 
+
   const load = async () => {
     setLoading(true);
     const [pubRes, invRes] = await Promise.all([
@@ -453,7 +453,7 @@ function PositionsViewer() {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
- 
+
   // ── Asset class classification ─────────────────────────────────────────────
   // Reads asset_type, sub_asset_class, bond_type to classify each position.
   // FI takes priority over equity; alternatives take priority over both.
@@ -466,9 +466,9 @@ function PositionsViewer() {
     if (FI_KW.some(k => at.includes(k) || bt.includes(k))) return 'fixed_income';
     return 'equities';
   };
- 
+
   const allDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))].sort((a,b) => new Date(b) - new Date(a));
- 
+
   const baseFiltered = positions.filter(p => {
     if (!showClosed && p.status === 'closed') return false;
     if (filterInvestor && p.investor_id !== filterInvestor) return false;
@@ -482,18 +482,18 @@ function PositionsViewer() {
     }
     return true;
   });
- 
+
   const equities    = baseFiltered.filter(p => classifyPosition(p) === 'equities');
   const fixedIncome = baseFiltered.filter(p => classifyPosition(p) === 'fixed_income');
   const alternatives= baseFiltered.filter(p => classifyPosition(p) === 'alternatives');
- 
+
   // ── Calculated fields ──────────────────────────────────────────────────────
   const calcMV       = (p) => (parseFloat(p.quantity)||0) * (parseFloat(p.price)||0) || (p.market_value||0);
   const calcCV       = (p) => (parseFloat(p.quantity)||0) * (parseFloat(p.avg_cost_price)||0);
   const calcPnL      = (p) => { const mv = parseFloat(p.market_value)||calcMV(p); const cv = calcCV(p); return cv > 0 ? mv - cv : null; };
   const calcPnLPct   = (p) => { const mv = parseFloat(p.market_value)||calcMV(p); const cv = calcCV(p); return cv > 0 ? ((mv - cv) / cv) * 100 : null; };
   const calcUncalled = (p) => (parseFloat(p.commitment_amount)||0) - (parseFloat(p.called_capital)||0);
- 
+
   // ── Numeric field list for payload sanitization ────────────────────────────
   const NUMERIC_FIELDS = [
     'quantity','price','market_value','avg_cost_price',
@@ -506,7 +506,7 @@ function PositionsViewer() {
     NUMERIC_FIELDS.forEach(k => { p[k] = (p[k] !== '' && p[k] !== undefined && p[k] !== null) ? (parseFloat(p[k]) || null) : null; });
     return p;
   };
- 
+
   // ── CRUD operations ────────────────────────────────────────────────────────
   const saveEdit = async () => {
     setSaving(true);
@@ -514,7 +514,7 @@ function PositionsViewer() {
     setSaving(false); setEditModal(null); setEditForm({});
     setMsg('Position updated successfully.'); setTimeout(() => setMsg(''), 3000); load();
   };
- 
+
   const saveAdd = async () => {
     setSaving(true);
     const today = new Date().toISOString().slice(0, 10);
@@ -522,14 +522,14 @@ function PositionsViewer() {
     setSaving(false); setAddModal(false); setAddForm({});
     setMsg('Position added successfully.'); setTimeout(() => setMsg(''), 3000); load();
   };
- 
+
   const deletePos = async (id) => {
     if (!window.confirm('Delete this position?')) return;
     await supabase.from('public_markets_positions').delete().eq('id', id);
     setPositions(prev => prev.filter(p => p.id !== id));
     setMsg('Position deleted.'); setTimeout(() => setMsg(''), 3000);
   };
- 
+
   // ── Shared styles ──────────────────────────────────────────────────────────
   const th  = { padding:'0.6rem 0.85rem', textAlign:'left',  color:'#6c757d', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap', borderBottom:'2px solid #e9ecef', background:'#f8f9fa' };
   const thr = { ...th, textAlign:'right' };
@@ -537,7 +537,7 @@ function PositionsViewer() {
   const tdr = { ...td, textAlign:'right' };
   const tdn = { ...tdr, fontWeight:'700', color:'#003770' };
   const pnlStyle = (v) => ({ ...tdr, fontWeight:'700', color: v === null ? '#dee2e6' : v >= 0 ? '#2a9d5c' : '#e63946' });
- 
+
   const tabStyle = (key) => ({
     padding:'0.55rem 1.25rem', border:'none', borderRadius:'8px', cursor:'pointer',
     fontFamily:'DM Sans,sans-serif', fontWeight:'700', fontSize:'0.85rem',
@@ -545,16 +545,16 @@ function PositionsViewer() {
     color:       assetTab === key ? '#fff'    : '#6c757d',
     transition: 'all 0.15s',
   });
- 
+
   const fmtPct  = (v) => v !== null && v !== undefined ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '-';
   const fmtC    = (v, c) => v != null ? fmt.currency(v, c||'SAR') : '-';
   const fmtN    = (v) => v != null ? fmt.num(v) : '-';
- 
+
   const closedBadge = (pos) => pos.status === 'closed'
     ? <span style={{marginLeft:'5px',background:'#ffcdd2',color:'#c62828',borderRadius:'10px',padding:'1px 6px',fontSize:'0.65rem',fontWeight:'700'}}>CLOSED</span>
     : null;
   const rowBg = (pos, i) => ({ background: pos.status==='closed'?'#fff5f5': i%2===0?'#fff':'#fafafa', opacity: pos.status==='closed'?0.7:1 });
- 
+
   const actBtns = (pos) => (
     <td style={{...td, whiteSpace:'nowrap'}}>
       <button onClick={()=>{setEditModal(pos);setEditForm({...pos});}}
@@ -563,7 +563,7 @@ function PositionsViewer() {
         style={{background:'transparent',border:'1px solid #e63946',color:'#e63946',borderRadius:'6px',padding:'3px 9px',cursor:'pointer',fontSize:'0.72rem',fontWeight:'700',fontFamily:'DM Sans,sans-serif'}}>Del</button>
     </td>
   );
- 
+
   // ── Generic form field renderer ────────────────────────────────────────────
   const ff = (label, key, type, form, setForm, opts) => {
     const inp = {width:'100%',padding:'0.55rem 0.85rem',border:'1.5px solid #dee2e6',borderRadius:'8px',fontSize:'0.88rem',fontFamily:'DM Sans,sans-serif',outline:'none',boxSizing:'border-box'};
@@ -579,7 +579,7 @@ function PositionsViewer() {
       </div>
     );
   };
- 
+
   // ── Per-asset-class form field groups ──────────────────────────────────────
   //
   // PUBLIC EQUITIES FIELDS:
@@ -605,7 +605,7 @@ function PositionsViewer() {
       {ff('Allocation Weight (%)','allocation_weight','number',form,setForm)}
     </div>
   );
- 
+
   // FIXED INCOME FIELDS (Global private bank standard - UBS/Julius Baer/Pictet):
   //   Instrument Name, ISIN, Issuer,
   //   Bond Type: Sovereign / Corporate / Sukuk / Municipal / Supranational / Convertible / High Yield / Investment Grade
@@ -639,7 +639,7 @@ function PositionsViewer() {
       {ff('Allocation Weight (%)','allocation_weight','number',form,setForm)}
     </div>
   );
- 
+
   // ALTERNATIVES FIELDS (Global private bank standard):
   //   Instrument Name, 
   //   Sub-Asset Class: PE / Hedge Fund / Real Estate / Infrastructure / Commodities / Private Credit / VC / FoF
@@ -672,12 +672,12 @@ function PositionsViewer() {
       {ff('Allocation Weight (%)','allocation_weight','number',form,setForm)}
     </div>
   );
- 
+
   // ── Which rows + label for current tab ────────────────────────────────────
   const currentRows  = assetTab === 'equities' ? equities : assetTab === 'fixed_income' ? fixedIncome : alternatives;
   const currentLabel = assetTab === 'equities' ? 'Public Equity' : assetTab === 'fixed_income' ? 'Fixed Income' : 'Alternative';
   const editCls      = editModal ? classifyPosition(editModal) : assetTab;
- 
+
   // ── PUBLIC EQUITIES TABLE ──────────────────────────────────────────────────
   // Columns: Investor | Instrument | Ticker | ISIN | Exchange | Currency | Custodian |
   //          Quantity | Avg Cost | Market Price | Market Value | Cost Value |
@@ -699,8 +699,8 @@ function PositionsViewer() {
             <th style={thr}>Market Price</th>
             <th style={thr}>Market Value</th>
             <th style={thr}>Cost Value</th>
-            <th style={thr}>Unreal. P&L</th>
-            <th style={thr}>P&L %</th>
+            <th style={thr}>Unreal. P&amp;L</th>
+            <th style={thr}>P&amp;L %</th>
             <th style={thr}>Div. Yield</th>
             <th style={thr}>Port. Wt%</th>
             <th style={thr}>Alloc. Wt%</th>
@@ -758,7 +758,7 @@ function PositionsViewer() {
       </table>
     </div>
   );
- 
+
   // ── FIXED INCOME TABLE ─────────────────────────────────────────────────────
   // Columns: Investor | Instrument | ISIN | Issuer | Bond Type | Currency | Custodian |
   //          Face Value | Coupon % | Frequency | Maturity | Duration | YTM % |
@@ -787,8 +787,8 @@ function PositionsViewer() {
             <th style={thr}>Market Value</th>
             <th style={thr}>Cost Value</th>
             <th style={thr}>Accr. Interest</th>
-            <th style={thr}>Unreal. P&L</th>
-            <th style={thr}>P&L %</th>
+            <th style={thr}>Unreal. P&amp;L</th>
+            <th style={thr}>P&amp;L %</th>
             <th style={thr}>Port. Wt%</th>
             <th style={thr}>Alloc. Wt%</th>
             <th style={th}></th>
@@ -855,7 +855,7 @@ function PositionsViewer() {
       </table>
     </div>
   );
- 
+
   // ── ALTERNATIVES TABLE ─────────────────────────────────────────────────────
   // Columns: Investor | Instrument | Sub-Asset Class | Manager/GP | Fund/Vehicle |
   //          Currency | Custodian | Vintage | Commitment | Called | Uncalled |
@@ -882,7 +882,7 @@ function PositionsViewer() {
             <th style={thr}>Cost Value</th>
             <th style={thr}>MOIC</th>
             <th style={thr}>IRR %</th>
-            <th style={thr}>Unreal. P&L</th>
+            <th style={thr}>Unreal. P&amp;L</th>
             <th style={thr}>Port. Wt%</th>
             <th style={thr}>Alloc. Wt%</th>
             <th style={th}>Liquidity</th>
@@ -952,7 +952,7 @@ function PositionsViewer() {
       </table>
     </div>
   );
- 
+
   // ── Shared Add/Edit Modal ──────────────────────────────────────────────────
   const FormModal = ({ title, form, setForm, cls, onSave, onClose, isSaving }) => (
     <Modal title={title} onClose={onClose} wide>
@@ -1001,7 +1001,7 @@ function PositionsViewer() {
       </div>
     </Modal>
   );
- 
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -1009,19 +1009,19 @@ function PositionsViewer() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', marginBottom:'1.25rem' }}>
         <PageHeader
           title="Positions"
-          subtitle="All securities by asset class. Calculated: Market Value, Cost Value, Unrealized P&L, P&L%, Uncalled Capital."
+          subtitle="All securities by asset class. Calculated: Market Value, Cost Value, Unrealized P&amp;L, Uncalled Capital."
         />
         <div style={{ display:'flex', gap:'0.5rem', flexShrink:0, marginTop:'0.25rem' }}>
           <Btn onClick={() => { setAddForm({}); setAddModal(true); }} style={{fontSize:'0.82rem'}}>+ Add Position</Btn>
           <button onClick={load} style={{ background:'#f1f3f5', border:'none', borderRadius:'8px', padding:'0.5rem 1rem', fontSize:'0.82rem', fontWeight:'600', color:'#495057', cursor:'pointer', fontFamily:'DM Sans,sans-serif' }}>Refresh</button>
         </div>
       </div>
- 
+
       {/* Flash message */}
       {msg && (
         <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'10px', padding:'0.75rem 1.25rem', color:'#276749', fontSize:'0.88rem', marginBottom:'1.25rem', fontWeight:'600' }}>{msg}</div>
       )}
- 
+
       {/* Asset Class Tab Bar */}
       <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1.25rem', background:'#f1f3f5', padding:'5px', borderRadius:'12px', width:'fit-content' }}>
         <button style={tabStyle('equities')} onClick={() => setAssetTab('equities')}>
@@ -1037,7 +1037,7 @@ function PositionsViewer() {
           <span style={{ marginLeft:'6px', background: assetTab==='alternatives' ? 'rgba(255,255,255,0.25)' : '#dee2e6', borderRadius:'20px', padding:'1px 8px', fontSize:'0.72rem', fontWeight:'700' }}>{alternatives.length}</span>
         </button>
       </div>
- 
+
       {/* Filters */}
       <Card style={{ marginBottom:'1.25rem' }}>
         <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap', alignItems:'center' }}>
@@ -1065,7 +1065,7 @@ function PositionsViewer() {
           </div>
         </div>
       </Card>
- 
+
       {/* Calculated fields hint */}
       <div style={{ marginBottom:'1rem', fontSize:'0.78rem', color:'#6c757d', display:'flex', gap:'1.5rem', flexWrap:'wrap' }}>
         {assetTab === 'equities' && <>
@@ -1083,7 +1083,7 @@ function PositionsViewer() {
           <span>Unrealized P&amp;L = NAV/FV - Cost Value</span>
         </>}
       </div>
- 
+
       {/* Table */}
       {loading
         ? <Card><div style={{ textAlign:'center', padding:'2rem', color:'#adb5bd' }}>Loading positions...</div></Card>
@@ -1093,7 +1093,7 @@ function PositionsViewer() {
             {assetTab === 'alternatives' && <AlternativesTable />}
           </Card>
       }
- 
+
       {/* Edit Modal */}
       {editModal && (
         <FormModal
@@ -1103,7 +1103,7 @@ function PositionsViewer() {
           isSaving={saving}
         />
       )}
- 
+
       {/* Add Modal */}
       {addModal && (
         <FormModal
