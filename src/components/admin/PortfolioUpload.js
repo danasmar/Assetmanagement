@@ -82,14 +82,14 @@ export default function PortfolioUpload() {
     await supabase.from("upload_review_queue").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", queueEditItem.id);
     setQueueSaving(false);
     setQueueEditItem(null);
-    setQueueMsg("✓ Approved "" + (queueEditForm.security_name || "position") + "" — saved to portfolio.");
+    setQueueMsg("✓ Approved \"" + (queueEditForm.security_name || "position") + "\" — saved to portfolio.");
     loadQueue();
   };
 
   const rejectQueueItem = async (id, name) => {
-    if (!window.confirm("Reject and discard "" + (name || "this position") + ""?")) return;
+    if (!window.confirm("Reject and discard \"" + (name || "this position") + "\"?")) return;    
     await supabase.from("upload_review_queue").update({ status: "rejected", reviewed_at: new Date().toISOString() }).eq("id", id);
-    setQueueMsg("✓ Rejected "" + (name || "position") + """);
+    setQueueMsg("✓ Rejected \"" + (name || "position") + "\"");    
     loadQueue();
   };
 
