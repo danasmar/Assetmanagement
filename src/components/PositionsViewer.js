@@ -3,8 +3,9 @@
  *
  * Refactoring notes:
  * - Import paths updated for new folder structure
- * - No logic changes — this file was already well-structured
  * - Removed duplicate small tab buttons; big cards are now the sole navigation
+ * - Added investor name as first column in all tables
+ * - Renamed "Public Fund" to "ETF & Public Funds" throughout
  */
 
 import React, { useState, useEffect } from "react";
@@ -15,7 +16,7 @@ import { Card, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./share
 const CATEGORIES = [
   { key: "Public Equities", label: "Public Equities", icon: "📈", table: "public_markets_positions" },
   { key: "Fixed Income", label: "Fixed Income", icon: "🏦", table: "public_markets_positions" },
-  { key: "Public Fund", label: "Public Funds", icon: "📊", table: "public_markets_positions" },
+  { key: "ETF & Public Funds", label: "ETF & Public Funds", icon: "📊", table: "public_markets_positions" },
   { key: "Alternatives", label: "Alternatives", icon: "🏗️", table: "private_markets_positions" },
 ];
 
@@ -100,13 +101,15 @@ const ALTERNATIVES_FIELDS = [
 const CATEGORY_FIELDS = {
   "Public Equities": EQUITY_FIELDS,
   "Fixed Income": FIXED_INCOME_FIELDS,
-  "Public Fund": FUND_FIELDS,
+  "ETF & Public Funds": FUND_FIELDS,
   "Alternatives": ALTERNATIVES_FIELDS,
 };
 
 // ─── Table Column Definitions per Category ───
+// NOTE: "_investor_name" is a virtual column resolved from the investors list
 const TABLE_COLUMNS = {
   "Public Equities": [
+    { key: "_investor_name", label: "Client", virtual: true },
     { key: "security_name", label: "Security" },
     { key: "ticker", label: "Ticker" },
     { key: "exchange", label: "Exchange" },
@@ -121,6 +124,7 @@ const TABLE_COLUMNS = {
     { key: "mandate_type", label: "Mandate" },
   ],
   "Fixed Income": [
+    { key: "_investor_name", label: "Client", virtual: true },
     { key: "security_name", label: "Security" },
     { key: "issuer", label: "Issuer" },
     { key: "bond_type", label: "Type" },
@@ -135,7 +139,8 @@ const TABLE_COLUMNS = {
     { key: "duration_years", label: "Duration" },
     { key: "mandate_type", label: "Mandate" },
   ],
-  "Public Fund": [
+  "ETF & Public Funds": [
+    { key: "_investor_name", label: "Client", virtual: true },
     { key: "security_name", label: "Fund Name" },
     { key: "ticker", label: "Ticker" },
     { key: "fund_type", label: "Type" },
@@ -151,6 +156,7 @@ const TABLE_COLUMNS = {
     { key: "mandate_type", label: "Mandate" },
   ],
   "Alternatives": [
+    { key: "_investor_name", label: "Client", virtual: true },
     { key: "security_name", label: "Fund / Deal" },
     { key: "strategy", label: "Strategy" },
     { key: "manager_gp", label: "Manager / GP" },
@@ -171,10 +177,10 @@ const TABLE_COLUMNS = {
 
 // ─── Styles ───
 const S = {
-  // REMOVED: tabs and tab styles — no longer needed
   table: { width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" },
   th: { textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "2px solid #dee2e6", color: "#495057", fontWeight: "600", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
   td: { padding: "0.6rem 0.75rem", borderBottom: "1px solid #f1f3f5", whiteSpace: "nowrap" },
+  clientTd: { padding: "0.6rem 0.75rem", borderBottom: "1px solid #f1f3f5", whiteSpace: "nowrap", fontWeight: "600", color: "#003770" },
   pnlPos: { color: "#28a745", fontWeight: "600" },
   pnlNeg: { color: "#dc3545", fontWeight: "600" },
   filterBar: { display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" },
@@ -292,6 +298,13 @@ export default function PositionsViewer({ session, investorId }) {
   const totalMV = filtered.reduce((sum, p) => sum + (p.market_value || 0), 0);
   const posCount = filtered.length;
 
+  // ─── Resolve investor name from investor_id ───
+  const getInvestorName = (investorId) => {
+    if (!investorId) return "—";
+    const inv = investors.find((i) => i.id === investorId);
+    return inv ? inv.full_name : "—";
+  };
+
   const openModal = (row = null) => {
     if (row) {
       setEditingRow(row);
@@ -377,8 +390,6 @@ export default function PositionsViewer({ session, investorId }) {
         ))}
       </div>
 
-      {/* ── Small tab buttons REMOVED — cards above handle navigation ── */}
-
       {/* Filter Bar */}
       <Card style={{ marginBottom: "1rem" }}>
         <div style={S.filterBar}>
@@ -426,6 +437,14 @@ export default function PositionsViewer({ session, investorId }) {
               {filtered.map((row) => (
                 <tr key={row.id} style={{ transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#f8f9fa"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                   {columns.map((col) => {
+                    // ─── Virtual: client name ───
+                    if (col.virtual && col.key === "_investor_name") {
+                      return (
+                        <td key={col.key} style={S.clientTd}>
+                          {getInvestorName(row.investor_id)}
+                        </td>
+                      );
+                    }
                     let val;
                     if (col.computed) {
                       val = computeField(row, col.key);
