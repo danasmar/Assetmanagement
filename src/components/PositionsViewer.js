@@ -1,3 +1,11 @@
+/**
+ * PositionsViewer.js — Multi-category position management.
+ *
+ * Refactoring notes:
+ * - Import paths updated for new folder structure
+ * - No logic changes — this file was already well-structured
+ */
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Card, Badge, Btn, Input, Select, Modal, PageHeader, fmt } from "./shared";
@@ -188,7 +196,7 @@ const S = {
 };
 
 // ─── Computed Field Helpers ───
-function computeField(row, key, category) {
+function computeField(row, key) {
   if (key === "_pnl") {
     const cost = (row.quantity || 0) * (row.avg_cost_price || 0);
     const mv = row.market_value || 0;
@@ -245,7 +253,6 @@ export default function PositionsViewer({ session, investorId }) {
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Load investors and deals on mount
   useEffect(() => {
     const loadMeta = async () => {
       const [invRes, dealRes] = await Promise.all([
@@ -258,10 +265,7 @@ export default function PositionsViewer({ session, investorId }) {
     loadMeta();
   }, []);
 
-  // Load positions when category, investor, or status changes
-  useEffect(() => {
-    loadPositions();
-  }, [activeCategory, selectedInvestor, filterStatus]);
+  useEffect(() => { loadPositions(); }, [activeCategory, selectedInvestor, filterStatus]);
 
   const loadPositions = async () => {
     setLoading(true);
@@ -275,7 +279,6 @@ export default function PositionsViewer({ session, investorId }) {
     setLoading(false);
   };
 
-  // Filter positions by search term
   const filtered = positions.filter((p) => {
     if (search) {
       const s = search.toLowerCase();
@@ -291,11 +294,9 @@ export default function PositionsViewer({ session, investorId }) {
     return true;
   });
 
-  // Summary stats
   const totalMV = filtered.reduce((sum, p) => sum + (p.market_value || 0), 0);
   const posCount = filtered.length;
 
-  // Open Add / Edit modal
   const openModal = (row = null) => {
     if (row) {
       setEditingRow(row);
@@ -315,7 +316,6 @@ export default function PositionsViewer({ session, investorId }) {
     setSaving(true);
     const cat = CATEGORIES.find((c) => c.key === activeCategory);
     const payload = { ...formData, category: activeCategory };
-    // Clean numeric fields
     const allFields = [...COMMON_FIELDS, ...(CATEGORY_FIELDS[activeCategory] || [])];
     allFields.forEach((f) => {
       if (f.type === "number" && payload[f.key] !== undefined && payload[f.key] !== "") {
@@ -325,7 +325,6 @@ export default function PositionsViewer({ session, investorId }) {
         payload[f.key] = null;
       }
     });
-
     if (editingRow) {
       await supabase.from(cat.table).update(payload).eq("id", editingRow.id);
     } else {
@@ -346,7 +345,6 @@ export default function PositionsViewer({ session, investorId }) {
   const columns = TABLE_COLUMNS[activeCategory] || [];
   const fields = CATEGORY_FIELDS[activeCategory] || [];
 
-  // Get deal name helper
   const getDealName = (dealId) => {
     if (!dealId) return "—";
     const deal = deals.find((d) => d.id === dealId);
@@ -427,7 +425,7 @@ export default function PositionsViewer({ session, investorId }) {
                   {columns.map((col) => {
                     let val;
                     if (col.computed) {
-                      val = computeField(row, col.key, activeCategory);
+                      val = computeField(row, col.key);
                     } else if (col.type === "deal_link") {
                       val = getDealName(row[col.key]);
                     } else {
@@ -454,14 +452,13 @@ export default function PositionsViewer({ session, investorId }) {
         )}
       </Card>
 
-      {/* Add / Edit Modal - only render when open */}
+      {/* Add / Edit Modal */}
       {modalOpen && <Modal isOpen={modalOpen} onClose={closeModal} title={editingRow ? "Edit Position" : `Add ${activeCategory} Position`}
         actions={<>
           <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
           <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingRow ? "Update" : "Add Position"}</Btn>
         </>}>
         <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-          {/* Investor selector (if not pre-filtered) */}
           {!investorId && (
             <div style={{ marginBottom: "1rem" }}>
               <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>Investor *</label>

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
 import Login from './components/Login';
-import InvestorApp from './components/InvestorApp';
-import AdminApp from './components/AdminApp';
+import InvestorApp from './components/investor/InvestorApp';
+import AdminApp from './components/admin/AdminApp';
 
-// Safe storage that works even if localStorage is blocked
+// Safe storage wrapper — works even if localStorage is blocked (e.g. private mode)
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
@@ -34,8 +33,8 @@ export default function App() {
   };
 
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#003770' }}>
-      <div style={{ color:'#C9A84C', fontFamily:'DM Serif Display, serif', fontSize:'1.5rem' }}>Audi Capital</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#003770' }}>
+      <div style={{ color: '#C9A84C', fontFamily: 'DM Serif Display, serif', fontSize: '1.5rem' }}>Audi Capital</div>
     </div>
   );
 
