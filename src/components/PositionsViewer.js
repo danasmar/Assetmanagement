@@ -4,6 +4,7 @@
  * Refactoring notes:
  * - Import paths updated for new folder structure
  * - No logic changes — this file was already well-structured
+ * - Removed duplicate small tab buttons; big cards are now the sole navigation
  */
 
 import React, { useState, useEffect } from "react";
@@ -170,13 +171,7 @@ const TABLE_COLUMNS = {
 
 // ─── Styles ───
 const S = {
-  tabs: { display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" },
-  tab: (active) => ({
-    padding: "0.6rem 1.2rem", borderRadius: "8px", border: "none", cursor: "pointer",
-    fontFamily: "DM Sans, sans-serif", fontSize: "0.9rem", fontWeight: active ? "700" : "500",
-    background: active ? "#003770" : "#f1f3f5", color: active ? "#fff" : "#495057",
-    transition: "all 0.15s", display: "flex", alignItems: "center", gap: "0.4rem",
-  }),
+  // REMOVED: tabs and tab styles — no longer needed
   table: { width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" },
   th: { textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "2px solid #dee2e6", color: "#495057", fontWeight: "600", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
   td: { padding: "0.6rem 0.75rem", borderBottom: "1px solid #f1f3f5", whiteSpace: "nowrap" },
@@ -355,26 +350,34 @@ export default function PositionsViewer({ session, investorId }) {
     <div>
       <PageHeader title="Positions" subtitle="Manage investor positions across all asset categories" />
 
-      {/* Category Summary Cards */}
+      {/* Category Cards — clickable, single navigation element */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
         {CATEGORIES.map((cat) => (
-          <Card key={cat.key} style={{ cursor: "pointer", border: activeCategory === cat.key ? "2px solid #003770" : "2px solid transparent", transition: "all 0.15s" }} onClick={() => setActiveCategory(cat.key)}>
+          <Card
+            key={cat.key}
+            style={{
+              cursor: "pointer",
+              border: activeCategory === cat.key ? "2px solid #003770" : "2px solid transparent",
+              transition: "all 0.15s",
+              background: activeCategory === cat.key ? "#f0f4fa" : "#fff",
+            }}
+            onClick={() => setActiveCategory(cat.key)}
+          >
             <div style={S.stat}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>{cat.icon}</div>
-              <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#212529" }}>{cat.label}</div>
+              <div style={{
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                color: activeCategory === cat.key ? "#003770" : "#212529",
+              }}>
+                {cat.label}
+              </div>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Category Tabs */}
-      <div style={S.tabs}>
-        {CATEGORIES.map((cat) => (
-          <button key={cat.key} style={S.tab(activeCategory === cat.key)} onClick={() => setActiveCategory(cat.key)}>
-            <span>{cat.icon}</span> {cat.label}
-          </button>
-        ))}
-      </div>
+      {/* ── Small tab buttons REMOVED — cards above handle navigation ── */}
 
       {/* Filter Bar */}
       <Card style={{ marginBottom: "1rem" }}>
