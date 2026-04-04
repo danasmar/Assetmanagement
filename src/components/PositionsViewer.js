@@ -454,8 +454,8 @@ export default function PositionsViewer({ session, investorId }) {
         )}
       </Card>
 
-      {/* Add / Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={closeModal} title={editingRow ? "Edit Position" : `Add ${activeCategory} Position`}
+      {/* Add / Edit Modal - only render when open */}
+      {modalOpen && <Modal isOpen={modalOpen} onClose={closeModal} title={editingRow ? "Edit Position" : `Add ${activeCategory} Position`}
         actions={<>
           <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
           <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingRow ? "Update" : "Add Position"}</Btn>
@@ -517,7 +517,7 @@ export default function PositionsViewer({ session, investorId }) {
             ))}
           </div>
         </div>
-      </Modal>
+      </Modal>}
     </div>
   );
 }
