@@ -21,6 +21,14 @@ const OPT = {
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
 };
 
+// ─── Category definitions — mirrors PositionsViewer CATEGORIES ───────────────
+const CATEGORIES = [
+  { key: 'Public Equities',    label: 'Public Equities',    icon: '📈' },
+  { key: 'Fixed Income',       label: 'Fixed Income',       icon: '🏦' },
+  { key: 'ETF & Public Funds', label: 'ETF & Public Funds', icon: '📊' },
+  { key: 'Alternatives',       label: 'Alternatives',       icon: '🏗️' },
+];
+
 // ─── Tiny reusable form atoms ────────────────────────────────────────────────
 const LS = { display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' };
 const IS = { width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box', outline:'none' };
@@ -48,228 +56,202 @@ function FS({ label, fk, f, sf, options, blank=false }) {
 }
 const G2 = ({ children }) => <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 0.75rem' }}>{children}</div>;
 
-// ─── Category auto-detect for public rows ────────────────────────────────────
-function detectCat(row) {
-  if (row.category) return row.category;
-  if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
-  if (row.fund_type || row.fund_manager || row.nav_per_unit != null) return 'ETF & Public Funds';
-  return 'Public Equities';
-}
-
-// ─── Public category tab bar ─────────────────────────────────────────────────
-const PUB_CATS = ['Public Equities','Fixed Income','ETF & Public Funds'];
-function CatTabs({ value, onChange }) {
-  return (
-    <div style={{ display:'flex', gap:'0.4rem', marginBottom:'1.25rem', background:'#f1f3f5', padding:'4px', borderRadius:'10px' }}>
-      {PUB_CATS.map(c => (
-        <button key={c} onClick={() => onChange(c)} style={{ flex:1, padding:'0.4rem 0.5rem', border:'none', borderRadius:'7px', cursor:'pointer', fontSize:'0.78rem', fontWeight:'600', fontFamily:'DM Sans,sans-serif', background: value===c?'#003770':'transparent', color: value===c?'#fff':'#6c757d', transition:'all 0.15s' }}>
-          {c}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ════════════════════════════════════════════════════════════════════════════
-// FIELD FORMS — one per category, used in both Add and Edit modals
+// FIELD FORMS — one per category, used by both Add and Edit
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Public Equities ──────────────────────────────────────────────────────────
 function EquityFields({ f, sf }) {
   return <>
-    <FI label="Security Name *"   fk="security_name"   f={f} sf={sf} />
+    <FI label="Security Name *"        fk="security_name"   f={f} sf={sf} />
     <G2>
-      <FI label="Ticker"          fk="ticker"          f={f} sf={sf} placeholder="e.g. 2222.SR" />
-      <FI label="ISIN"            fk="isin"            f={f} sf={sf} placeholder="e.g. SA0007879782" />
+      <FI label="Ticker"               fk="ticker"          f={f} sf={sf} placeholder="e.g. 2222.SR" />
+      <FI label="ISIN"                 fk="isin"            f={f} sf={sf} placeholder="e.g. SA0007879782" />
     </G2>
     <G2>
-      <FI label="Exchange"        fk="exchange"        f={f} sf={sf} placeholder="e.g. NYSE, TADAWUL, LSE" />
-      <FI label="Country"         fk="country"         f={f} sf={sf} />
+      <FI label="Exchange"             fk="exchange"        f={f} sf={sf} placeholder="e.g. NYSE, TADAWUL, LSE" />
+      <FI label="Country"              fk="country"         f={f} sf={sf} />
     </G2>
     <G2>
-      <FS label="Sector"          fk="sector"          f={f} sf={sf} options={OPT.sector} blank />
-      <FI label="Industry"        fk="industry"        f={f} sf={sf} />
+      <FS label="Sector"               fk="sector"          f={f} sf={sf} options={OPT.sector} blank />
+      <FI label="Industry"             fk="industry"        f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Quantity (Shares)" fk="quantity"      f={f} sf={sf} type="number" />
-      <FI label="Avg Cost Price"  fk="avg_cost_price"  f={f} sf={sf} type="number" />
+      <FI label="Quantity (Shares)"    fk="quantity"        f={f} sf={sf} type="number" />
+      <FI label="Avg Cost Price"       fk="avg_cost_price"  f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Current Price"   fk="price"           f={f} sf={sf} type="number" />
-      <FI label="Market Value"    fk="market_value"    f={f} sf={sf} type="number" />
+      <FI label="Current Price"        fk="price"           f={f} sf={sf} type="number" />
+      <FI label="Market Value"         fk="market_value"    f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Dividend Yield %" fk="dividend_yield" f={f} sf={sf} type="number" />
-      <FI label="Portfolio Weight %" fk="portfolio_weight" f={f} sf={sf} type="number" />
+      <FI label="Dividend Yield %"     fk="dividend_yield"  f={f} sf={sf} type="number" />
+      <FI label="Portfolio Weight %"   fk="portfolio_weight" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Currency"        fk="currency"        f={f} sf={sf} options={OPT.currency} />
-      <FS label="Mandate Type"    fk="mandate_type"    f={f} sf={sf} options={OPT.mandate} blank />
+      <FS label="Currency"             fk="currency"        f={f} sf={sf} options={OPT.currency} />
+      <FS label="Mandate Type"         fk="mandate_type"    f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FI label="Custodian"       fk="custodian"       f={f} sf={sf} />
-      <FI label="Source Bank"     fk="source_bank"     f={f} sf={sf} />
+      <FI label="Custodian"            fk="custodian"       f={f} sf={sf} />
+      <FI label="Source Bank"          fk="source_bank"     f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Statement Date"  fk="statement_date"  f={f} sf={sf} type="date" />
-      <FS label="Status"          fk="status"          f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"       fk="statement_date"  f={f} sf={sf} type="date" />
+      <FS label="Status"               fk="status"          f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
 }
 
-// ── Fixed Income ─────────────────────────────────────────────────────────────
 function FixedIncomeFields({ f, sf }) {
   return <>
-    <FI label="Security Name *"             fk="security_name"   f={f} sf={sf} />
+    <FI label="Security Name *"                fk="security_name"    f={f} sf={sf} />
     <G2>
-      <FI label="Ticker"                    fk="ticker"          f={f} sf={sf} />
-      <FI label="ISIN"                      fk="isin"            f={f} sf={sf} />
+      <FI label="Ticker"                       fk="ticker"           f={f} sf={sf} />
+      <FI label="ISIN"                         fk="isin"             f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Issuer"                    fk="issuer"          f={f} sf={sf} />
-      <FS label="Bond Type"                 fk="bond_type"       f={f} sf={sf} options={OPT.bondType} blank />
+      <FI label="Issuer"                       fk="issuer"           f={f} sf={sf} />
+      <FS label="Bond Type"                    fk="bond_type"        f={f} sf={sf} options={OPT.bondType} blank />
     </G2>
     <G2>
-      <FI label="Credit Rating"             fk="credit_rating"   f={f} sf={sf} placeholder="e.g. AAA, BB+" />
-      <FS label="Seniority"                 fk="seniority"       f={f} sf={sf} options={OPT.seniority} blank />
+      <FI label="Credit Rating"                fk="credit_rating"    f={f} sf={sf} placeholder="e.g. AAA, BB+" />
+      <FS label="Seniority"                    fk="seniority"        f={f} sf={sf} options={OPT.seniority} blank />
     </G2>
     <G2>
-      <FI label="Face Value"                fk="face_value"      f={f} sf={sf} type="number" />
-      <FI label="Coupon Rate %"             fk="coupon_rate"     f={f} sf={sf} type="number" />
+      <FI label="Face Value"                   fk="face_value"       f={f} sf={sf} type="number" />
+      <FI label="Coupon Rate %"                fk="coupon_rate"      f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Coupon Frequency"          fk="coupon_frequency" f={f} sf={sf} options={OPT.couponFreq} blank />
-      <FI label="Purchase Price (% of par)" fk="purchase_price"  f={f} sf={sf} type="number" />
+      <FS label="Coupon Frequency"             fk="coupon_frequency" f={f} sf={sf} options={OPT.couponFreq} blank />
+      <FI label="Purchase Price (% of par)"    fk="purchase_price"   f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Current Price (% of par)"  fk="price"           f={f} sf={sf} type="number" />
-      <FI label="Accrued Interest"          fk="accrued_interest" f={f} sf={sf} type="number" />
+      <FI label="Current Price (% of par)"     fk="price"            f={f} sf={sf} type="number" />
+      <FI label="Accrued Interest"             fk="accrued_interest" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Market Value"              fk="market_value"    f={f} sf={sf} type="number" />
-      <FI label="YTM %"                     fk="ytm"             f={f} sf={sf} type="number" />
+      <FI label="Market Value"                 fk="market_value"     f={f} sf={sf} type="number" />
+      <FI label="YTM %"                        fk="ytm"              f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="YTW %"                     fk="ytw"             f={f} sf={sf} type="number" />
-      <FI label="Duration (Years)"          fk="duration_years"  f={f} sf={sf} type="number" />
+      <FI label="YTW %"                        fk="ytw"              f={f} sf={sf} type="number" />
+      <FI label="Duration (Years)"             fk="duration_years"   f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Maturity Date"             fk="maturity_date"   f={f} sf={sf} type="date" />
-      <FI label="Call Date"                 fk="call_date"       f={f} sf={sf} type="date" />
+      <FI label="Maturity Date"                fk="maturity_date"    f={f} sf={sf} type="date" />
+      <FI label="Call Date"                    fk="call_date"        f={f} sf={sf} type="date" />
     </G2>
     <G2>
-      <FS label="Currency"                  fk="currency"        f={f} sf={sf} options={OPT.currency} />
-      <FS label="Mandate Type"              fk="mandate_type"    f={f} sf={sf} options={OPT.mandate} blank />
+      <FS label="Currency"                     fk="currency"         f={f} sf={sf} options={OPT.currency} />
+      <FS label="Mandate Type"                 fk="mandate_type"     f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FI label="Custodian"                 fk="custodian"       f={f} sf={sf} />
-      <FI label="Portfolio Weight %"        fk="portfolio_weight" f={f} sf={sf} type="number" />
+      <FI label="Custodian"                    fk="custodian"        f={f} sf={sf} />
+      <FI label="Portfolio Weight %"           fk="portfolio_weight" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Statement Date"            fk="statement_date"  f={f} sf={sf} type="date" />
-      <FS label="Status"                    fk="status"          f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"               fk="statement_date"   f={f} sf={sf} type="date" />
+      <FS label="Status"                       fk="status"           f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
 }
 
-// ── ETF & Public Funds ───────────────────────────────────────────────────────
 function ETFFields({ f, sf }) {
   return <>
-    <FI label="Fund Name *"                 fk="security_name"        f={f} sf={sf} />
+    <FI label="Fund Name *"                    fk="security_name"        f={f} sf={sf} />
     <G2>
-      <FI label="Ticker"                    fk="ticker"               f={f} sf={sf} />
-      <FI label="ISIN"                      fk="isin"                 f={f} sf={sf} />
+      <FI label="Ticker"                       fk="ticker"               f={f} sf={sf} />
+      <FI label="ISIN"                         fk="isin"                 f={f} sf={sf} />
     </G2>
     <G2>
-      <FS label="Fund Type"                 fk="fund_type"            f={f} sf={sf} options={OPT.fundType} blank />
-      <FI label="Fund Manager"              fk="fund_manager"         f={f} sf={sf} placeholder="e.g. BlackRock, Vanguard" />
+      <FS label="Fund Type"                    fk="fund_type"            f={f} sf={sf} options={OPT.fundType} blank />
+      <FI label="Fund Manager"                 fk="fund_manager"         f={f} sf={sf} placeholder="e.g. BlackRock, Vanguard" />
     </G2>
     <G2>
-      <FS label="Asset Class Focus"         fk="asset_class_focus"    f={f} sf={sf} options={OPT.assetClassFocus} blank />
-      <FS label="Geographic Focus"          fk="geographic_focus"     f={f} sf={sf} options={OPT.geographicFocus} blank />
+      <FS label="Asset Class Focus"            fk="asset_class_focus"    f={f} sf={sf} options={OPT.assetClassFocus} blank />
+      <FS label="Geographic Focus"             fk="geographic_focus"     f={f} sf={sf} options={OPT.geographicFocus} blank />
     </G2>
     <G2>
-      <FI label="Units"                     fk="quantity"             f={f} sf={sf} type="number" />
-      <FI label="NAV per Unit"              fk="nav_per_unit"         f={f} sf={sf} type="number" />
+      <FI label="Units"                        fk="quantity"             f={f} sf={sf} type="number" />
+      <FI label="NAV per Unit"                 fk="nav_per_unit"         f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Avg Cost Price"            fk="avg_cost_price"       f={f} sf={sf} type="number" />
-      <FI label="Market Value"              fk="market_value"         f={f} sf={sf} type="number" />
+      <FI label="Avg Cost Price"               fk="avg_cost_price"       f={f} sf={sf} type="number" />
+      <FI label="Market Value"                 fk="market_value"         f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Expense Ratio (TER) %"     fk="expense_ratio"        f={f} sf={sf} type="number" />
-      <FI label="Distribution Yield %"      fk="distribution_yield"   f={f} sf={sf} type="number" />
+      <FI label="Expense Ratio (TER) %"        fk="expense_ratio"        f={f} sf={sf} type="number" />
+      <FI label="Distribution Yield %"         fk="distribution_yield"   f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Distribution Policy"       fk="distribution_policy"  f={f} sf={sf} options={OPT.distributionPolicy} blank />
-      <FI label="Domicile"                  fk="domicile"             f={f} sf={sf} placeholder="e.g. Luxembourg, Ireland, KSA" />
+      <FS label="Distribution Policy"          fk="distribution_policy"  f={f} sf={sf} options={OPT.distributionPolicy} blank />
+      <FI label="Domicile"                     fk="domicile"             f={f} sf={sf} placeholder="e.g. Luxembourg, Ireland, KSA" />
     </G2>
     <G2>
-      <FI label="Portfolio Weight %"        fk="portfolio_weight"     f={f} sf={sf} type="number" />
-      <FS label="Mandate Type"              fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
+      <FI label="Portfolio Weight %"           fk="portfolio_weight"     f={f} sf={sf} type="number" />
+      <FS label="Mandate Type"                 fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FS label="Currency"                  fk="currency"             f={f} sf={sf} options={OPT.currency} />
-      <FI label="Custodian"                 fk="custodian"            f={f} sf={sf} />
+      <FS label="Currency"                     fk="currency"             f={f} sf={sf} options={OPT.currency} />
+      <FI label="Custodian"                    fk="custodian"            f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Statement Date"            fk="statement_date"       f={f} sf={sf} type="date" />
-      <FS label="Status"                    fk="status"               f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"               fk="statement_date"       f={f} sf={sf} type="date" />
+      <FS label="Status"                       fk="status"               f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
 }
 
-// ── Alternatives (Private Markets) ───────────────────────────────────────────
 function AltFields({ f, sf, deals }) {
   return <>
-    <FI label="Security / Fund Name *"      fk="security_name"        f={f} sf={sf} />
+    <FI label="Security / Fund Name *"         fk="security_name"        f={f} sf={sf} />
     <G2>
-      <FS label="Fund Vehicle"              fk="fund_vehicle"         f={f} sf={sf} options={OPT.fundVehicle} blank />
-      <FS label="Strategy"                  fk="strategy"             f={f} sf={sf} options={OPT.altStrategy} blank />
+      <FS label="Fund Vehicle"                 fk="fund_vehicle"         f={f} sf={sf} options={OPT.fundVehicle} blank />
+      <FS label="Strategy"                     fk="strategy"             f={f} sf={sf} options={OPT.altStrategy} blank />
     </G2>
     <G2>
-      <FI label="Manager / GP"              fk="manager_gp"           f={f} sf={sf} />
-      <FI label="Vintage Year"              fk="vintage_year"         f={f} sf={sf} type="number" placeholder="e.g. 2024" />
+      <FI label="Manager / GP"                 fk="manager_gp"           f={f} sf={sf} />
+      <FI label="Vintage Year"                 fk="vintage_year"         f={f} sf={sf} type="number" placeholder="e.g. 2024" />
     </G2>
     <G2>
-      <FI label="Investment Date"           fk="investment_date"      f={f} sf={sf} type="date" />
-      <FI label="Commitment Amount"         fk="commitment_amount"    f={f} sf={sf} type="number" />
+      <FI label="Investment Date"              fk="investment_date"      f={f} sf={sf} type="date" />
+      <FI label="Commitment Amount"            fk="commitment_amount"    f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Called Capital"            fk="called_capital"       f={f} sf={sf} type="number" />
-      <FI label="Distributions Received"    fk="distributions_paid"   f={f} sf={sf} type="number" />
+      <FI label="Called Capital"               fk="called_capital"       f={f} sf={sf} type="number" />
+      <FI label="Distributions Received"       fk="distributions_paid"   f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Amount Invested"           fk="amount_invested"      f={f} sf={sf} type="number" />
-      <FI label="NAV / Current Value"       fk="market_value"         f={f} sf={sf} type="number" />
+      <FI label="Amount Invested"              fk="amount_invested"      f={f} sf={sf} type="number" />
+      <FI label="NAV / Current Value"          fk="market_value"         f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Quantity / Units"          fk="quantity"             f={f} sf={sf} type="number" />
-      <FI label="Avg Cost Price (NAV at Entry)" fk="avg_cost_price"   f={f} sf={sf} type="number" />
+      <FI label="Quantity / Units"             fk="quantity"             f={f} sf={sf} type="number" />
+      <FI label="Avg Cost Price (NAV at Entry)" fk="avg_cost_price"      f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="MOIC"                      fk="moic"                 f={f} sf={sf} type="number" placeholder="e.g. 1.8" />
-      <FI label="Net IRR %"                 fk="irr"                  f={f} sf={sf} type="number" />
+      <FI label="MOIC"                         fk="moic"                 f={f} sf={sf} type="number" placeholder="e.g. 1.8" />
+      <FI label="Net IRR %"                    fk="irr"                  f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Liquidity"                 fk="liquidity"            f={f} sf={sf} options={OPT.liquidity} blank />
-      <FI label="Lock-up Period"            fk="lock_up_period"       f={f} sf={sf} placeholder="e.g. 3 years" />
+      <FS label="Liquidity"                    fk="liquidity"            f={f} sf={sf} options={OPT.liquidity} blank />
+      <FI label="Lock-up Period"               fk="lock_up_period"       f={f} sf={sf} placeholder="e.g. 3 years" />
     </G2>
     <G2>
-      <FI label="Next Valuation Date"       fk="next_valuation_date"  f={f} sf={sf} type="date" />
-      <FS label="Mandate Type"              fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
+      <FI label="Next Valuation Date"          fk="next_valuation_date"  f={f} sf={sf} type="date" />
+      <FS label="Mandate Type"                 fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FS label="Currency"                  fk="currency"             f={f} sf={sf} options={OPT.currency} />
-      <FI label="Custodian"                 fk="custodian"            f={f} sf={sf} />
+      <FS label="Currency"                     fk="currency"             f={f} sf={sf} options={OPT.currency} />
+      <FI label="Custodian"                    fk="custodian"            f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Statement Date"            fk="statement_date"       f={f} sf={sf} type="date" />
-      <FS label="Status"                    fk="status"               f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"               fk="statement_date"       f={f} sf={sf} type="date" />
+      <FS label="Status"                       fk="status"               f={f} sf={sf} options={OPT.status} />
     </G2>
-    {/* Deal link selector — only shown when adding without a deal pre-selected */}
+    {/* Deal link — only shown when adding */}
     {deals && (
-      <div style={{ marginBottom:'1rem' }}>
+      <div style={{ marginBottom:'1rem', paddingTop:'0.5rem', borderTop:'1px solid #f1f3f5' }}>
         <label style={LS}>Link to Deal (optional)</label>
         <select value={f.deal_id ?? ''} onChange={e => sf(p => ({ ...p, deal_id: e.target.value || null }))}
           style={{ ...IS, background:'#fff' }}>
@@ -279,104 +261,113 @@ function AltFields({ f, sf, deals }) {
         {f.deal_id && (() => {
           const d = deals.find(x => x.id === f.deal_id);
           const nav = d?.nav_per_unit || 0;
-          return nav > 0
-            ? <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>Current NAV: <strong>{fmt.currency(nav, d?.currency || 'SAR')}</strong> per unit</div>
-            : null;
+          return nav > 0 ? <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>Current NAV: <strong>{fmt.currency(nav, d?.currency||'SAR')}</strong> per unit</div> : null;
         })()}
       </div>
     )}
-    {/* If editing a deal-linked position, show info banner instead */}
+    {/* Deal-linked info banner — shown when editing */}
     {!deals && f.deal_id && (
       <div style={{ background:'#f0f4fa', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.82rem', color:'#003770', marginBottom:'1rem' }}>
-        🔗 Deal-linked position — Market Value updates automatically when NAV is published.
+        🔗 Deal-linked — Market Value updates automatically when NAV is published.
       </div>
     )}
   </>;
 }
 
-// ── Cash ─────────────────────────────────────────────────────────────────────
 function CashFields({ f, sf }) {
   return <>
-    <FI label="Description"  fk="description"   f={f} sf={sf} placeholder="e.g. Current Account" />
-    <FI label="Source Bank"  fk="source_bank"   f={f} sf={sf} placeholder="e.g. Riyad Bank" />
+    <FI label="Description"      fk="description"   f={f} sf={sf} placeholder="e.g. Current Account" />
+    <FI label="Source Bank"      fk="source_bank"   f={f} sf={sf} placeholder="e.g. Riyad Bank" />
     <G2>
-      <FI label="Balance"    fk="balance"        f={f} sf={sf} type="number" />
-      <FS label="Currency"   fk="currency"       f={f} sf={sf} options={OPT.currency} />
+      <FI label="Balance"        fk="balance"       f={f} sf={sf} type="number" />
+      <FS label="Currency"       fk="currency"      f={f} sf={sf} options={OPT.currency} />
     </G2>
     <G2>
       <FI label="Statement Date" fk="statement_date" f={f} sf={sf} type="date" />
-      <FS label="Status"     fk="status"         f={f} sf={sf} options={OPT.status} />
+      <FS label="Status"         fk="status"        f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
+}
+
+// ── Which DB table each category reads/writes ────────────────────────────────
+function tableFor(cat) {
+  return cat === 'Alternatives' ? 'private_markets_positions' : 'public_markets_positions';
+}
+
+// ── Detect category from a public_markets_positions row ──────────────────────
+function detectCat(row) {
+  if (row.category && row.category !== 'Alternatives') return row.category;
+  if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
+  if (row.fund_type || row.fund_manager || row.nav_per_unit != null) return 'ETF & Public Funds';
+  return 'Public Equities';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════════════════════════
 export default function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit }) {
-  const [privInv, setPrivInv]     = useState([]);
-  const [privPos, setPrivPos]     = useState([]);
-  const [pubPos, setPubPos]       = useState([]);
-  const [cashPos, setCashPos]     = useState([]);
-  const [distributions, setDist]  = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [tab, setTab]             = useState('private');
+  const [rows, setRows]     = useState({}); // keyed by category key
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]       = useState('Public Equities');
 
-  // Modal state — shared between add and edit
-  // mode: 'add' | 'edit'
-  // type: 'private' | 'public' | 'cash'
-  const [modal, setModal]         = useState(null); // { mode, type }
-  const [form, setForm]           = useState({});
-  const [pubCat, setPubCat]       = useState('Public Equities');
-  const [saving, setSaving]       = useState(false);
+  // Modal: { mode:'add'|'edit', cat: category key }
+  const [modal, setModal]   = useState(null);
+  const [form, setForm]     = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.10, gbp_to_sar:4.73, aed_to_sar:1.02 });
 
   const load = async () => {
     setLoading(true);
-    const [r1, r2, r3, r4, r5] = await Promise.all([
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).not('deal_id','is',null).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*').eq('investor_id', investor.id).is('deal_id',null).order('statement_date',{ascending:false}),
+    const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('investor_distributions').select('*,distributions(distribution_date,deals(name,currency))').eq('investor_id', investor.id).order('created_at',{ascending:false}),
+      supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
-    setPrivInv(r1.data || []); setPrivPos(r2.data || []);
-    setPubPos(r3.data || []); setCashPos(r4.data || []);
-    setDist(r5.data || []); setLoading(false);
+
+    if (assumpRes.data?.[0]) setFx(assumpRes.data[0]);
+
+    const pub  = pubRes.data  || [];
+    const priv = privRes.data || [];
+
+    setRows({
+      'Public Equities':    pub.filter(r => (r.category || detectCat(r)) === 'Public Equities'),
+      'Fixed Income':       pub.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
+      'ETF & Public Funds': pub.filter(r => (r.category || detectCat(r)) === 'ETF & Public Funds'),
+      'Alternatives':       priv,
+      'Cash':               cashRes.data || [],
+    });
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, [investor.id]);
 
-  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.10, gbp_to_sar:4.73, aed_to_sar:1.02 });
-  useEffect(() => {
-    supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1)
-      .then(({ data }) => { if (data?.[0]) setFx(data[0]); });
-  }, []);
-
   const toSAR = (amount, currency) => {
     if (!currency || currency === 'SAR') return amount || 0;
-    const r = { USD: fx.usd_to_sar||3.75, EUR: fx.eur_to_sar||4.10, GBP: fx.gbp_to_sar||4.73, AED: fx.aed_to_sar||1.02 };
-    return (amount || 0) * (r[currency] || 1);
+    const r = { USD:fx.usd_to_sar||3.75, EUR:fx.eur_to_sar||4.10, GBP:fx.gbp_to_sar||4.73, AED:fx.aed_to_sar||1.02 };
+    return (amount||0)*(r[currency]||1);
   };
 
-  const allPrivate      = [...privInv, ...privPos];
-  const totalCurrentNAV = privInv.reduce((s,i) => s + toSAR((i.quantity||0)*(i.deals?.nav_per_unit||0), i.deals?.currency||'SAR'), 0);
-  const totalInvested   = privInv.reduce((s,i) => s + toSAR(parseFloat(i.amount_invested)||0, i.deals?.currency||'SAR'), 0);
-  const totalPublicMV   = pubPos.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
-  const totalCash       = cashPos.reduce((s,c) => s + toSAR(c.balance||0, c.currency), 0);
-  const totalDist       = distributions.reduce((s,d) => s + toSAR(parseFloat(d.amount)||0, d.distributions?.deals?.currency), 0);
+  // Summary totals
+  const altRows   = rows['Alternatives'] || [];
+  const pubRows   = [...(rows['Public Equities']||[]), ...(rows['Fixed Income']||[]), ...(rows['ETF & Public Funds']||[])];
+  const cashRows  = rows['Cash'] || [];
+  const totalPrivNAV  = altRows.reduce((s,i) => s + toSAR((i.quantity||0)*(i.deals?.nav_per_unit||0), i.deals?.currency||i.currency||'SAR'), 0);
+  const totalInvested = altRows.reduce((s,i) => s + toSAR(parseFloat(i.amount_invested)||0, i.deals?.currency||i.currency||'SAR'), 0);
+  const totalPublicMV = pubRows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
+  const totalCash     = cashRows.reduce((s,c) => s + toSAR(c.balance||0, c.currency), 0);
 
   const toN = v => (v===''||v==null) ? null : Number(v);
 
-  // ── Open modal ─────────────────────────────────────────────────────────────
-  const openAdd = (type) => {
-    setForm({ status:'active', currency:'SAR' });
-    setPubCat('Public Equities');
-    setModal({ mode:'add', type });
+  // ── Open/close modal ───────────────────────────────────────────────────────
+  const openAdd = () => {
+    setForm({ status:'active', currency:'SAR', category: tab });
+    setModal({ mode:'add', cat: tab });
   };
-  const openEdit = (type, row) => {
-    setForm({ ...row });
-    setPubCat(detectCat(row));
-    setModal({ mode:'edit', type });
+  const openEdit = (cat, row) => {
+    setForm({ ...row, category: cat });
+    setModal({ mode:'edit', cat });
   };
   const closeModal = () => { setModal(null); setForm({}); };
 
@@ -385,10 +376,12 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setSaving(true);
     const today = new Date().toISOString().slice(0,10);
     const isEdit = modal.mode === 'edit';
+    const cat    = modal.cat;
 
-    // ── PRIVATE ─────────────────────────────────────────────────────────────
-    if (modal.type === 'private') {
+    if (cat === 'Alternatives') {
       const payload = {
+        investor_id:         investor.id,
+        category:            'Alternatives',
         security_name:       form.security_name || 'Private Position',
         fund_vehicle:        form.fund_vehicle        || null,
         strategy:            form.strategy            || null,
@@ -404,38 +397,46 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         avg_cost_price:      toN(form.avg_cost_price),
         moic:                toN(form.moic),
         irr:                 toN(form.irr),
-        liquidity:           form.liquidity           || null,
-        lock_up_period:      form.lock_up_period      || null,
-        next_valuation_date: form.next_valuation_date || null,
-        mandate_type:        form.mandate_type        || null,
-        currency:            form.currency            || 'SAR',
-        custodian:           form.custodian           || null,
-        statement_date:      form.statement_date      || today,
-        status:              form.status              || 'active',
-        deal_id:             form.deal_id             || null,
-        investor_id:         investor.id,
-        category:            'Alternatives',
+        liquidity:           form.liquidity            || null,
+        lock_up_period:      form.lock_up_period       || null,
+        next_valuation_date: form.next_valuation_date  || null,
+        mandate_type:        form.mandate_type         || null,
+        currency:            form.currency             || 'SAR',
+        custodian:           form.custodian            || null,
+        statement_date:      form.statement_date       || today,
+        status:              form.status               || 'active',
+        deal_id:             form.deal_id              || null,
       };
-      if (isEdit) {
-        await supabase.from('private_markets_positions').update(payload).eq('id', form.id);
-      } else {
-        // If deal-linked, compute units from NAV
-        const deal = deals.find(d => d.id === form.deal_id);
-        if (deal && form.amount_invested && !form.quantity) {
-          const nav = deal.nav_per_unit || 1;
-          payload.quantity = (parseFloat(form.amount_invested) || 0) / nav;
-          if (!payload.market_value) payload.market_value = payload.quantity * nav;
-          if (!payload.avg_cost_price) payload.avg_cost_price = nav;
-        }
-        await supabase.from('private_markets_positions').insert(payload);
+      // When adding deal-linked, auto-compute quantity from NAV
+      if (!isEdit && form.deal_id && form.amount_invested && !form.quantity) {
+        const d = deals.find(x => x.id === form.deal_id);
+        const nav = d?.nav_per_unit || 1;
+        payload.quantity    = (parseFloat(form.amount_invested)||0) / nav;
+        payload.market_value = payload.market_value || payload.quantity * nav;
+        payload.avg_cost_price = payload.avg_cost_price || nav;
       }
+      if (isEdit) await supabase.from('private_markets_positions').update(payload).eq('id', form.id);
+      else        await supabase.from('private_markets_positions').insert(payload);
 
-    // ── PUBLIC ──────────────────────────────────────────────────────────────
-    } else if (modal.type === 'public') {
+    } else if (cat === 'Cash') {
+      const payload = {
+        investor_id:    investor.id,
+        description:    form.description    || 'Cash',
+        source_bank:    form.source_bank    || null,
+        balance:        toN(form.balance),
+        currency:       form.currency       || 'SAR',
+        statement_date: form.statement_date || today,
+        status:         form.status         || 'active',
+      };
+      if (isEdit) await supabase.from('cash_positions').update(payload).eq('id', form.id);
+      else        await supabase.from('cash_positions').insert(payload);
+
+    } else {
+      // Public Equities / Fixed Income / ETF & Public Funds
       const base = {
         investor_id:      investor.id,
-        security_name:    form.security_name || '',
-        category:         pubCat,
+        category:         cat,
+        security_name:    form.security_name    || '',
         ticker:           form.ticker           || null,
         isin:             form.isin             || null,
         currency:         form.currency         || 'SAR',
@@ -447,7 +448,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         portfolio_weight: toN(form.portfolio_weight),
         status:           form.status           || 'active',
       };
-      if (pubCat === 'Public Equities') Object.assign(base, {
+      if (cat === 'Public Equities') Object.assign(base, {
         exchange:       form.exchange       || null,
         country:        form.country        || null,
         sector:         form.sector         || null,
@@ -457,7 +458,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         price:          toN(form.price),
         dividend_yield: toN(form.dividend_yield),
       });
-      if (pubCat === 'Fixed Income') Object.assign(base, {
+      if (cat === 'Fixed Income') Object.assign(base, {
         issuer:           form.issuer           || null,
         bond_type:        form.bond_type        || null,
         credit_rating:    form.credit_rating    || null,
@@ -474,7 +475,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         call_date:        form.call_date        || null,
         duration_years:   toN(form.duration_years),
       });
-      if (pubCat === 'ETF & Public Funds') Object.assign(base, {
+      if (cat === 'ETF & Public Funds') Object.assign(base, {
         fund_type:           form.fund_type           || null,
         fund_manager:        form.fund_manager        || null,
         asset_class_focus:   form.asset_class_focus   || null,
@@ -489,48 +490,32 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       });
       if (isEdit) await supabase.from('public_markets_positions').update(base).eq('id', form.id);
       else        await supabase.from('public_markets_positions').insert(base);
-
-    // ── CASH ────────────────────────────────────────────────────────────────
-    } else if (modal.type === 'cash') {
-      const payload = {
-        investor_id:    investor.id,
-        description:    form.description    || 'Cash',
-        source_bank:    form.source_bank    || null,
-        balance:        toN(form.balance),
-        currency:       form.currency       || 'SAR',
-        statement_date: form.statement_date || today,
-        status:         form.status         || 'active',
-      };
-      if (isEdit) await supabase.from('cash_positions').update(payload).eq('id', form.id);
-      else        await supabase.from('cash_positions').insert(payload);
     }
 
     setSaving(false); closeModal(); load();
   };
 
-  const deletePos = async (table, id) => {
+  const deletePos = async (cat, id) => {
     if (!window.confirm('Delete this position?')) return;
-    await supabase.from(table).delete().eq('id', id); load();
+    const table = cat === 'Alternatives' ? 'private_markets_positions'
+                : cat === 'Cash'         ? 'cash_positions'
+                : 'public_markets_positions';
+    await supabase.from(table).delete().eq('id', id);
+    load();
   };
 
   // ── Styles ─────────────────────────────────────────────────────────────────
-  const tabStyle = (key) => ({
-    padding:'0.45rem 1rem', borderRadius:'8px', border:'none', cursor:'pointer',
-    fontSize:'0.82rem', fontWeight:'700', fontFamily:'DM Sans, sans-serif',
-    background: tab===key ? '#003770' : 'transparent',
-    color: tab===key ? '#fff' : '#6c757d',
-  });
   const th  = { padding:'0.5rem 0.75rem', textAlign:'left', color:'#adb5bd', fontWeight:'700', fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.06em', borderBottom:'1px solid #e9ecef' };
   const td  = { padding:'0.55rem 0.75rem', fontSize:'0.83rem', color:'#212529', borderBottom:'1px solid #f8f9fa' };
   const tdr = { ...td, textAlign:'right' };
   const EB  = { background:'transparent', border:'1px solid #003770', color:'#003770', borderRadius:'5px', padding:'2px 7px', cursor:'pointer', fontSize:'0.72rem', fontWeight:'700', fontFamily:'DM Sans,sans-serif', marginRight:'5px' };
   const DB  = { background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'5px', padding:'2px 7px', cursor:'pointer', fontSize:'0.72rem', fontWeight:'700', fontFamily:'DM Sans,sans-serif' };
+  const statBadge = (s) => ({ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', fontWeight:'700', background:s==='active'?'#e8f5e9':'#f3e5f5', color:s==='active'?'#2e7d32':'#6a1b9a' });
 
+  const currentCat = CATEGORIES.find(c => c.key === tab);
+  const currentRows = rows[tab] || [];
   const modalTitle = modal
-    ? (modal.mode === 'add' ? 'Add ' : 'Edit ')
-      + (modal.type === 'private' ? 'Private Position'
-        : modal.type === 'public' ? 'Public Position'
-        : 'Cash Position')
+    ? `${modal.mode==='add'?'Add':'Edit'} ${modal.cat} Position`
     : '';
 
   return (
@@ -550,14 +535,19 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         </div>
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
           <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={onEdit}>Edit Profile</Btn>
-          {investor.status !== 'Approved'  && <Btn variant="gold"   style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id, 'Approved')}>Approve</Btn>}
-          {investor.status !== 'Suspended' && <Btn variant="danger" style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id, 'Suspended')}>Suspend</Btn>}
+          {investor.status !== 'Approved'  && <Btn variant="gold"   style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id,'Approved')}>Approve</Btn>}
+          {investor.status !== 'Suspended' && <Btn variant="danger" style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id,'Suspended')}>Suspend</Btn>}
         </div>
       </div>
 
       {/* Summary cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:'0.75rem', marginBottom:'1.25rem' }}>
-        {[['Private NAV', fmt.currency(totalCurrentNAV,'SAR')],['Total Invested', fmt.currency(totalInvested,'SAR')],['Public MV', fmt.currency(totalPublicMV,'SAR')],['Cash', fmt.currency(totalCash,'SAR')],['Distributions', fmt.currency(totalDist,'SAR')]].map(([k,v]) => (
+        {[
+          ['Private NAV',    fmt.currency(totalPrivNAV,  'SAR')],
+          ['Total Invested', fmt.currency(totalInvested, 'SAR')],
+          ['Public MV',      fmt.currency(totalPublicMV, 'SAR')],
+          ['Cash',           fmt.currency(totalCash,     'SAR')],
+        ].map(([k,v]) => (
           <Card key={k} style={{ padding:'0.85rem 1rem' }}>
             <div style={{ fontSize:'0.68rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{k}</div>
             <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{v}</div>
@@ -565,84 +555,70 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         ))}
       </div>
 
-      {/* Tab bar + Add button */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
-        <div style={{ display:'flex', gap:'0.25rem', background:'#f8f9fa', padding:'4px', borderRadius:'10px' }}>
-          <button style={tabStyle('private')}       onClick={() => setTab('private')}>Private Markets ({allPrivate.length})</button>
-          <button style={tabStyle('public')}        onClick={() => setTab('public')}>Public Markets ({pubPos.length})</button>
-          <button style={tabStyle('cash')}          onClick={() => setTab('cash')}>Cash ({cashPos.length})</button>
-          <button style={tabStyle('distributions')} onClick={() => setTab('distributions')}>Distributions ({distributions.length})</button>
-        </div>
-        <div style={{ display:'flex', gap:'0.5rem' }}>
-          {tab === 'private' && <Btn onClick={() => openAdd('private')} style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }}>+ Add Private Position</Btn>}
-          {tab === 'public'  && <Btn onClick={() => openAdd('public')}  style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }}>+ Add Public Position</Btn>}
-          {tab === 'cash'    && <Btn onClick={() => openAdd('cash')}    style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }}>+ Add Cash Position</Btn>}
-        </div>
+      {/* ── Category Cards — mirrors PositionsViewer exactly ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'1.25rem' }}>
+        {CATEGORIES.map(cat => (
+          <Card key={cat.key} onClick={() => setTab(cat.key)} style={{
+            cursor:'pointer',
+            border: tab===cat.key ? '2px solid #003770' : '2px solid transparent',
+            background: tab===cat.key ? '#f0f4fa' : '#fff',
+            transition:'all 0.15s',
+          }}>
+            <div style={{ textAlign:'center', padding:'0.75rem 0.5rem' }}>
+              <div style={{ fontSize:'1.5rem', marginBottom:'0.25rem' }}>{cat.icon}</div>
+              <div style={{ fontSize:'0.85rem', fontWeight:'600', color: tab===cat.key?'#003770':'#212529' }}>
+                {cat.label}
+              </div>
+              {!loading && (
+                <div style={{ fontSize:'0.72rem', color:'#6c757d', marginTop:'4px' }}>
+                  {(rows[cat.key]||[]).length} position{(rows[cat.key]||[]).length!==1?'s':''}
+                </div>
+              )}
+            </div>
+          </Card>
+        ))}
       </div>
 
-      {/* Tables */}
+      {/* Add button + table */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'0.75rem' }}>
+        <Btn onClick={openAdd} style={{ fontSize:'0.85rem' }}>
+          + Add {currentCat?.label} Position
+        </Btn>
+      </div>
+
       {loading ? (
         <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.9rem' }}>Loading positions...</p></Card>
       ) : (
         <Card style={{ padding:0, overflow:'hidden' }}>
 
-          {/* PRIVATE */}
-          {tab === 'private' && (
-            allPrivate.length === 0
-              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No private market positions yet.</p>
+          {/* PUBLIC EQUITIES */}
+          {tab === 'Public Equities' && (
+            currentRows.length === 0
+              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No Public Equities positions yet.</p>
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Security','Deal','Type','Qty / Units','Invested','Market Value','CCY','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Security','Ticker','ISIN','Exchange','Sector','Qty','Avg Cost','Price','Market Value','CCY','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {allPrivate.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.security_name||'—'}</td>
-                          <td style={td}>{row.deals?.name||<span style={{ color:'#adb5bd', fontStyle:'italic' }}>Unlinked</span>}</td>
-                          <td style={td}><span style={{ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', background:row.deal_id?'#e3f2fd':'#f3e5f5', color:row.deal_id?'#1565c0':'#6a1b9a', fontWeight:'700' }}>{row.deal_id?'Deal-linked':'Upload'}</span></td>
-                          <td style={tdr}>{fmt.num(row.quantity)}</td>
-                          <td style={tdr}>{row.amount_invested?fmt.currency(row.amount_invested,row.deals?.currency||row.currency||'SAR'):'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700' }}>{fmt.currency(row.market_value,row.deals?.currency||row.currency||'SAR')}</td>
-                          <td style={td}>{row.currency||row.deals?.currency||'—'}</td>
-                          <td style={td}>{fmt.date(row.statement_date)}</td>
-                          <td style={td}><span style={{ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', background:row.status==='active'?'#e8f5e9':'#f3e5f5', color:row.status==='active'?'#2e7d32':'#6a1b9a', fontWeight:'700' }}>{row.status}</span></td>
-                          <td style={td}>
-                            <button onClick={() => openEdit('private', row)} style={EB}>Edit</button>
-                            <button onClick={() => deletePos('private_markets_positions', row.id)} style={DB}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-          )}
-
-          {/* PUBLIC */}
-          {tab === 'public' && (
-            pubPos.length === 0
-              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No public market positions yet.</p>
-              : <div style={{ overflowX:'auto' }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
-                    <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Security','Ticker','ISIN','Category','Mandate','Qty','Market Value','CCY','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
-                    </tr></thead>
-                    <tbody>
-                      {pubPos.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }}>
+                      {currentRows.map(row => (
+                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
                           <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.security_name||'—'}</td>
                           <td style={{ ...td, fontFamily:'monospace', fontWeight:'700' }}>{row.ticker||'—'}</td>
-                          <td style={{ ...td, fontFamily:'monospace', fontSize:'0.75rem' }}>{row.isin||'—'}</td>
-                          <td style={td}><span style={{ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', background:'#f1f3f5', color:'#495057', fontWeight:'600' }}>{row.category||detectCat(row)}</span></td>
+                          <td style={{ ...td, fontFamily:'monospace', fontSize:'0.75rem', color:'#adb5bd' }}>{row.isin||'—'}</td>
+                          <td style={td}>{row.exchange||'—'}</td>
+                          <td style={td}>{row.sector||'—'}</td>
+                          <td style={tdr}>{row.quantity!=null?fmt.num(row.quantity):'—'}</td>
+                          <td style={tdr}>{row.avg_cost_price!=null?fmt.currency(row.avg_cost_price,row.currency):'—'}</td>
+                          <td style={tdr}>{row.price!=null?fmt.currency(row.price,row.currency):'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
+                          <td style={td}>{row.currency||'—'}</td>
                           <td style={td}>{row.mandate_type||'—'}</td>
-                          <td style={tdr}>{fmt.num(row.quantity)}</td>
-                          <td style={{ ...tdr, fontWeight:'700' }}>{fmt.currency(row.market_value,row.currency)}</td>
-                          <td style={td}>{row.currency}</td>
                           <td style={td}>{fmt.date(row.statement_date)}</td>
-                          <td style={td}><span style={{ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', background:row.status==='active'?'#e8f5e9':'#f3e5f5', color:row.status==='active'?'#2e7d32':'#6a1b9a', fontWeight:'700' }}>{row.status}</span></td>
+                          <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
                           <td style={td}>
-                            <button onClick={() => openEdit('public', row)} style={EB}>Edit</button>
-                            <button onClick={() => deletePos('public_markets_positions', row.id)} style={DB}>Delete</button>
+                            <button onClick={() => openEdit('Public Equities', row)} style={EB}>Edit</button>
+                            <button onClick={() => deletePos('Public Equities', row.id)} style={DB}>Delete</button>
                           </td>
                         </tr>
                       ))}
@@ -651,27 +627,38 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                 </div>
           )}
 
-          {/* CASH */}
-          {tab === 'cash' && (
-            cashPos.length === 0
-              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No cash positions yet.</p>
+          {/* FIXED INCOME */}
+          {tab === 'Fixed Income' && (
+            currentRows.length === 0
+              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No Fixed Income positions yet.</p>
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Description','Bank','Balance','CCY','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Security','Issuer','Type','Rating','Face Value','Coupon %','Price','Market Value','CCY','YTM %','Maturity','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {cashPos.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.description||'—'}</td>
-                          <td style={td}>{row.source_bank||'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700' }}>{fmt.currency(row.balance,row.currency)}</td>
-                          <td style={td}>{row.currency}</td>
+                      {currentRows.map(row => (
+                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
+                            {row.security_name||'—'}
+                            {row.isin && <div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}
+                          </td>
+                          <td style={td}>{row.issuer||'—'}</td>
+                          <td style={td}>{row.bond_type ? <span style={{ background:'#e8f0fe', color:'#1a56db', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.bond_type}</span> : '—'}</td>
+                          <td style={td}>{row.credit_rating ? <span style={{ background:'#fff8e1', color:'#b45309', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.credit_rating}</span> : '—'}</td>
+                          <td style={tdr}>{row.face_value!=null?fmt.currency(row.face_value,row.currency):'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{row.coupon_rate!=null?`${row.coupon_rate}%`:'—'}</td>
+                          <td style={tdr}>{row.price!=null?row.price:'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
+                          <td style={td}>{row.currency||'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{row.ytm!=null?`${row.ytm}%`:'—'}</td>
+                          <td style={td}>{row.maturity_date?fmt.date(row.maturity_date):'—'}</td>
+                          <td style={td}>{row.mandate_type||'—'}</td>
                           <td style={td}>{fmt.date(row.statement_date)}</td>
-                          <td style={td}><span style={{ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', background:row.status==='active'?'#e8f5e9':'#f3e5f5', color:row.status==='active'?'#2e7d32':'#6a1b9a', fontWeight:'700' }}>{row.status}</span></td>
+                          <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
                           <td style={td}>
-                            <button onClick={() => openEdit('cash', row)} style={EB}>Edit</button>
-                            <button onClick={() => deletePos('cash_positions', row.id)} style={DB}>Delete</button>
+                            <button onClick={() => openEdit('Fixed Income', row)} style={EB}>Edit</button>
+                            <button onClick={() => deletePos('Fixed Income', row.id)} style={DB}>Delete</button>
                           </td>
                         </tr>
                       ))}
@@ -680,32 +667,81 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                 </div>
           )}
 
-          {/* DISTRIBUTIONS */}
-          {tab === 'distributions' && (
-            distributions.length === 0
-              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No distributions yet.</p>
+          {/* ETF & PUBLIC FUNDS */}
+          {tab === 'ETF & Public Funds' && (
+            currentRows.length === 0
+              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No ETF & Public Fund positions yet.</p>
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Fund','Amount','Per Unit','Date'].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Fund Name','Ticker','Type','Manager','Asset Class','Geo Focus','Units','NAV/Unit','Market Value','CCY','TER %','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {distributions.map(d => (
-                        <tr key={d.id} style={{ background:'#fff' }}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{d.distributions?.deals?.name||'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{fmt.currency(d.amount,d.distributions?.deals?.currency||'SAR')}</td>
-                          <td style={tdr}>{fmt.currency(d.amount_per_unit,d.distributions?.deals?.currency||'SAR')}</td>
-                          <td style={td}>{fmt.date(d.distributions?.distribution_date)}</td>
+                      {currentRows.map(row => (
+                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
+                            {row.security_name||'—'}
+                            {row.isin && <div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}
+                          </td>
+                          <td style={{ ...td, fontFamily:'monospace', fontWeight:'700', color:'#6c757d' }}>{row.ticker||'—'}</td>
+                          <td style={td}>{row.fund_type ? <span style={{ background:'#f3e5f5', color:'#7b1fa2', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.fund_type}</span> : '—'}</td>
+                          <td style={td}>{row.fund_manager||'—'}</td>
+                          <td style={td}>{row.asset_class_focus||'—'}</td>
+                          <td style={td}>{row.geographic_focus||'—'}</td>
+                          <td style={tdr}>{row.quantity!=null?fmt.num(row.quantity):'—'}</td>
+                          <td style={tdr}>{row.nav_per_unit!=null?fmt.currency(row.nav_per_unit,row.currency):'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
+                          <td style={td}>{row.currency||'—'}</td>
+                          <td style={tdr}>{row.expense_ratio!=null?`${row.expense_ratio}%`:'—'}</td>
+                          <td style={td}>{row.mandate_type||'—'}</td>
+                          <td style={td}>{fmt.date(row.statement_date)}</td>
+                          <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
+                          <td style={td}>
+                            <button onClick={() => openEdit('ETF & Public Funds', row)} style={EB}>Edit</button>
+                            <button onClick={() => deletePos('ETF & Public Funds', row.id)} style={DB}>Delete</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot>
-                      <tr style={{ background:'#f8f9fa' }}>
-                        <td style={{ ...td, fontWeight:'700' }}>Total</td>
-                        <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{fmt.currency(totalDist,'SAR')}</td>
-                        <td colSpan={2} />
-                      </tr>
-                    </tfoot>
+                  </table>
+                </div>
+          )}
+
+          {/* ALTERNATIVES */}
+          {tab === 'Alternatives' && (
+            currentRows.length === 0
+              ? <p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.85rem' }}>No Alternatives positions yet.</p>
+              : <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
+                    <thead><tr style={{ background:'#f8f9fa' }}>
+                      {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','NAV / Value','CCY','MOIC','IRR %','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {currentRows.map(row => (
+                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
+                            {row.security_name||'—'}
+                            {row.deals?.name && row.deals.name !== row.security_name && <div style={{ fontSize:'0.72rem', color:'#adb5bd' }}>{row.deals.name}</div>}
+                          </td>
+                          <td style={td}>{row.strategy ? <span style={{ background:'#f1f3f5', borderRadius:'10px', padding:'2px 9px', fontSize:'0.75rem', fontWeight:'600', color:'#495057' }}>{row.strategy}</span> : '—'}</td>
+                          <td style={td}>{row.manager_gp||'—'}</td>
+                          <td style={td}>{row.fund_vehicle||'—'}</td>
+                          <td style={tdr}>{row.vintage_year||'—'}</td>
+                          <td style={tdr}>{row.commitment_amount!=null?fmt.currency(row.commitment_amount,row.deals?.currency||row.currency||'SAR'):'—'}</td>
+                          <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,row.deals?.currency||row.currency||'SAR'):'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.deals?.currency||row.currency||'SAR')}</td>
+                          <td style={td}>{row.currency||row.deals?.currency||'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color: (row.moic||0)>=1?'#003770':'#dc3545' }}>{row.moic!=null?`${row.moic.toFixed?.(2)}x`:'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color: (row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr>=0?'+':''}${row.irr}%`:'—'}</td>
+                          <td style={td}>{fmt.date(row.statement_date)}</td>
+                          <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
+                          <td style={td}>
+                            <button onClick={() => openEdit('Alternatives', row)} style={EB}>Edit</button>
+                            <button onClick={() => deletePos('Alternatives', row.id)} style={DB}>Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
           )}
@@ -715,23 +751,17 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       {/* ═══ UNIFIED ADD / EDIT MODAL ═══════════════════════════════════════ */}
       {modal && (
         <Modal title={modalTitle} onClose={closeModal} wide>
-          {/* Public: show category tabs in both add and edit */}
-          {modal.type === 'public' && (
-            <CatTabs value={pubCat} onChange={cat => { setPubCat(cat); }} />
-          )}
           <div style={{ maxHeight:'62vh', overflowY:'auto', paddingRight:'0.5rem' }}>
-            {modal.type === 'private' && (
-              <AltFields f={form} sf={setForm} deals={modal.mode === 'add' ? deals : null} />
-            )}
-            {modal.type === 'public' && pubCat === 'Public Equities'    && <EquityFields     f={form} sf={setForm} />}
-            {modal.type === 'public' && pubCat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
-            {modal.type === 'public' && pubCat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
-            {modal.type === 'cash'   && <CashFields f={form} sf={setForm} />}
+            {modal.cat === 'Public Equities'    && <EquityFields      f={form} sf={setForm} />}
+            {modal.cat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
+            {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
+            {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={modal.mode==='add'?deals:null} />}
+            {modal.cat === 'Cash'               && <CashFields        f={form} sf={setForm} />}
           </div>
           <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #f1f3f5' }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             <Btn onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : modal.mode === 'add' ? 'Add Position' : 'Save Changes'}
+              {saving ? 'Saving...' : modal.mode==='add' ? `Add ${modal.cat} Position` : 'Save Changes'}
             </Btn>
           </div>
         </Modal>
