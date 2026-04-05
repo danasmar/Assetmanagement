@@ -367,8 +367,6 @@ export default function PositionsViewer({ session, investorId }) {
     loadMeta();
   }, []);
 
-  useEffect(() => { loadPositions(); }, [activeCategory, selectedInvestor, filterStatus]);
-
   const loadPositions = async () => {
     setLoading(true);
     const cat = CATEGORIES.find((c) => c.key === activeCategory);
@@ -391,6 +389,8 @@ export default function PositionsViewer({ session, investorId }) {
     setPositions(data || []);
     setLoading(false);
   };
+
+  useEffect(() => { loadPositions(); }, [activeCategory, selectedInvestor, filterStatus]);
 
   const filtered = positions.filter((p) => {
     if (search) {
