@@ -336,6 +336,205 @@ function InlineCell({ row, col, tableName, onSaved, deals }) {
   );
 }
 
+// ─── Modal form primitives ────────────────────────────────────────────────────
+const MLS = { display:"block", fontSize:"0.78rem", fontWeight:"600", color:"#495057", marginBottom:"5px", letterSpacing:"0.04em" };
+const MFI = { width:"100%", padding:"0.6rem 0.85rem", border:"1.5px solid #dee2e6", borderRadius:"8px", fontSize:"0.9rem", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box", outline:"none" };
+const MFS = { ...MFI, background:"#fff", cursor:"pointer" };
+function MF({ label, children }) {
+  return (
+    <div style={{ marginBottom:"1rem" }}>
+      <label style={MLS}>{label}</label>
+      {children}
+    </div>
+  );
+}
+const MG2 = ({ children }) => <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 0.75rem" }}>{children}</div>;
+
+// ── Alternatives modal form — NAV/MOIC read-only for deal-linked rows ─────────
+const ALT_OPT = {
+  fundVehicle: ["LP","Co-Investment","SPV","Direct","Feeder"],
+  strategy:    ["PE Buyout","Growth Equity","Venture Capital","Real Estate","Infrastructure","Hedge Fund","Private Debt","Fund of Funds"],
+  liquidity:   ["Illiquid","Semi-Liquid","Quarterly Redemption","Monthly Redemption"],
+  mandate:     ["Advisory","Managed Account","Discretionary","Execution Only"],
+  currency:    ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"],
+  status:      ["active","closed"],
+};
+
+function AltModalFields({ formData, setFormData, deals, isEdit }) {
+  const set = (key, val) => setFormData(f => ({ ...f, [key]: val }));
+  const isDealLinked = !!formData.deal_id;
+  const linkedDeal   = deals.find(d => d.id === formData.deal_id);
+
+  // NAV / Current Value — computed from latest NAV × quantity for deal-linked
+  const latestNav    = formData._latestNav;
+  const navPerUnit   = latestNav?.nav_per_unit ?? linkedDeal?.nav_per_unit ?? null;
+  const computedNav  = isDealLinked && navPerUnit != null
+    ? (parseFloat(formData.quantity) || 0) * navPerUnit
+    : null;
+  const navDisplay   = computedNav != null
+    ? `${(linkedDeal?.currency || formData.currency || "SAR")} ${computedNav.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : formData.market_value != null ? String(formData.market_value) : "—";
+  const navHint = isDealLinked && navPerUnit != null
+    ? `Latest NAV: ${navPerUnit} per unit × ${parseFloat(formData.quantity)||0} units — update via NAV Management`
+    : isDealLinked ? "Update via NAV Management" : null;
+
+  // MOIC — from deal for deal-linked
+  const dealMoic = isDealLinked ? (linkedDeal?.moic ?? null) : null;
+
+  return (
+    <>
+      <MF label="Security / Fund Name *">
+        <input style={MFI} value={formData.security_name ?? ""} onChange={e => set("security_name", e.target.value)} />
+      </MF>
+      <MG2>
+        <MF label="Fund Vehicle">
+          <select style={MFS} value={formData.fund_vehicle ?? ""} onChange={e => set("fund_vehicle", e.target.value || null)}>
+            <option value="">—</option>
+            {ALT_OPT.fundVehicle.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+        <MF label="Strategy">
+          <select style={MFS} value={formData.strategy ?? ""} onChange={e => set("strategy", e.target.value || null)}>
+            <option value="">—</option>
+            {ALT_OPT.strategy.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Manager / GP">
+          <input style={MFI} value={formData.manager_gp ?? ""} onChange={e => set("manager_gp", e.target.value)} />
+        </MF>
+        <MF label="Vintage Year">
+          <input style={MFI} type="number" value={formData.vintage_year ?? ""} placeholder="e.g. 2024" onChange={e => set("vintage_year", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Investment Date">
+          <input style={MFI} type="date" value={formData.investment_date ?? ""} onChange={e => set("investment_date", e.target.value)} />
+        </MF>
+        <MF label="Commitment Amount">
+          <input style={MFI} type="number" value={formData.commitment_amount ?? ""} onChange={e => set("commitment_amount", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Called Capital">
+          <input style={MFI} type="number" value={formData.called_capital ?? ""} onChange={e => set("called_capital", e.target.value)} />
+        </MF>
+        <MF label="Distributions Received">
+          <input style={MFI} type="number" value={formData.distributions_paid ?? ""} onChange={e => set("distributions_paid", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Amount Invested">
+          <input style={MFI} type="number" value={formData.amount_invested ?? ""} onChange={e => set("amount_invested", e.target.value)} />
+        </MF>
+        <MF label="Quantity / Units">
+          <input style={MFI} type="number" value={formData.quantity ?? ""} onChange={e => set("quantity", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Avg Cost Price (NAV at Entry)">
+          <input style={MFI} type="number" value={formData.avg_cost_price ?? ""} onChange={e => set("avg_cost_price", e.target.value)} />
+        </MF>
+        {/* NAV / Current Value — read-only for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>NAV / Current Value</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"700", cursor:"default" }}>
+              {navDisplay}
+            </div>
+            {navHint && <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>{navHint}</div>}
+          </div>
+        ) : (
+          <MF label="NAV / Current Value">
+            <input style={MFI} type="number" value={formData.market_value ?? ""} onChange={e => set("market_value", e.target.value)} />
+          </MF>
+        )}
+      </MG2>
+      <MG2>
+        {/* MOIC — read-only for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>MOIC</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color: (dealMoic||0)>=1?"#003770":"#dc3545", fontWeight:"700", cursor:"default" }}>
+              {dealMoic != null ? `${Number(dealMoic).toFixed(2)}x` : "—"}
+            </div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="MOIC">
+            <input style={MFI} type="number" value={formData.moic ?? ""} placeholder="e.g. 1.8" onChange={e => set("moic", e.target.value)} />
+          </MF>
+        )}
+        <MF label="Net IRR %">
+          <input style={MFI} type="number" value={formData.irr ?? ""} onChange={e => set("irr", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Liquidity">
+          <select style={MFS} value={formData.liquidity ?? ""} onChange={e => set("liquidity", e.target.value || null)}>
+            <option value="">—</option>
+            {ALT_OPT.liquidity.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+        <MF label="Lock-up Period">
+          <input style={MFI} value={formData.lock_up_period ?? ""} placeholder="e.g. 3 years" onChange={e => set("lock_up_period", e.target.value)} />
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Next Valuation Date">
+          <input style={MFI} type="date" value={formData.next_valuation_date ?? ""} onChange={e => set("next_valuation_date", e.target.value)} />
+        </MF>
+        <MF label="Mandate Type">
+          <select style={MFS} value={formData.mandate_type ?? ""} onChange={e => set("mandate_type", e.target.value || null)}>
+            <option value="">—</option>
+            {ALT_OPT.mandate.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Currency">
+          <select style={MFS} value={formData.currency ?? "SAR"} onChange={e => set("currency", e.target.value)}>
+            {ALT_OPT.currency.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+        <MF label="Status">
+          <select style={MFS} value={formData.status ?? "active"} onChange={e => set("status", e.target.value)}>
+            {ALT_OPT.status.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </MF>
+      </MG2>
+      <MG2>
+        <MF label="Custodian">
+          <input style={MFI} value={formData.custodian ?? ""} onChange={e => set("custodian", e.target.value)} />
+        </MF>
+        <MF label="Statement Date">
+          <input style={MFI} type="date" value={formData.statement_date ?? ""} onChange={e => set("statement_date", e.target.value)} />
+        </MF>
+      </MG2>
+      {/* Linked deal info */}
+      {isDealLinked && (
+        <div style={{ background:"#f0f4fa", borderRadius:"8px", padding:"0.65rem 1rem", fontSize:"0.82rem", color:"#003770", marginBottom:"1rem" }}>
+          🔗 Linked deal: <strong>{linkedDeal?.name || formData.deal_id}</strong>
+        </div>
+      )}
+      {/* Deal selector — only when adding */}
+      {!isEdit && (
+        <MF label="Link to Deal (optional)">
+          <select style={MFS} value={formData.deal_id ?? ""}
+            onChange={e => {
+              const d = deals.find(x => x.id === e.target.value);
+              setFormData(f => ({ ...f, deal_id: e.target.value || null, _dealMoic: d?.moic ?? null }));
+            }}>
+            <option value="">No linked deal</option>
+            {deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </MF>
+      )}
+    </>
+  );
+}
+
 export default function PositionsViewer({ session, investorId }) {
   const [activeCategory, setActiveCategory]     = useState("Public Equities");
   const [positions, setPositions]               = useState([]);
@@ -451,10 +650,18 @@ export default function PositionsViewer({ session, investorId }) {
   };
 
   const openModal = (row = null) => {
-    if (row) { setEditingRow(row); setFormData({ ...row }); }
-    else {
+    if (row) {
+      const base = { ...row };
+      // For Alternatives deal-linked rows, inject latest NAV info and deal MOIC
+      if (activeCategory === "Alternatives" && row.deal_id) {
+        base._latestNav  = row._latestNav || null;
+        base._dealMoic   = row.deals?.moic ?? null;
+      }
+      setEditingRow(row);
+      setFormData(base);
+    } else {
       setEditingRow(null);
-      const defaults = { category: activeCategory, status: "active" };
+      const defaults = { category: activeCategory, status: "active", currency: "SAR" };
       if (selectedInvestor) defaults.investor_id = selectedInvestor;
       setFormData(defaults);
     }
@@ -466,6 +673,12 @@ export default function PositionsViewer({ session, investorId }) {
     setSaving(true);
     const cat     = CATEGORIES.find((c) => c.key === activeCategory);
     const payload = { ...formData, category: activeCategory };
+
+    // Strip internal helper fields before saving
+    delete payload._latestNav;
+    delete payload._dealMoic;
+    delete payload.deals; // joined relation, not a column
+
     const allFields = [...COMMON_FIELDS, ...(CATEGORY_FIELDS[activeCategory] || [])];
     allFields.forEach((f) => {
       if (f.type === "number" && payload[f.key] !== undefined && payload[f.key] !== "")
@@ -473,6 +686,16 @@ export default function PositionsViewer({ session, investorId }) {
       if (f.type === "number" && payload[f.key] === "")
         payload[f.key] = null;
     });
+
+    // For deal-linked Alternatives: compute market_value from latest NAV × quantity
+    if (activeCategory === "Alternatives" && payload.deal_id) {
+      const latestNav = formData._latestNav;
+      const navPerUnit = latestNav?.nav_per_unit ?? null;
+      if (navPerUnit != null) {
+        payload.market_value = (Number(payload.quantity) || 0) * navPerUnit;
+      }
+    }
+
     if (editingRow) await supabase.from(cat.table).update(payload).eq("id", editingRow.id);
     else            await supabase.from(cat.table).insert([payload]);
     setSaving(false); closeModal(); loadPositions();
@@ -605,70 +828,98 @@ export default function PositionsViewer({ session, investorId }) {
 
       {modalOpen && (
         <Modal isOpen={modalOpen} onClose={closeModal}
-          title={editingRow ? "Edit Position" : `Add ${activeCategory} Position`}
+          title={editingRow ? `Edit ${activeCategory} Position` : `Add ${activeCategory} Position`}
           actions={<>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingRow ? "Update" : "Add Position"}</Btn>
           </>}>
-          <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+          <div style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: "0.25rem" }}>
+
+            {/* Investor selector (admin-wide Positions page only) */}
             {!investorId && (
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>Investor *</label>
-                <select style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
-                  value={formData.investor_id || ""} onChange={(e) => setFormData({ ...formData, investor_id: e.target.value })}>
+              <MF label="Investor *">
+                <select style={MFS} value={formData.investor_id || ""}
+                  onChange={(e) => setFormData({ ...formData, investor_id: e.target.value })}>
                   <option value="">Select Investor...</option>
                   {investors.map((inv) => <option key={inv.id} value={inv.id}>{inv.full_name}</option>)}
                 </select>
-              </div>
+              </MF>
             )}
-            <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", margin: "1rem 0 0.75rem", borderBottom: "1px solid #eee", paddingBottom: "0.5rem" }}>
-              {activeCategory} Fields
-            </h4>
-            <div style={S.formGrid}>
-              {fields.map((field) => (
-                <div key={field.key}>
-                  {field.type === "deal_select" ? (
-                    <div style={{ marginBottom: "1rem" }}>
-                      <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>{field.label}</label>
-                      <select style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
-                        value={formData[field.key] || ""} onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
-                        <option value="">None</option>
-                        {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                      </select>
+
+            {/* Alternatives — fully custom form with NAV/MOIC read-only for deal-linked */}
+            {activeCategory === "Alternatives" && (
+              <AltModalFields
+                formData={formData}
+                setFormData={setFormData}
+                deals={deals}
+                isEdit={!!editingRow}
+              />
+            )}
+
+            {/* All other categories — generic field loop with fixed native selects */}
+            {activeCategory !== "Alternatives" && (
+              <>
+                <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", marginBottom: "0.75rem", paddingBottom: "0.4rem", borderBottom: "1px solid #eee", fontWeight: "600" }}>
+                  {activeCategory} Fields
+                </div>
+                <div style={S.formGrid}>
+                  {fields.map((field) => (
+                    <div key={field.key}>
+                      {field.type === "deal_select" ? (
+                        <MF label={field.label}>
+                          <select style={MFS} value={formData[field.key] || ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
+                            <option value="">None</option>
+                            {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
+                        </MF>
+                      ) : field.type === "select" ? (
+                        <MF label={field.label}>
+                          <select style={MFS} value={formData[field.key] || ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
+                            <option value="">—</option>
+                            {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        </MF>
+                      ) : (
+                        <MF label={field.label}>
+                          <input style={MFI}
+                            type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                            value={formData[field.key] ?? ""}
+                            placeholder={field.placeholder || ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })} />
+                        </MF>
+                      )}
                     </div>
-                  ) : field.type === "select" ? (
-                    <Select label={field.label} value={formData[field.key] || ""}
-                      onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      options={field.options.map((o) => ({ value: o, label: o }))} />
-                  ) : (
-                    <Input label={field.label}
-                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-                      value={formData[field.key] || ""}
-                      onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      placeholder={field.placeholder || ""} />
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
-            <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", margin: "1rem 0 0.75rem", borderBottom: "1px solid #eee", paddingBottom: "0.5rem" }}>
-              Common Fields
-            </h4>
-            <div style={S.formGrid}>
-              {COMMON_FIELDS.map((field) => (
-                <div key={field.key}>
-                  {field.type === "select" ? (
-                    <Select label={field.label} value={formData[field.key] || field.default || ""}
-                      onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      options={field.options.map((o) => ({ value: o, label: o }))} />
-                  ) : (
-                    <Input label={field.label + (field.required ? " *" : "")}
-                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-                      value={formData[field.key] || ""}
-                      onChange={(v) => setFormData({ ...formData, [field.key]: v })} />
-                  )}
+                <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", margin: "1rem 0 0.75rem", paddingBottom: "0.4rem", borderBottom: "1px solid #eee", fontWeight: "600" }}>
+                  Common Fields
                 </div>
-              ))}
-            </div>
+                <div style={S.formGrid}>
+                  {COMMON_FIELDS.map((field) => (
+                    <div key={field.key}>
+                      {field.type === "select" ? (
+                        <MF label={field.label + (field.required ? " *" : "")}>
+                          <select style={MFS} value={formData[field.key] || field.default || ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
+                            <option value="">—</option>
+                            {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        </MF>
+                      ) : (
+                        <MF label={field.label + (field.required ? " *" : "")}>
+                          <input style={MFI}
+                            type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                            value={formData[field.key] ?? ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })} />
+                        </MF>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
