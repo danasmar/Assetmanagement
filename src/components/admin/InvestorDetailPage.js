@@ -767,7 +767,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Security','Ticker','ISIN','Exchange','Sector','Qty','Avg Cost','Price','Market Value','CCY','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Security','Ticker','ISIN','Exchange','Sector','Qty','Avg Cost','Price','Market Value','CCY','Unrealized P&L','Div Yield %','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
@@ -803,7 +803,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Security','Issuer','Type','Rating','Face Value','Coupon %','Price','Market Value','CCY','YTM %','Maturity','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Security','Issuer','Type','Rating','Face Value','Coupon %','Price','Market Value','CCY','YTM %','Maturity','Duration','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
@@ -840,7 +840,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Fund Name','Ticker','Type','Manager','Asset Class','Geo Focus','Units','NAV/Unit','Market Value','CCY','TER %','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Fund Name','Ticker','Type','Manager','Asset Class','Geo Focus','Units','Current NAV','Market Value','CCY','Unrealized P&L','TER %','Mandate','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
@@ -877,7 +877,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','Current Value','CCY','Target MOIC','Target Net IRR %','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','Unfunded','Current Value','CCY','Target MOIC','Target Net IRR %','TVPI','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => {
