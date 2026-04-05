@@ -16,7 +16,8 @@ export default function InvestorManagement() {
   const load = async () => {
     const [{ data: inv }, { data: d }] = await Promise.all([
       supabase.from('investors').select('*').order('created_at', { ascending: false }),
-      supabase.from('deals').select('id,name,nav_per_unit'),
+      // ── moic added so InvestorDetailPage can show deal MOIC in Alternatives ──
+      supabase.from('deals').select('id,name,nav_per_unit,moic'),
     ]);
     setInvestors(inv || []);
     setDeals(d || []);
@@ -24,7 +25,11 @@ export default function InvestorManagement() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = investors.filter(i => i.full_name?.toLowerCase().includes(search.toLowerCase()) || i.email?.toLowerCase().includes(search.toLowerCase()) || i.username?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = investors.filter(i =>
+    i.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+    i.email?.toLowerCase().includes(search.toLowerCase()) ||
+    i.username?.toLowerCase().includes(search.toLowerCase())
+  );
 
   const addInvestor = async () => {
     setSaving(true);
@@ -44,14 +49,14 @@ export default function InvestorManagement() {
   const editInvestor = async () => {
     setSaving(true);
     await supabase.from('investors').update({
-      full_name: form.full_name,
-      email: form.email,
-      mobile: form.mobile,
-      country: form.country,
-      address: form.address,
-      city: form.city,
+      full_name:     form.full_name,
+      email:         form.email,
+      mobile:        form.mobile,
+      country:       form.country,
+      address:       form.address,
+      city:          form.city,
       investor_type: form.investor_type,
-      status: form.status,
+      status:        form.status,
     }).eq('id', form.id);
     setSaving(false);
     setModal(null);
@@ -75,15 +80,15 @@ export default function InvestorManagement() {
     const invPlacementFeePct = parseFloat(deal?.placement_fee) || 0;
     const invAvgCostPrice = invNavAtEntry * (1 + invPlacementFeePct / 100);
     await supabase.from('private_markets_positions').insert({
-      investor_id: selected.id,
-      deal_id: invForm.deal_id,
-      security_name: deal?.name || 'Private Investment',
-      quantity: units,
+      investor_id:    selected.id,
+      deal_id:        invForm.deal_id,
+      security_name:  deal?.name || 'Private Investment',
+      quantity:       units,
       avg_cost_price: invAvgCostPrice,
-      amount_invested: parseFloat(invForm.amount_invested) || 0,
-      market_value: units * nav,
-      currency: deal?.currency || 'SAR',
-      status: 'active',
+      amount_invested:parseFloat(invForm.amount_invested) || 0,
+      market_value:   units * nav,
+      currency:       deal?.currency || 'SAR',
+      status:         'active',
       statement_date: new Date().toISOString().slice(0, 10),
     });
     setSaving(false);
@@ -105,34 +110,53 @@ export default function InvestorManagement() {
     <div>
       <PageHeader title="Investor Management" subtitle="Manage investors, view their investments, and add or remove records"
         action={<Btn onClick={() => setModal('add')}>+ Add New Investor</Btn>} />
+
       <Card style={{ marginBottom: '1rem' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search investors..." style={{ width: '100%', padding: '0.65rem 1rem', border: '1.5px solid #dee2e6', borderRadius: '8px', fontSize: '0.9rem', outline: 'none', fontFamily: 'DM Sans,sans-serif', boxSizing: 'border-box' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search investors..."
+          style={{ width: '100%', padding: '0.65rem 1rem', border: '1.5px solid #dee2e6', borderRadius: '8px', fontSize: '0.9rem', outline: 'none', fontFamily: 'DM Sans,sans-serif', boxSizing: 'border-box' }} />
       </Card>
+
       <Card>
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}><div style={{ minWidth: "520px" }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-          <thead><tr style={{ background: '#f8f9fa' }}>{['Name', 'Username', 'Email', 'Type', 'Status', 'Actions'].map(h => <th key={h} style={{ padding: '0.75rem', textAlign: 'left', color: '#6c757d', fontWeight: '600', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>)}</tr></thead>
-          <tbody>
-            {filtered.map(inv => (
-              <tr key={inv.id} style={{ borderBottom: '1px solid #f1f3f5', cursor: 'pointer' }} onClick={() => setSelected(inv)}>
-                <td style={{ padding: '0.75rem', fontWeight: '600', color: '#003770', textDecoration: 'underline', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#C9A84C'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#003770'}
-                >{inv.full_name}</td>
-                <td style={{ padding: '0.75rem', color: '#6c757d' }}>{inv.username}</td>
-                <td style={{ padding: '0.75rem', color: '#6c757d' }}>{inv.email}</td>
-                <td style={{ padding: '0.75rem' }}><Badge label={inv.investor_type || 'Individual'} /></td>
-                <td style={{ padding: '0.75rem' }}><Badge label={inv.status} /></td>
-                <td style={{ padding: '0.75rem' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    {inv.status === 'Pending' && <Btn variant="gold" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => updateStatus(inv.id, 'Approved')}>Approve</Btn>}
-                    <Btn variant="outline" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => { setForm({ ...inv }); setModal('edit'); }}>Edit</Btn>
-                    <Btn variant="danger" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => deleteInvestor(inv)}>Delete</Btn>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div></div></Card>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={{ minWidth: "520px" }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa' }}>
+                  {['Name','Username','Email','Type','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding: '0.75rem', textAlign: 'left', color: '#6c757d', fontWeight: '600', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(inv => (
+                  <tr key={inv.id} style={{ borderBottom: '1px solid #f1f3f5', cursor: 'pointer' }} onClick={() => setSelected(inv)}>
+                    <td style={{ padding: '0.75rem', fontWeight: '600', color: '#003770', textDecoration: 'underline', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#C9A84C'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#003770'}>
+                      {inv.full_name}
+                    </td>
+                    <td style={{ padding: '0.75rem', color: '#6c757d' }}>{inv.username}</td>
+                    <td style={{ padding: '0.75rem', color: '#6c757d' }}>{inv.email}</td>
+                    <td style={{ padding: '0.75rem' }}><Badge label={inv.investor_type || 'Individual'} /></td>
+                    <td style={{ padding: '0.75rem' }}><Badge label={inv.status} /></td>
+                    <td style={{ padding: '0.75rem' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {inv.status === 'Pending' && (
+                          <Btn variant="gold" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => updateStatus(inv.id, 'Approved')}>Approve</Btn>
+                        )}
+                        <Btn variant="outline" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => { setForm({ ...inv }); setModal('edit'); }}>Edit</Btn>
+                        <Btn variant="danger"  style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => deleteInvestor(inv)}>Delete</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Card>
+
+      {/* Add Investor Modal */}
       {modal === 'add' && (
         <Modal title="Add New Investor" onClose={() => { setModal(null); setForm({}); }}>
           <Input label="Full Name" value={form.full_name || ''} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="e.g. Mohammed Al-Faisal" />
@@ -154,6 +178,8 @@ export default function InvestorManagement() {
           </div>
         </Modal>
       )}
+
+      {/* Edit Investor Modal */}
       {modal === 'edit' && (
         <Modal title="Edit Investor" onClose={() => { setModal(null); setForm({}); }}>
           <Input label="Full Name" value={form.full_name || ''} onChange={e => setForm({ ...form, full_name: e.target.value })} />
