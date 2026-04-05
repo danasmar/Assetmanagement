@@ -73,7 +73,7 @@ const G2 = ({ children }) => <div style={{ display:'grid', gridTemplateColumns:'
 function detectCat(row) {
   if (row.category && row.category !== 'Alternatives') return row.category;
   if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
-  if (row.fund_type || row.fund_manager || row.nav_per_unit != null) return 'ETF & Public Funds';
+  if (row.fund_type || row.fund_manager || row.current_nav != null) return 'ETF & Public Funds';
   return 'Public Equities';
 }
 
@@ -193,7 +193,7 @@ function ETFFields({ f, sf }) {
     </G2>
     <G2>
       <FI label="Units"                        fk="quantity"             f={f} sf={sf} type="number" />
-      <FI label="NAV per Unit"                 fk="nav_per_unit"         f={f} sf={sf} type="number" />
+      <FI label="Current NAV"                 fk="nav_per_unit"        f={f} sf={sf} type="number" />
     </G2>
     <G2>
       <FI label="Avg Cost Price"               fk="avg_cost_price"       f={f} sf={sf} type="number" />
@@ -290,7 +290,7 @@ function AltFields({ f, sf, deals, isAdd }) {
       <FI label="Quantity / Units"             fk="quantity"             f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Avg Cost Price (NAV at Entry)" fk="avg_cost_price"      f={f} sf={sf} type="number" />
+      <FI label="Avg Cost Price" fk="avg_cost_price"      f={f} sf={sf} type="number" />
       {/* Current Value — read-only for deal-linked, editable otherwise */}
       {isDealLinked ? (
         <div style={{ marginBottom:'1rem' }}>
@@ -376,9 +376,9 @@ function AltFields({ f, sf, deals, isAdd }) {
           <option value="">No linked deal</option>
           {deals && deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        {f.deal_id && linkedDeal && linkedDeal.nav_per_unit > 0 && (
+        {f.deal_id && linkedDeal && linkedDeal.current_nav > 0 && (
           <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>
-            Current NAV: <strong>{fmt.currency(linkedDeal.nav_per_unit, linkedDeal.currency||'SAR')}</strong> per unit
+            Current NAV: <strong>{fmt.currency(linkedDeal.current_nav, linkedDeal.currency||'SAR')}</strong> per unit
           </div>
         )}
       </div>
@@ -430,7 +430,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setLoading(true);
     const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,current_nav,currency,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
@@ -443,7 +443,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     if (dealIds.length > 0) {
       const { data: navData } = await supabase
         .from('nav_updates')
-        .select('deal_id, nav_per_unit, effective_date')
+        .select('deal_id, current_nav, effective_date')
         .in('deal_id', dealIds)
         .order('effective_date', { ascending: false });
       const latestNavMap = {};
@@ -469,16 +469,16 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     return (amount||0)*(r[currency]||1);
   };
 
-  // ── Latest NAV per unit — deals.nav_per_unit is kept current by NAV Management ──
+  // ── Latest NAV per unit — deals.current_nav is kept current by NAV Management ──
   const getLatestNav = (row) => {
-    return row.deals?.nav_per_unit ?? null;
+    return row.deals?.current_nav ?? null;
   };
 
   // ── Compute market value for alt rows using latest NAV ──────────────────
-  // Current Value = deals.nav_per_unit × quantity for deal-linked; market_value for unlinked
+  // Current Value = deals.current_nav × quantity for deal-linked; market_value for unlinked
   const altNavValue = (row) => {
     if (!row.deal_id) return row.market_value || 0;
-    const nav = row.deals?.nav_per_unit ?? null;
+    const nav = row.deals?.current_nav ?? null;
     if (nav == null) return row.market_value || 0;
     return (row.quantity || 0) * nav;
   };
@@ -531,9 +531,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       // For deal-linked: market_value is computed from latest NAV × quantity, NOT from the form field
       let savedMarketValue;
       if (isDealLinked) {
-        // Current Value = deals.nav_per_unit × quantity
+        // Current Value = deals.current_nav × quantity
         const linkedDeal = deals.find(d => d.id === form.deal_id);
-        const navPerUnit = linkedDeal?.nav_per_unit ?? null;
+        const navPerUnit = linkedDeal?.current_nav ?? null;
         savedMarketValue = navPerUnit != null
           ? (parseFloat(form.quantity) || 0) * navPerUnit
           : toN(form.market_value);
@@ -574,7 +574,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       // When adding deal-linked: auto-compute quantity from NAV if not provided
       if (!isEdit && form.deal_id && form.amount_invested && !form.quantity) {
         const d = deals.find(x => x.id === form.deal_id);
-        const nav = d?.nav_per_unit || 1;
+        const nav = d?.current_nav || 1;
         payload.quantity     = (parseFloat(form.amount_invested)||0) / nav;
         payload.market_value = payload.quantity * nav;
         payload.avg_cost_price = payload.avg_cost_price || nav;
@@ -852,7 +852,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                           <td style={td}>{row.asset_class_focus||'—'}</td>
                           <td style={td}>{row.geographic_focus||'—'}</td>
                           <td style={tdr}>{row.quantity!=null?fmt.num(row.quantity):'—'}</td>
-                          <td style={tdr}>{row.nav_per_unit!=null?fmt.currency(row.nav_per_unit,row.currency):'—'}</td>
+                          <td style={tdr}>{row.current_nav!=null?fmt.currency(row.current_nav,row.currency):'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
                           <td style={td}>{row.currency||'—'}</td>
                           <td style={tdr}>{row.expense_ratio!=null?`${row.expense_ratio}%`:'—'}</td>
