@@ -12,6 +12,7 @@ const CATEGORIES = [
   { key: "Fixed Income",      label: "Fixed Income",      icon: "🏦", table: "public_markets_positions" },
   { key: "ETF & Public Funds",label: "ETF & Public Funds",icon: "📊", table: "public_markets_positions" },
   { key: "Alternatives",      label: "Alternatives",      icon: "🏗️", table: "private_markets_positions" },
+  { key: "Cash & Deposits",    label: "Cash & Deposits",   icon: "💰", table: "cash_positions" },
 ];
 
 const INVESTOR_SPECIFIC_FIELDS = new Set([
@@ -597,6 +598,9 @@ export default function PositionsViewer({ session, investorId }) {
       query = supabase
         .from("private_markets_positions")
         .select("*, deals(id, name, nav_per_unit, currency, moic, liquidity, lock_up_period)");
+    } else if (activeCategory === "Cash & Deposits") {
+      // cash_positions uses balance not market_value, and has no category column
+      query = supabase.from("cash_positions").select("*");
     } else {
       query = supabase.from(cat.table).select("*").eq("category", activeCategory);
     }
@@ -666,6 +670,7 @@ export default function PositionsViewer({ session, investorId }) {
       const nav = computeField(p, "_nav_current");
       return sum + (nav ?? p.market_value ?? 0);
     }
+    if (activeCategory === "Cash & Deposits") return sum + (p.balance || 0);
     return sum + (p.market_value || 0);
   }, 0);
 
@@ -698,6 +703,26 @@ export default function PositionsViewer({ session, investorId }) {
 
   const handleSave = async () => {
     setSaving(true);
+
+    // ── Cash & Deposits — separate table and schema ──────────────────────────
+    if (activeCategory === "Cash & Deposits") {
+      const payload = {
+        investor_id:    formData.investor_id    || null,
+        description:    formData.description    || "Cash",
+        currency:       formData.currency       || "SAR",
+        balance:        formData.balance !== "" && formData.balance != null ? Number(formData.balance) : null,
+        custodian:      formData.custodian      || null,
+        source_bank:    formData.custodian      || null,
+        statement_date: formData.statement_date || null,
+        status:         formData.status         || "active",
+      };
+      if (editingRow) await supabase.from("cash_positions").update(payload).eq("id", editingRow.id);
+      else            await supabase.from("cash_positions").insert([payload]);
+      setSaving(false); closeModal(); loadPositions();
+      return;
+    }
+
+    // ── All other categories ─────────────────────────────────────────────────
     const cat     = CATEGORIES.find((c) => c.key === activeCategory);
     const payload = { ...formData, category: activeCategory };
 
@@ -733,8 +758,10 @@ export default function PositionsViewer({ session, investorId }) {
 
   const handleDelete = async (row) => {
     if (!window.confirm("Delete this position?")) return;
-    const cat = CATEGORIES.find((c) => c.key === activeCategory);
-    await supabase.from(cat.table).delete().eq("id", row.id);
+    const table = activeCategory === "Cash & Deposits" ? "cash_positions"
+                : activeCategory === "Alternatives"    ? "private_markets_positions"
+                : "public_markets_positions";
+    await supabase.from(table).delete().eq("id", row.id);
     loadPositions();
   };
 
@@ -782,7 +809,7 @@ export default function PositionsViewer({ session, investorId }) {
         </div>
         <div style={{ display: "flex", gap: "2rem", fontSize: "0.82rem", color: "#6c757d" }}>
           <span><strong>{filtered.length}</strong> positions</span>
-          <span>Total {activeCategory === "Alternatives" ? "Current Value" : "Market Value"}: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+          <span>Total {activeCategory === "Alternatives" ? "Current Value" : activeCategory === "Cash & Deposits" ? "Balance" : "Market Value"}: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
         </div>
       </Card>
 
@@ -790,6 +817,7 @@ export default function PositionsViewer({ session, investorId }) {
         <span>💡 Click any cell to edit inline.</span>
         <span><span style={{ ...S.syncBadge, marginLeft: 0 }}>synced</span> = updated across all matching securities</span>
         {activeCategory === "Alternatives" && <span>📌 Current Value = quantity × NAV per unit (from NAV Management)</span>}
+        {activeCategory === "Cash & Deposits" && <span>💰 Balance shown in original currency — convert to SAR via Assumptions</span>}
       </div>
 
       <Card style={{ overflowX: "auto" }}>
@@ -797,7 +825,50 @@ export default function PositionsViewer({ session, investorId }) {
           <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>Loading positions...</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>No positions found for {activeCategory}</div>
+
+        ) : activeCategory === "Cash & Deposits" ? (
+          /* ── Cash & Deposits table ── */
+          <table style={S.table}>
+            <thead>
+              <tr>
+                {["Client","Description","Custodian","Balance","Currency","Statement Date","Status",""].map(h => (
+                  <th key={h} style={S.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => (
+                <tr key={row.id} style={{ transition: "background 0.1s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#f8f9fa"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <td style={S.clientTd}>{getInvestorName(row.investor_id)}</td>
+                  <td style={S.td}>{row.description || "—"}</td>
+                  <td style={S.td}>{row.custodian || row.source_bank || "—"}</td>
+                  <td style={{ ...S.td, fontWeight:"700", color:"#003770", textAlign:"right" }}>
+                    {row.balance != null ? row.balance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+                  </td>
+                  <td style={S.td}>{row.currency || "—"}</td>
+                  <td style={S.td}>{row.statement_date || "—"}</td>
+                  <td style={S.td}>
+                    <span style={{ fontSize:"0.72rem", padding:"2px 7px", borderRadius:"99px", fontWeight:"700",
+                      background: row.status === "active" ? "#e8f5e9" : "#f3e5f5",
+                      color:      row.status === "active" ? "#2e7d32" : "#6a1b9a" }}>
+                      {row.status || "active"}
+                    </span>
+                  </td>
+                  <td style={S.td}>
+                    <div style={S.actions}>
+                      <button style={{ ...S.actionBtn, ...S.editBtn }}   onClick={() => openModal(row)}>Edit</button>
+                      <button style={{ ...S.actionBtn, ...S.deleteBtn }} onClick={() => handleDelete(row)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
         ) : (
+          /* ── All other categories — generic column loop ── */
           <table style={S.table}>
             <thead>
               <tr>{columns.map((col) => <th key={col.key} style={S.th}>{col.label}</th>)}<th style={S.th}>Actions</th></tr>
@@ -817,7 +888,6 @@ export default function PositionsViewer({ session, investorId }) {
                       const isPnl   = col.key === "_pnl" && val !== null;
                       const isNav   = col.key === "_nav_current";
                       const isMoic  = col.key === "_moic";
-                      // Get latest NAV date for the tooltip/sub-label
                       const navInfo = isNav && row.deal_id ? getLatestNavPerUnit(row) : null;
                       return (
                         <td key={col.key} style={{
@@ -829,14 +899,11 @@ export default function PositionsViewer({ session, investorId }) {
                         }}>
                           {display}
                           {navInfo?.date && (
-                            <div style={{ fontSize:"0.68rem", color:"#adb5bd", marginTop:"1px" }}>
-                              {navInfo.date}
-                            </div>
+                            <div style={{ fontSize:"0.68rem", color:"#adb5bd", marginTop:"1px" }}>{navInfo.date}</div>
                           )}
                         </td>
                       );
                     }
-
                     return (
                       <td key={col.key} style={S.td}>
                         <InlineCell row={row} col={col} tableName={cat.table} onSaved={loadPositions} deals={deals} />
@@ -845,7 +912,7 @@ export default function PositionsViewer({ session, investorId }) {
                   })}
                   <td style={S.td}>
                     <div style={S.actions}>
-                      <button style={{ ...S.actionBtn, ...S.editBtn }}    onClick={() => openModal(row)}>Edit</button>
+                      <button style={{ ...S.actionBtn, ...S.editBtn }}   onClick={() => openModal(row)}>Edit</button>
                       <button style={{ ...S.actionBtn, ...S.deleteBtn }} onClick={() => handleDelete(row)}>Delete</button>
                     </div>
                   </td>
@@ -886,8 +953,50 @@ export default function PositionsViewer({ session, investorId }) {
               />
             )}
 
+            {/* Cash & Deposits — simple dedicated form */}
+            {activeCategory === "Cash & Deposits" && (
+              <>
+                <MF label="Description">
+                  <input style={MFI} value={formData.description ?? ""} placeholder="e.g. Current Account"
+                    onChange={e => setFormData(f => ({ ...f, description: e.target.value }))} />
+                </MF>
+                <MF label="Custodian">
+                  <select style={MFS} value={formData.custodian ?? ""}
+                    onChange={e => setFormData(f => ({ ...f, custodian: e.target.value || null }))}>
+                    <option value="">—</option>
+                    {ALT_OPT.custodian.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </MF>
+                <MG2>
+                  <MF label="Balance">
+                    <input style={MFI} type="number" value={formData.balance ?? ""}
+                      onChange={e => setFormData(f => ({ ...f, balance: e.target.value }))} />
+                  </MF>
+                  <MF label="Currency">
+                    <select style={MFS} value={formData.currency ?? "SAR"}
+                      onChange={e => setFormData(f => ({ ...f, currency: e.target.value }))}>
+                      {ALT_OPT.currency.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </MF>
+                </MG2>
+                <MG2>
+                  <MF label="Statement Date">
+                    <input style={MFI} type="date" value={formData.statement_date ?? ""}
+                      onChange={e => setFormData(f => ({ ...f, statement_date: e.target.value }))} />
+                  </MF>
+                  <MF label="Status">
+                    <select style={MFS} value={formData.status ?? "active"}
+                      onChange={e => setFormData(f => ({ ...f, status: e.target.value }))}>
+                      <option value="active">Active</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </MF>
+                </MG2>
+              </>
+            )}
+
             {/* All other categories — generic field loop with fixed native selects */}
-            {activeCategory !== "Alternatives" && (
+            {activeCategory !== "Alternatives" && activeCategory !== "Cash & Deposits" && (
               <>
                 <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", marginBottom: "0.75rem", paddingBottom: "0.4rem", borderBottom: "1px solid #eee", fontWeight: "600" }}>
                   {activeCategory} Fields
