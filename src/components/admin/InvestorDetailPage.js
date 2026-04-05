@@ -4,6 +4,8 @@ import { Card, Badge, Btn, Modal } from "../shared";
 import { fmt } from "../../utils/formatters";
 
 // ─── Option lists — mirrors PositionsViewer exactly ──────────────────────────
+const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital'];
+
 const OPT = {
   currency:           ['SAR','USD','EUR','GBP','AED','BHD','KWD','QAR','OMR','EGP','JOD'],
   status:             ['active','closed'],
@@ -19,6 +21,7 @@ const OPT = {
   fundVehicle:        ['LP','Co-Investment','SPV','Direct','Feeder'],
   altStrategy:        ['PE Buyout','Growth Equity','Venture Capital','Real Estate','Infrastructure','Hedge Fund','Private Debt','Fund of Funds'],
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
+  custodian:          ['Bank Audi Suisse','Audi Capital'],
 };
 
 // ─── Category definitions — mirrors PositionsViewer CATEGORIES ───────────────
@@ -109,8 +112,7 @@ function EquityFields({ f, sf }) {
       <FS label="Mandate Type"         fk="mandate_type"     f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FI label="Custodian"            fk="custodian"        f={f} sf={sf} />
-      <FI label="Source Bank"          fk="source_bank"      f={f} sf={sf} />
+      <FS label="Custodian"            fk="custodian"        f={f} sf={sf} options={OPT.custodian} blank />
     </G2>
     <G2>
       <FI label="Statement Date"       fk="statement_date"   f={f} sf={sf} type="date" />
@@ -163,7 +165,7 @@ function FixedIncomeFields({ f, sf }) {
       <FS label="Mandate Type"                 fk="mandate_type"     f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FI label="Custodian"                    fk="custodian"        f={f} sf={sf} />
+      <FS label="Custodian"                    fk="custodian"        f={f} sf={sf} options={OPT.custodian} blank />
       <FI label="Portfolio Weight %"           fk="portfolio_weight" f={f} sf={sf} type="number" />
     </G2>
     <G2>
@@ -210,7 +212,7 @@ function ETFFields({ f, sf }) {
     </G2>
     <G2>
       <FS label="Currency"                     fk="currency"             f={f} sf={sf} options={OPT.currency} />
-      <FI label="Custodian"                    fk="custodian"            f={f} sf={sf} />
+      <FS label="Custodian"                    fk="custodian"            f={f} sf={sf} options={OPT.custodian} blank />
     </G2>
     <G2>
       <FI label="Statement Date"               fk="statement_date"       f={f} sf={sf} type="date" />
@@ -321,7 +323,7 @@ function AltFields({ f, sf, deals, isAdd }) {
     </G2>
     <G2>
       <FS label="Currency"                     fk="currency"             f={f} sf={sf} options={OPT.currency} />
-      <FI label="Custodian"                    fk="custodian"            f={f} sf={sf} />
+      <FS label="Custodian"                    fk="custodian"            f={f} sf={sf} options={OPT.custodian} blank />
     </G2>
     <G2>
       <FI label="Statement Date"               fk="statement_date"       f={f} sf={sf} type="date" />
@@ -364,7 +366,7 @@ function AltFields({ f, sf, deals, isAdd }) {
 function CashFields({ f, sf }) {
   return <>
     <FI label="Description"       fk="description"    f={f} sf={sf} placeholder="e.g. Current Account" />
-    <FI label="Source Bank"       fk="source_bank"    f={f} sf={sf} placeholder="e.g. Riyad Bank" />
+    <FS label="Custodian"         fk="custodian"      f={f} sf={sf} options={OPT.custodian} blank />
     <G2>
       <FI label="Balance"         fk="balance"        f={f} sf={sf} type="number" />
       <FS label="Currency"        fk="currency"       f={f} sf={sf} options={OPT.currency} />
@@ -470,6 +472,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
   const openEdit = (cat, row) => {
     const base = { ...row, category: cat };
+    // Unify source_bank → custodian so the dropdown always has a value
+    if (!base.custodian && base.source_bank) base.custodian = base.source_bank;
     // For Alternatives, inject the latest NAV per unit so the form can display it
     if (cat === 'Alternatives' && row.deal_id) {
       base._latestNavPerUnit = getLatestNav(row);
@@ -527,6 +531,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         mandate_type:        form.mandate_type          || null,
         currency:            form.currency              || 'SAR',
         custodian:           form.custodian             || null,
+        source_bank:         form.custodian             || null,  // keep source_bank in sync
         statement_date:      form.statement_date        || today,
         status:              form.status                || 'active',
         deal_id:             form.deal_id               || null,
@@ -548,7 +553,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       const payload = {
         investor_id:    investor.id,
         description:    form.description    || 'Cash',
-        source_bank:    form.source_bank    || null,
+        source_bank:    form.custodian      || null,
+        custodian:      form.custodian      || null,
         balance:        toN(form.balance),
         currency:       form.currency       || 'SAR',
         statement_date: form.statement_date || today,
@@ -569,7 +575,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         market_value:     toN(form.market_value),
         mandate_type:     form.mandate_type     || null,
         custodian:        form.custodian        || null,
-        source_bank:      form.source_bank      || null,
+        source_bank:      form.custodian         || null,
         statement_date:   form.statement_date   || today,
         portfolio_weight: toN(form.portfolio_weight),
         status:           form.status           || 'active',
