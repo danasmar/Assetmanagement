@@ -428,14 +428,17 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     return (row.quantity || 0) * nav;
   };
 
-  // Summary totals
-  const altRows      = rows['Alternatives'] || [];
-  const pubRows      = [...(rows['Public Equities']||[]), ...(rows['Fixed Income']||[]), ...(rows['ETF & Public Funds']||[])];
-  const cashRows     = rows['Cash'] || [];
-  const totalPrivNAV  = altRows.reduce((s,i) => s + toSAR(altNavValue(i), i.deals?.currency||i.currency||'SAR'), 0);
-  const totalInvested = altRows.reduce((s,i) => s + toSAR(parseFloat(i.amount_invested)||0, i.deals?.currency||i.currency||'SAR'), 0);
-  const totalPublicMV = pubRows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
-  const totalCash     = cashRows.reduce((s,c) => s + toSAR(c.balance||0, c.currency), 0);
+  // Per-category totals — each converted to SAR
+  const altRows   = rows['Alternatives']      || [];
+  const eqRows    = rows['Public Equities']   || [];
+  const fiRows    = rows['Fixed Income']      || [];
+  const etfRows   = rows['ETF & Public Funds']|| [];
+  const cashRows  = rows['Cash']              || [];
+
+  const totalEquities  = eqRows.reduce((s,p)  => s + toSAR(p.market_value||0, p.currency), 0);
+  const totalFI        = fiRows.reduce((s,p)  => s + toSAR(p.market_value||0, p.currency), 0);
+  const totalETF       = etfRows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
+  const totalAlts      = altRows.reduce((s,i) => s + toSAR(altNavValue(i), i.deals?.currency||i.currency||'SAR'), 0);
 
   const toN = v => (v===''||v==null) ? null : Number(v);
 
@@ -641,22 +644,23 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))', gap:'0.75rem', marginBottom:'1.25rem' }}>
+      {/* Summary cards — one per category, aligned above the category cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'0.5rem' }}>
         {[
-          ['Private NAV',    fmt.currency(totalPrivNAV,  'SAR')],
-          ['Total Invested', fmt.currency(totalInvested, 'SAR')],
-          ['Public MV',      fmt.currency(totalPublicMV, 'SAR')],
-          ['Cash',           fmt.currency(totalCash,     'SAR')],
+          ['Total Public Equities',    fmt.currency(totalEquities, 'SAR')],
+          ['Total Fixed Income',       fmt.currency(totalFI,       'SAR')],
+          ['Total ETF & Public Funds', fmt.currency(totalETF,      'SAR')],
+          ['Total Alternatives',       fmt.currency(totalAlts,     'SAR')],
         ].map(([k,v]) => (
-          <Card key={k} style={{ padding:'0.85rem 1rem' }}>
-            <div style={{ fontSize:'0.68rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{k}</div>
-            <div style={{ fontSize:'0.95rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{v}</div>
+          <Card key={k} style={{ padding:'0.75rem 1rem', borderBottom:'3px solid #003770' }}>
+            <div style={{ fontSize:'0.65rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{k}</div>
+            <div style={{ fontSize:'0.92rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{v}</div>
+            <div style={{ fontSize:'0.65rem', color:'#adb5bd', marginTop:'2px' }}>SAR equivalent</div>
           </Card>
         ))}
       </div>
 
-      {/* Category cards — mirrors PositionsViewer */}
+      {/* Category cards — mirrors PositionsViewer, aligned below summary cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'1.25rem' }}>
         {CATEGORIES.map(cat => (
           <Card key={cat.key} onClick={() => setTab(cat.key)} style={{
