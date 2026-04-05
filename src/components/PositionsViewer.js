@@ -1,20 +1,12 @@
 /**
  * PositionsViewer.js — Multi-category position management.
- *
- * Features:
- * - Big category cards as sole navigation (no duplicate tabs)
- * - Client name as first column
- * - "ETF & Public Funds" category
- * - Inline cell editing (Admin only)
- * - Smart sync: editing a security-level field updates ALL rows sharing the same ISIN
- *   (or Security Name if no ISIN) in the same table
+ * FIX: Alternatives NAV column now computed from nav_updates × quantity
  */
 
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { Card, Btn, Input, Select, Modal, PageHeader } from "./shared";
 
-// ─── Category Definitions ───
 const CATEGORIES = [
   { key: "Public Equities",   label: "Public Equities",   icon: "📈", table: "public_markets_positions" },
   { key: "Fixed Income",      label: "Fixed Income",      icon: "🏦", table: "public_markets_positions" },
@@ -22,7 +14,6 @@ const CATEGORIES = [
   { key: "Alternatives",      label: "Alternatives",      icon: "🏗️", table: "private_markets_positions" },
 ];
 
-// ─── Investor-specific fields — these NEVER sync across securities ───
 const INVESTOR_SPECIFIC_FIELDS = new Set([
   "investor_id", "market_value", "quantity", "mandate_type",
   "custodian", "source_bank", "statement_date", "portfolio_weight",
@@ -30,7 +21,6 @@ const INVESTOR_SPECIFIC_FIELDS = new Set([
   "nav_current", "investment_date",
 ]);
 
-// ─── Field Definitions per Category ───
 const COMMON_FIELDS = [
   { key: "security_name", label: "Security Name", type: "text", required: true },
   { key: "isin",           label: "ISIN",          type: "text" },
@@ -115,12 +105,10 @@ const CATEGORY_FIELDS = {
   "Alternatives":      ALTERNATIVES_FIELDS,
 };
 
-// ─── Build a flat field map for quick type lookup ───
 const ALL_FIELD_DEFS = [...COMMON_FIELDS, ...EQUITY_FIELDS, ...FIXED_INCOME_FIELDS, ...FUND_FIELDS, ...ALTERNATIVES_FIELDS];
 const FIELD_MAP = {};
 ALL_FIELD_DEFS.forEach((f) => { if (!FIELD_MAP[f.key]) FIELD_MAP[f.key] = f; });
 
-// ─── Table Column Definitions per Category ───
 const TABLE_COLUMNS = {
   "Public Equities": [
     { key: "_investor_name", label: "Client",         virtual: true },
@@ -179,7 +167,7 @@ const TABLE_COLUMNS = {
     { key: "commitment_amount", label: "Commitment",  fmt: true },
     { key: "called_capital",    label: "Called",      fmt: true },
     { key: "_unfunded",         label: "Unfunded",    computed: true },
-    { key: "nav_current",       label: "NAV",         fmt: true },
+    { key: "_nav_current",      label: "NAV",         computed: true },
     { key: "currency",          label: "Ccy" },
     { key: "moic",              label: "MOIC" },
     { key: "irr",               label: "IRR %" },
@@ -189,7 +177,6 @@ const TABLE_COLUMNS = {
   ],
 };
 
-// ─── Styles ───
 const S = {
   table:     { width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" },
   th:        { textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "2px solid #dee2e6", color: "#495057", fontWeight: "600", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
@@ -206,54 +193,25 @@ const S = {
   deleteBtn: { background: "#fce4ec", color: "#c62828" },
   formGrid:  { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" },
   stat:      { textAlign: "center", padding: "1rem" },
-  // Inline edit cell styles
-  editableCell: {
-    cursor: "pointer",
-    borderRadius: "4px",
-    padding: "2px 4px",
-    transition: "background 0.15s",
-  },
-  cellInput: {
-    border: "1.5px solid #003770",
-    borderRadius: "4px",
-    padding: "2px 6px",
-    fontSize: "0.82rem",
-    fontFamily: "DM Sans, sans-serif",
-    width: "100%",
-    minWidth: "80px",
-    outline: "none",
-    background: "#fff",
-  },
-  cellSelect: {
-    border: "1.5px solid #003770",
-    borderRadius: "4px",
-    padding: "2px 4px",
-    fontSize: "0.82rem",
-    fontFamily: "DM Sans, sans-serif",
-    outline: "none",
-    background: "#fff",
-    cursor: "pointer",
-  },
-  savingDot: {
-    display: "inline-block",
-    width: "6px", height: "6px",
-    borderRadius: "50%",
-    background: "#f0a500",
-    marginLeft: "4px",
-    verticalAlign: "middle",
-  },
-  syncBadge: {
-    fontSize: "0.65rem",
-    background: "#e8f5e9",
-    color: "#2e7d32",
-    borderRadius: "4px",
-    padding: "1px 5px",
-    marginLeft: "4px",
-    fontWeight: "600",
-  },
+  editableCell: { cursor: "pointer", borderRadius: "4px", padding: "2px 4px", transition: "background 0.15s" },
+  cellInput:  { border: "1.5px solid #003770", borderRadius: "4px", padding: "2px 6px", fontSize: "0.82rem", fontFamily: "DM Sans, sans-serif", width: "100%", minWidth: "80px", outline: "none", background: "#fff" },
+  cellSelect: { border: "1.5px solid #003770", borderRadius: "4px", padding: "2px 4px", fontSize: "0.82rem", fontFamily: "DM Sans, sans-serif", outline: "none", background: "#fff", cursor: "pointer" },
+  savingDot:  { display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", background: "#f0a500", marginLeft: "4px", verticalAlign: "middle" },
+  syncBadge:  { fontSize: "0.65rem", background: "#e8f5e9", color: "#2e7d32", borderRadius: "4px", padding: "1px 5px", marginLeft: "4px", fontWeight: "600" },
 };
 
-// ─── Computed Field Helpers ───
+// ── Get latest NAV per unit from nav_updates (sorted desc) ──────────────────
+function getLatestNavPerUnit(row) {
+  const updates = row.deals?.nav_updates || [];
+  if (updates.length > 0) {
+    const sorted = [...updates].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+    return { navPerUnit: sorted[0].nav_per_unit, date: sorted[0].effective_date };
+  }
+  if (row.deals?.nav_per_unit != null) return { navPerUnit: row.deals.nav_per_unit, date: null };
+  return null;
+}
+
+// ── Computed fields ──────────────────────────────────────────────────────────
 function computeField(row, key) {
   if (key === "_pnl") {
     const cost = (row.quantity || 0) * (row.avg_cost_price || 0);
@@ -261,17 +219,30 @@ function computeField(row, key) {
     return cost > 0 ? mv - cost : null;
   }
   if (key === "_unfunded") return (row.commitment_amount || 0) - (row.called_capital || 0);
+
+  // NAV / Current Value for Alternatives
+  if (key === "_nav_current") {
+    if (row.deal_id) {
+      const latest = getLatestNavPerUnit(row);
+      if (latest) return (row.quantity || 0) * latest.navPerUnit;
+      return row.market_value ?? null;
+    }
+    return row.nav_current ?? row.market_value ?? null;
+  }
+
   if (key === "_dpi") {
     const called = row.called_capital || 0;
     return called > 0 ? (row.distributions_paid || 0) / called : null;
   }
   if (key === "_rvpi") {
     const called = row.called_capital || 0;
-    return called > 0 ? (row.nav_current || 0) / called : null;
+    const nav = computeField(row, "_nav_current");
+    return called > 0 && nav != null ? nav / called : null;
   }
   if (key === "_tvpi") {
     const called = row.called_capital || 0;
-    return called > 0 ? ((row.distributions_paid || 0) + (row.nav_current || 0)) / called : null;
+    const nav = computeField(row, "_nav_current");
+    return called > 0 && nav != null ? ((row.distributions_paid || 0) + nav) / called : null;
   }
   return null;
 }
@@ -281,63 +252,42 @@ function formatVal(val, col) {
   if (col.computed) {
     const n = Number(val);
     if (isNaN(n)) return "—";
-    if (col.key === "_pnl" || col.key === "_unfunded") return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    if (["_pnl","_unfunded","_nav_current"].includes(col.key))
+      return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
     return n.toFixed(2);
   }
   if (col.fmt && typeof val === "number") return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return String(val);
 }
 
-// ─── Inline Cell Editor Component ───
 function InlineCell({ row, col, tableName, onSaved, deals }) {
   const fieldDef = FIELD_MAP[col.key];
-  const [editing, setEditing]   = useState(false);
-  const [value, setValue]       = useState(row[col.key] ?? "");
-  const [saving, setSaving]     = useState(false);
-  const [synced, setSynced]     = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue]     = useState(row[col.key] ?? "");
+  const [saving, setSaving]   = useState(false);
+  const [synced, setSynced]   = useState(false);
   const inputRef = useRef(null);
 
-  // Determine if this field syncs across securities
   const isInvestorSpecific = INVESTOR_SPECIFIC_FIELDS.has(col.key);
-
   useEffect(() => { setValue(row[col.key] ?? ""); }, [row[col.key]]);
   useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
-
-  const handleClick = () => setEditing(true);
 
   const handleSave = async () => {
     setEditing(false);
     const original = row[col.key] ?? "";
-    const newVal   = fieldDef?.type === "number" ? (value === "" ? null : Number(value)) : (value === "" ? null : value);
-
-    // No change — skip
+    const newVal = fieldDef?.type === "number" ? (value === "" ? null : Number(value)) : (value === "" ? null : value);
     if (String(newVal ?? "") === String(original ?? "")) return;
-
     setSaving(true);
-    setSynced(false);
-
-    // Always update the current row
-    const singleUpdate = { [col.key]: newVal };
-    await supabase.from(tableName).update(singleUpdate).eq("id", row.id);
-
-    // If security-level field → sync all rows with same ISIN or security_name
+    await supabase.from(tableName).update({ [col.key]: newVal }).eq("id", row.id);
     if (!isInvestorSpecific) {
       const syncPayload = { [col.key]: newVal };
-      if (row.isin) {
-        await supabase.from(tableName).update(syncPayload)
-          .eq("isin", row.isin)
-          .neq("id", row.id);
-      } else if (row.security_name) {
-        await supabase.from(tableName).update(syncPayload)
-          .eq("security_name", row.security_name)
-          .neq("id", row.id);
-      }
+      if (row.isin) await supabase.from(tableName).update(syncPayload).eq("isin", row.isin).neq("id", row.id);
+      else if (row.security_name) await supabase.from(tableName).update(syncPayload).eq("security_name", row.security_name).neq("id", row.id);
       setSynced(true);
       setTimeout(() => setSynced(false), 2500);
     }
-
     setSaving(false);
-    onSaved(); // Refresh table
+    onSaved();
   };
 
   const handleKeyDown = (e) => {
@@ -347,74 +297,56 @@ function InlineCell({ row, col, tableName, onSaved, deals }) {
 
   const displayVal = formatVal(row[col.key], col);
 
-  // Deal link column — not editable inline
   if (col.type === "deal_link") {
     const deal = deals.find((d) => d.id === row[col.key]);
     return <span>{deal ? deal.name : "—"}</span>;
   }
-
   if (!fieldDef) return <span>{displayVal}</span>;
 
-  // ── Editing mode ──
   if (editing) {
     if (fieldDef.type === "select") {
       return (
-        <select
-          ref={inputRef}
-          style={S.cellSelect}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={handleSave}
-        >
+        <select ref={inputRef} style={S.cellSelect} value={value}
+          onChange={(e) => setValue(e.target.value)} onBlur={handleSave}>
           <option value="">—</option>
           {fieldDef.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       );
     }
     return (
-      <input
-        ref={inputRef}
-        style={S.cellInput}
+      <input ref={inputRef} style={S.cellInput}
         type={fieldDef.type === "number" ? "number" : fieldDef.type === "date" ? "date" : "text"}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={handleSave}
-        onKeyDown={handleKeyDown}
-      />
+        value={value} onChange={(e) => setValue(e.target.value)}
+        onBlur={handleSave} onKeyDown={handleKeyDown} />
     );
   }
 
-  // ── Display mode ──
   return (
-    <span
-      style={S.editableCell}
-      onClick={handleClick}
+    <span style={S.editableCell} onClick={() => setEditing(true)}
       title={isInvestorSpecific ? "Click to edit (investor-specific)" : "Click to edit (syncs across all matching securities)"}
       onMouseEnter={(e) => e.currentTarget.style.background = "#eef2ff"}
-      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-    >
+      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
       {displayVal}
       {saving && <span style={S.savingDot} title="Saving..." />}
-      {synced && <span style={S.syncBadge}>synced</span>}
+      {synced  && <span style={S.syncBadge}>synced</span>}
     </span>
   );
 }
 
-// ─── Main Component ───
 export default function PositionsViewer({ session, investorId }) {
-  const [activeCategory, setActiveCategory]   = useState("Public Equities");
-  const [positions, setPositions]             = useState([]);
-  const [loading, setLoading]                 = useState(true);
-  const [search, setSearch]                   = useState("");
-  const [filterMandate, setFilterMandate]     = useState("");
-  const [filterStatus, setFilterStatus]       = useState("active");
-  const [investors, setInvestors]             = useState([]);
+  const [activeCategory, setActiveCategory]     = useState("Public Equities");
+  const [positions, setPositions]               = useState([]);
+  const [loading, setLoading]                   = useState(true);
+  const [search, setSearch]                     = useState("");
+  const [filterMandate, setFilterMandate]       = useState("");
+  const [filterStatus, setFilterStatus]         = useState("active");
+  const [investors, setInvestors]               = useState([]);
   const [selectedInvestor, setSelectedInvestor] = useState(investorId || "");
-  const [deals, setDeals]                     = useState([]);
-  const [modalOpen, setModalOpen]             = useState(false);
-  const [editingRow, setEditingRow]           = useState(null);
-  const [formData, setFormData]               = useState({});
-  const [saving, setSaving]                   = useState(false);
+  const [deals, setDeals]                       = useState([]);
+  const [modalOpen, setModalOpen]               = useState(false);
+  const [editingRow, setEditingRow]             = useState(null);
+  const [formData, setFormData]                 = useState({});
+  const [saving, setSaving]                     = useState(false);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -433,7 +365,18 @@ export default function PositionsViewer({ session, investorId }) {
   const loadPositions = async () => {
     setLoading(true);
     const cat = CATEGORIES.find((c) => c.key === activeCategory);
-    let query = supabase.from(cat.table).select("*").eq("category", activeCategory);
+
+    let query;
+    if (activeCategory === "Alternatives") {
+      // Join deals + nav_updates to compute NAV from latest published value
+      query = supabase
+        .from("private_markets_positions")
+        .select("*, deals(id, name, nav_per_unit, currency, nav_updates(nav_per_unit, effective_date))")
+        .eq("category", "Alternatives");
+    } else {
+      query = supabase.from(cat.table).select("*").eq("category", activeCategory);
+    }
+
     if (selectedInvestor) query = query.eq("investor_id", selectedInvestor);
     if (filterStatus)     query = query.eq("status", filterStatus);
     query = query.order("statement_date", { ascending: false });
@@ -458,20 +401,22 @@ export default function PositionsViewer({ session, investorId }) {
     return true;
   });
 
-  const totalMV  = filtered.reduce((sum, p) => sum + (p.market_value || 0), 0);
-  const posCount = filtered.length;
+  const totalMV = filtered.reduce((sum, p) => {
+    if (activeCategory === "Alternatives") {
+      const nav = computeField(p, "_nav_current");
+      return sum + (nav ?? p.market_value ?? 0);
+    }
+    return sum + (p.market_value || 0);
+  }, 0);
 
   const getInvestorName = (id) => {
-    if (!id) return "—";
     const inv = investors.find((i) => i.id === id);
     return inv ? inv.full_name : "—";
   };
 
   const openModal = (row = null) => {
-    if (row) {
-      setEditingRow(row);
-      setFormData({ ...row });
-    } else {
+    if (row) { setEditingRow(row); setFormData({ ...row }); }
+    else {
       setEditingRow(null);
       const defaults = { category: activeCategory, status: "active" };
       if (selectedInvestor) defaults.investor_id = selectedInvestor;
@@ -479,7 +424,6 @@ export default function PositionsViewer({ session, investorId }) {
     }
     setModalOpen(true);
   };
-
   const closeModal = () => { setModalOpen(false); setEditingRow(null); setFormData({}); };
 
   const handleSave = async () => {
@@ -493,14 +437,9 @@ export default function PositionsViewer({ session, investorId }) {
       if (f.type === "number" && payload[f.key] === "")
         payload[f.key] = null;
     });
-    if (editingRow) {
-      await supabase.from(cat.table).update(payload).eq("id", editingRow.id);
-    } else {
-      await supabase.from(cat.table).insert([payload]);
-    }
-    setSaving(false);
-    closeModal();
-    loadPositions();
+    if (editingRow) await supabase.from(cat.table).update(payload).eq("id", editingRow.id);
+    else            await supabase.from(cat.table).insert([payload]);
+    setSaving(false); closeModal(); loadPositions();
   };
 
   const handleDelete = async (row) => {
@@ -518,30 +457,18 @@ export default function PositionsViewer({ session, investorId }) {
     <div>
       <PageHeader title="Positions" subtitle="Manage investor positions across all asset categories" />
 
-      {/* Category Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
         {CATEGORIES.map((c) => (
-          <Card
-            key={c.key}
-            style={{
-              cursor: "pointer",
-              border: activeCategory === c.key ? "2px solid #003770" : "2px solid transparent",
-              transition: "all 0.15s",
-              background: activeCategory === c.key ? "#f0f4fa" : "#fff",
-            }}
-            onClick={() => setActiveCategory(c.key)}
-          >
+          <Card key={c.key} style={{ cursor: "pointer", border: activeCategory === c.key ? "2px solid #003770" : "2px solid transparent", transition: "all 0.15s", background: activeCategory === c.key ? "#f0f4fa" : "#fff" }}
+            onClick={() => setActiveCategory(c.key)}>
             <div style={S.stat}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>{c.icon}</div>
-              <div style={{ fontSize: "0.85rem", fontWeight: "600", color: activeCategory === c.key ? "#003770" : "#212529" }}>
-                {c.label}
-              </div>
+              <div style={{ fontSize: "0.85rem", fontWeight: "600", color: activeCategory === c.key ? "#003770" : "#212529" }}>{c.label}</div>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Filter Bar */}
       <Card style={{ marginBottom: "1rem" }}>
         <div style={S.filterBar}>
           <select style={S.filterSelect} value={selectedInvestor} onChange={(e) => setSelectedInvestor(e.target.value)}>
@@ -565,18 +492,17 @@ export default function PositionsViewer({ session, investorId }) {
           <Btn onClick={() => openModal()} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>+ Add Position</Btn>
         </div>
         <div style={{ display: "flex", gap: "2rem", fontSize: "0.82rem", color: "#6c757d" }}>
-          <span><strong>{posCount}</strong> positions</span>
-          <span>Total Market Value: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+          <span><strong>{filtered.length}</strong> positions</span>
+          <span>Total {activeCategory === "Alternatives" ? "NAV" : "Market Value"}: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
         </div>
       </Card>
 
-      {/* Inline edit legend */}
       <div style={{ fontSize: "0.75rem", color: "#6c757d", marginBottom: "0.75rem", display: "flex", gap: "1.5rem" }}>
         <span>💡 Click any cell to edit inline.</span>
         <span><span style={{ ...S.syncBadge, marginLeft: 0 }}>synced</span> = updated across all matching securities</span>
+        {activeCategory === "Alternatives" && <span>📌 NAV = quantity × latest published NAV per unit</span>}
       </div>
 
-      {/* Positions Table */}
       <Card style={{ overflowX: "auto" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>Loading positions...</div>
@@ -585,53 +511,50 @@ export default function PositionsViewer({ session, investorId }) {
         ) : (
           <table style={S.table}>
             <thead>
-              <tr>
-                {columns.map((col) => <th key={col.key} style={S.th}>{col.label}</th>)}
-                <th style={S.th}>Actions</th>
-              </tr>
+              <tr>{columns.map((col) => <th key={col.key} style={S.th}>{col.label}</th>)}<th style={S.th}>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map((row) => (
-                <tr
-                  key={row.id}
-                  style={{ transition: "background 0.1s" }}
+                <tr key={row.id} style={{ transition: "background 0.1s" }}
                   onMouseEnter={(e) => e.currentTarget.style.background = "#f8f9fa"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                   {columns.map((col) => {
-                    // ── Virtual: client name (never editable) ──
-                    if (col.virtual && col.key === "_investor_name") {
+                    if (col.virtual && col.key === "_investor_name")
                       return <td key={col.key} style={S.clientTd}>{getInvestorName(row.investor_id)}</td>;
-                    }
 
-                    // ── Computed columns (never editable) ──
                     if (col.computed) {
-                      const val = computeField(row, col.key);
+                      const val     = computeField(row, col.key);
                       const display = formatVal(val, col);
-                      const isPnl = col.key === "_pnl" && val !== null;
+                      const isPnl   = col.key === "_pnl" && val !== null;
+                      const isNav   = col.key === "_nav_current";
+                      // Get latest NAV date for the tooltip/sub-label
+                      const navInfo = isNav && row.deal_id ? getLatestNavPerUnit(row) : null;
                       return (
-                        <td key={col.key} style={{ ...S.td, ...(isPnl && val >= 0 ? S.pnlPos : {}), ...(isPnl && val < 0 ? S.pnlNeg : {}) }}>
+                        <td key={col.key} style={{
+                          ...S.td,
+                          ...(isPnl && val >= 0 ? S.pnlPos : {}),
+                          ...(isPnl && val <  0 ? S.pnlNeg : {}),
+                          ...(isNav             ? { fontWeight:"700", color:"#003770" } : {}),
+                        }}>
                           {display}
+                          {navInfo?.date && (
+                            <div style={{ fontSize:"0.68rem", color:"#adb5bd", marginTop:"1px" }}>
+                              {navInfo.date}
+                            </div>
+                          )}
                         </td>
                       );
                     }
 
-                    // ── Editable cells ──
                     return (
                       <td key={col.key} style={S.td}>
-                        <InlineCell
-                          row={row}
-                          col={col}
-                          tableName={cat.table}
-                          onSaved={loadPositions}
-                          deals={deals}
-                        />
+                        <InlineCell row={row} col={col} tableName={cat.table} onSaved={loadPositions} deals={deals} />
                       </td>
                     );
                   })}
                   <td style={S.td}>
                     <div style={S.actions}>
-                      <button style={{ ...S.actionBtn, ...S.editBtn }} onClick={() => openModal(row)}>Edit</button>
+                      <button style={{ ...S.actionBtn, ...S.editBtn }}    onClick={() => openModal(row)}>Edit</button>
                       <button style={{ ...S.actionBtn, ...S.deleteBtn }} onClick={() => handleDelete(row)}>Delete</button>
                     </div>
                   </td>
@@ -642,32 +565,24 @@ export default function PositionsViewer({ session, investorId }) {
         )}
       </Card>
 
-      {/* Add / Edit Modal */}
       {modalOpen && (
-        <Modal
-          isOpen={modalOpen}
-          onClose={closeModal}
+        <Modal isOpen={modalOpen} onClose={closeModal}
           title={editingRow ? "Edit Position" : `Add ${activeCategory} Position`}
           actions={<>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingRow ? "Update" : "Add Position"}</Btn>
-          </>}
-        >
+          </>}>
           <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
             {!investorId && (
               <div style={{ marginBottom: "1rem" }}>
                 <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>Investor *</label>
-                <select
-                  style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
-                  value={formData.investor_id || ""}
-                  onChange={(e) => setFormData({ ...formData, investor_id: e.target.value })}
-                >
+                <select style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
+                  value={formData.investor_id || ""} onChange={(e) => setFormData({ ...formData, investor_id: e.target.value })}>
                   <option value="">Select Investor...</option>
                   {investors.map((inv) => <option key={inv.id} value={inv.id}>{inv.full_name}</option>)}
                 </select>
               </div>
             )}
-
             <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", margin: "1rem 0 0.75rem", borderBottom: "1px solid #eee", paddingBottom: "0.5rem" }}>
               {activeCategory} Fields
             </h4>
@@ -677,35 +592,26 @@ export default function PositionsViewer({ session, investorId }) {
                   {field.type === "deal_select" ? (
                     <div style={{ marginBottom: "1rem" }}>
                       <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>{field.label}</label>
-                      <select
-                        style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
-                        value={formData[field.key] || ""}
-                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}
-                      >
+                      <select style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #dee2e6", fontSize: "0.9rem", fontFamily: "inherit" }}
+                        value={formData[field.key] || ""} onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
                         <option value="">None</option>
                         {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
                     </div>
                   ) : field.type === "select" ? (
-                    <Select
-                      label={field.label}
-                      value={formData[field.key] || ""}
+                    <Select label={field.label} value={formData[field.key] || ""}
                       onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      options={field.options.map((o) => ({ value: o, label: o }))}
-                    />
+                      options={field.options.map((o) => ({ value: o, label: o }))} />
                   ) : (
-                    <Input
-                      label={field.label}
+                    <Input label={field.label}
                       type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
                       value={formData[field.key] || ""}
                       onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      placeholder={field.placeholder || ""}
-                    />
+                      placeholder={field.placeholder || ""} />
                   )}
                 </div>
               ))}
             </div>
-
             <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6c757d", margin: "1rem 0 0.75rem", borderBottom: "1px solid #eee", paddingBottom: "0.5rem" }}>
               Common Fields
             </h4>
@@ -713,19 +619,14 @@ export default function PositionsViewer({ session, investorId }) {
               {COMMON_FIELDS.map((field) => (
                 <div key={field.key}>
                   {field.type === "select" ? (
-                    <Select
-                      label={field.label}
-                      value={formData[field.key] || field.default || ""}
+                    <Select label={field.label} value={formData[field.key] || field.default || ""}
                       onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                      options={field.options.map((o) => ({ value: o, label: o }))}
-                    />
+                      options={field.options.map((o) => ({ value: o, label: o }))} />
                   ) : (
-                    <Input
-                      label={field.label + (field.required ? " *" : "")}
+                    <Input label={field.label + (field.required ? " *" : "")}
                       type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
                       value={formData[field.key] || ""}
-                      onChange={(v) => setFormData({ ...formData, [field.key]: v })}
-                    />
+                      onChange={(v) => setFormData({ ...formData, [field.key]: v })} />
                   )}
                 </div>
               ))}
