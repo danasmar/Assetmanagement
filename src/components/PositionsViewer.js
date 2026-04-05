@@ -114,6 +114,7 @@ const TABLE_COLUMNS = {
     { key: "_investor_name", label: "Client",         virtual: true },
     { key: "security_name",  label: "Security" },
     { key: "ticker",         label: "Ticker" },
+    { key: "isin",           label: "ISIN" },
     { key: "exchange",       label: "Exchange" },
     { key: "sector",         label: "Sector" },
     { key: "quantity",       label: "Qty",            fmt: true },
@@ -123,6 +124,8 @@ const TABLE_COLUMNS = {
     { key: "currency",       label: "Ccy" },
     { key: "_pnl",           label: "Unrealized P&L", computed: true },
     { key: "dividend_yield", label: "Div Yield %" },
+    { key: "statement_date", label: "Date" },
+    { key: "status",         label: "Status" },
     { key: "mandate_type",   label: "Mandate" },
   ],
   "Fixed Income": [
@@ -139,6 +142,8 @@ const TABLE_COLUMNS = {
     { key: "ytm",            label: "YTM %" },
     { key: "maturity_date",  label: "Maturity" },
     { key: "duration_years", label: "Duration" },
+    { key: "statement_date", label: "Date" },
+    { key: "status",         label: "Status" },
     { key: "mandate_type",   label: "Mandate" },
   ],
   "ETF & Public Funds": [
@@ -155,6 +160,8 @@ const TABLE_COLUMNS = {
     { key: "currency",          label: "Ccy" },
     { key: "_pnl",              label: "Unrealized P&L", computed: true },
     { key: "expense_ratio",     label: "TER %" },
+    { key: "statement_date",    label: "Date" },
+    { key: "status",            label: "Status" },
     { key: "mandate_type",      label: "Mandate" },
   ],
   "Alternatives": [
@@ -169,10 +176,12 @@ const TABLE_COLUMNS = {
     { key: "_unfunded",         label: "Unfunded",    computed: true },
     { key: "_nav_current",      label: "Current Value", computed: true },
     { key: "currency",          label: "Ccy" },
-    { key: "_moic",             label: "MOIC",        computed: true },
+    { key: "_moic",             label: "Target MOIC", computed: true },
     { key: "irr",               label: "Target Net IRR %" },
     { key: "_tvpi",             label: "TVPI",        computed: true },
     { key: "deal_id",           label: "Linked Deal", type: "deal_link" },
+    { key: "statement_date",    label: "Date" },
+    { key: "status",            label: "Status" },
     { key: "mandate_type",      label: "Mandate" },
   ],
 };
