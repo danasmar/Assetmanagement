@@ -278,7 +278,17 @@ function AltFields({ f, sf, deals, isAdd }) {
       )}
     </G2>
     <G2>
-      <FI label="MOIC"                         fk="moic"                 f={f} sf={sf} type="number" placeholder="e.g. 1.8" />
+      {isDealLinked ? (
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={{ ...LS, color:'#6c757d' }}>MOIC</label>
+          <div style={{ ...IS, background:'#f0f4fa', border:'1.5px solid #e3ecfa', color: (f._dealMoic||0)>=1?'#003770':'#dc3545', fontWeight:'700', cursor:'default' }}>
+            {f._dealMoic != null ? `${Number(f._dealMoic).toFixed(2)}x` : '—'}
+          </div>
+          <div style={{ fontSize:'0.72rem', color:'#6c757d', marginTop:'4px' }}>Managed via Deal Management</div>
+        </div>
+      ) : (
+        <FI label="MOIC"                       fk="moic"                 f={f} sf={sf} type="number" placeholder="e.g. 1.8" />
+      )}
       <FI label="Net IRR %"                    fk="irr"                  f={f} sf={sf} type="number" />
     </G2>
     <G2>
@@ -302,7 +312,11 @@ function AltFields({ f, sf, deals, isAdd }) {
     {isAdd && (
       <div style={{ marginBottom:'1rem', paddingTop:'0.5rem', borderTop:'1px solid #f1f3f5' }}>
         <label style={LS}>Link to Deal (optional)</label>
-        <select value={f.deal_id ?? ''} onChange={e => sf(p => ({ ...p, deal_id: e.target.value || null }))}
+        <select value={f.deal_id ?? ''} onChange={e => {
+            const dealId = e.target.value || null;
+            const d = deals?.find(x => x.id === dealId);
+            sf(p => ({ ...p, deal_id: dealId, _dealMoic: d?.moic ?? null }));
+          }}
           style={{ ...IS, background:'#fff' }}>
           <option value="">No linked deal</option>
           {deals && deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -361,7 +375,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setLoading(true);
     const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,nav_updates(nav_per_unit,effective_date))').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic,nav_updates(nav_per_unit,effective_date))').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
@@ -424,6 +438,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     // For Alternatives, inject the latest NAV per unit so the form can display it
     if (cat === 'Alternatives' && row.deal_id) {
       base._latestNavPerUnit = getLatestNav(row);
+      base._dealMoic = row.deals?.moic ?? null;
     }
     setForm(base);
     setModal({ mode:'edit', cat });
@@ -803,7 +818,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                             <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,ccy):'—'}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(navVal,ccy)}</td>
                             <td style={td}>{ccy}</td>
-                            <td style={{ ...tdr, fontWeight:'700', color:(row.moic||0)>=1?'#003770':'#dc3545' }}>{row.moic!=null?`${Number(row.moic).toFixed(2)}x`:'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:((row.deal_id?row.deals?.moic:row.moic)||0)>=1?'#003770':'#dc3545' }}>{(()=>{const m=row.deal_id&&row.deals?.moic!=null?row.deals.moic:row.moic;return m!=null?`${Number(m).toFixed(2)}x`:'—';})()}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:(row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr>=0?'+':''}${row.irr}%`:'—'}</td>
                             <td style={td}>{fmt.date(row.statement_date)}</td>
                             <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
