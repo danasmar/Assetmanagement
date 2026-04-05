@@ -170,7 +170,7 @@ const TABLE_COLUMNS = {
     { key: "_nav_current",      label: "Current Value", computed: true },
     { key: "currency",          label: "Ccy" },
     { key: "_moic",             label: "MOIC",        computed: true },
-    { key: "irr",               label: "IRR %" },
+    { key: "irr",               label: "Target Net IRR %" },
     { key: "_tvpi",             label: "TVPI",        computed: true },
     { key: "deal_id",           label: "Linked Deal", type: "deal_link" },
     { key: "mandate_type",      label: "Mandate" },
@@ -388,26 +388,62 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
         <input style={MFI} value={formData.security_name ?? ""} onChange={e => set("security_name", e.target.value)} />
       </MF>
       <MG2>
-        <MF label="Fund Vehicle">
-          <select style={MFS} value={formData.fund_vehicle ?? ""} onChange={e => set("fund_vehicle", e.target.value || null)}>
-            <option value="">—</option>
-            {ALT_OPT.fundVehicle.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </MF>
-        <MF label="Strategy">
-          <select style={MFS} value={formData.strategy ?? ""} onChange={e => set("strategy", e.target.value || null)}>
-            <option value="">—</option>
-            {ALT_OPT.strategy.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </MF>
+        {/* Fund Vehicle — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Fund Vehicle</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>{linkedDeal?.fund_vehicle || "—"}</div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Fund Vehicle">
+            <select style={MFS} value={formData.fund_vehicle ?? ""} onChange={e => set("fund_vehicle", e.target.value || null)}>
+              <option value="">—</option>
+              {ALT_OPT.fundVehicle.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </MF>
+        )}
+        {/* Strategy — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Strategy</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>{linkedDeal?.strategy || "—"}</div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Strategy">
+            <select style={MFS} value={formData.strategy ?? ""} onChange={e => set("strategy", e.target.value || null)}>
+              <option value="">—</option>
+              {ALT_OPT.strategy.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </MF>
+        )}
       </MG2>
       <MG2>
-        <MF label="Manager / GP">
-          <input style={MFI} value={formData.manager_gp ?? ""} onChange={e => set("manager_gp", e.target.value)} />
-        </MF>
-        <MF label="Vintage Year">
-          <input style={MFI} type="number" value={formData.vintage_year ?? ""} placeholder="e.g. 2024" onChange={e => set("vintage_year", e.target.value)} />
-        </MF>
+        {/* Manager / GP — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Manager / GP</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>{linkedDeal?.manager_gp || "—"}</div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Manager / GP">
+            <input style={MFI} value={formData.manager_gp ?? ""} onChange={e => set("manager_gp", e.target.value)} />
+          </MF>
+        )}
+        {/* Vintage Year — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Vintage Year</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>{linkedDeal?.vintage_year || "—"}</div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Vintage Year">
+            <input style={MFI} type="number" value={formData.vintage_year ?? ""} placeholder="e.g. 2024" onChange={e => set("vintage_year", e.target.value)} />
+          </MF>
+        )}
       </MG2>
       <MG2>
         <MF label="Investment Date">
@@ -467,9 +503,20 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
             <input style={MFI} type="number" value={formData.moic ?? ""} placeholder="e.g. 1.8" onChange={e => set("moic", e.target.value)} />
           </MF>
         )}
-        <MF label="Net IRR %">
-          <input style={MFI} type="number" value={formData.irr ?? ""} onChange={e => set("irr", e.target.value)} />
-        </MF>
+        {/* Target Net IRR % — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Target Net IRR %</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>
+              {linkedDeal?.target_irr_pct != null ? `${linkedDeal.target_irr_pct}%` : "—"}
+            </div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Target Net IRR %">
+            <input style={MFI} type="number" value={formData.irr ?? ""} onChange={e => set("irr", e.target.value)} />
+          </MF>
+        )}
       </MG2>
       <MG2>
         {/* Liquidity — from deal for deal-linked */}
@@ -597,7 +644,7 @@ export default function PositionsViewer({ session, investorId }) {
       // Join deals (with moic) — nav_updates fetched separately below to avoid deep join issues
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, moic, liquidity, lock_up_period)");
+        .select("*, deals(id, name, nav_per_unit, currency, moic, liquidity, lock_up_period, strategy, fund_vehicle, manager_gp, vintage_year, target_irr_pct)");
     } else if (activeCategory === "Cash & Deposits") {
       // cash_positions uses balance not market_value, and has no category column
       query = supabase.from("cash_positions").select("*");
@@ -742,12 +789,19 @@ export default function PositionsViewer({ session, investorId }) {
         payload[f.key] = null;
     });
 
-    // For deal-linked Alternatives: compute market_value = deals.nav_per_unit × quantity
+    // For deal-linked Alternatives: auto-fill deal-level fields and compute market_value
     if (activeCategory === "Alternatives" && payload.deal_id) {
       const linkedDeal = deals.find(d => d.id === payload.deal_id);
-      const navPerUnit = linkedDeal?.nav_per_unit ?? null;
-      if (navPerUnit != null) {
-        payload.market_value = (Number(payload.quantity) || 0) * navPerUnit;
+      if (linkedDeal) {
+        payload.strategy      = linkedDeal.strategy      || payload.strategy      || null;
+        payload.fund_vehicle  = linkedDeal.fund_vehicle  || payload.fund_vehicle  || null;
+        payload.manager_gp    = linkedDeal.manager_gp    || payload.manager_gp    || null;
+        payload.vintage_year  = linkedDeal.vintage_year  || payload.vintage_year  || null;
+        payload.irr           = linkedDeal.target_irr_pct != null ? linkedDeal.target_irr_pct : (payload.irr || null);
+        const navPerUnit = linkedDeal.nav_per_unit ?? null;
+        if (navPerUnit != null) {
+          payload.market_value = (Number(payload.quantity) || 0) * navPerUnit;
+        }
       }
     }
 
