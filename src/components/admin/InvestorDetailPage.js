@@ -30,6 +30,7 @@ const CATEGORIES = [
   { key: 'Fixed Income',       label: 'Fixed Income',       icon: '🏦' },
   { key: 'ETF & Public Funds', label: 'ETF & Public Funds', icon: '📊' },
   { key: 'Alternatives',       label: 'Alternatives',       icon: '🏗️' },
+  { key: 'Cash & Deposits',    label: 'Cash & Deposits',    icon: '💰' },
 ];
 
 // ─── Reusable form atoms ─────────────────────────────────────────────────────
@@ -423,7 +424,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       'Fixed Income':       pub.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
       'ETF & Public Funds': pub.filter(r => (r.category || detectCat(r)) === 'ETF & Public Funds'),
       'Alternatives':       priv,
-      'Cash':               cashRes.data || [],
+      'Cash & Deposits':    cashRes.data || [],
     });
     setLoading(false);
   };
@@ -455,18 +456,19 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   const eqRows    = rows['Public Equities']   || [];
   const fiRows    = rows['Fixed Income']      || [];
   const etfRows   = rows['ETF & Public Funds']|| [];
-  const cashRows  = rows['Cash']              || [];
+  const cashRows  = rows['Cash & Deposits']   || [];
 
   const totalEquities  = eqRows.reduce((s,p)  => s + toSAR(p.market_value||0, p.currency), 0);
   const totalFI        = fiRows.reduce((s,p)  => s + toSAR(p.market_value||0, p.currency), 0);
   const totalETF       = etfRows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
   const totalAlts      = altRows.reduce((s,i) => s + toSAR(altNavValue(i), i.deals?.currency||i.currency||'SAR'), 0);
+  const totalCash      = cashRows.reduce((s,c)  => s + toSAR(c.balance||0, c.currency), 0);
 
   const toN = v => (v===''||v==null) ? null : Number(v);
 
   // ── Open/close modal ───────────────────────────────────────────────────────
   const openAdd = () => {
-    setForm({ status:'active', currency:'SAR', category: tab });
+    setForm({ status:'active', currency:'SAR', category: tab, balance: '' });
     setModal({ mode:'add', cat: tab });
   };
 
@@ -549,7 +551,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       if (isEdit) await supabase.from('private_markets_positions').update(payload).eq('id', form.id);
       else        await supabase.from('private_markets_positions').insert(payload);
 
-    } else if (cat === 'Cash') {
+    } else if (cat === 'Cash & Deposits') {
       const payload = {
         investor_id:    investor.id,
         description:    form.description    || 'Cash',
@@ -630,7 +632,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   const deletePos = async (cat, id) => {
     if (!window.confirm('Delete this position?')) return;
     const table = cat === 'Alternatives' ? 'private_markets_positions'
-                : cat === 'Cash'         ? 'cash_positions'
+                : cat === 'Cash & Deposits' ? 'cash_positions'
                 : 'public_markets_positions';
     await supabase.from(table).delete().eq('id', id);
     load();
@@ -673,12 +675,13 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       </div>
 
       {/* Summary cards — one per category, aligned above the category cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'0.5rem' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'1rem', marginBottom:'0.5rem' }}>
         {[
           ['Total Public Equities',    fmt.currency(totalEquities, 'SAR')],
           ['Total Fixed Income',       fmt.currency(totalFI,       'SAR')],
           ['Total ETF & Public Funds', fmt.currency(totalETF,      'SAR')],
           ['Total Alternatives',       fmt.currency(totalAlts,     'SAR')],
+          ['Total Cash & Deposits',    fmt.currency(totalCash,     'SAR')],
         ].map(([k,v]) => (
           <Card key={k} style={{ padding:'0.75rem 1rem' }}>
             <div style={{ fontSize:'0.65rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{k}</div>
@@ -688,8 +691,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         ))}
       </div>
 
-      {/* Category cards — mirrors PositionsViewer, aligned below summary cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'1.25rem' }}>
+      {/* Category cards — aligned below summary cards, 5 cols to match */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'1rem', marginBottom:'1.25rem' }}>
         {CATEGORIES.map(cat => (
           <Card key={cat.key} onClick={() => setTab(cat.key)} style={{
             cursor:'pointer',
@@ -888,7 +891,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
             {modal.cat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
             {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
             {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={deals} isAdd={modal.mode==='add'} />}
-            {modal.cat === 'Cash'               && <CashFields        f={form} sf={setForm} />}
+            {modal.cat === 'Cash & Deposits'   && <CashFields        f={form} sf={setForm} />}
           </div>
           <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #f1f3f5' }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
