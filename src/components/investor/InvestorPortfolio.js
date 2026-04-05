@@ -47,7 +47,7 @@ export default function InvestorPortfolio({ session }) {
     const load = async () => {
       const [invRes, distRes, posRes, privPosRes, cashRes, assumpRes] = await Promise.all([
         supabase.from("private_markets_positions")
-          .select("*, deals(*, nav_updates(nav_per_unit, effective_date))")
+          .select("*, deals(*, nav_updates(current_nav, effective_date))")
           .eq("investor_id", session.user.id).not("deal_id","is",null).eq("status","active"),
         supabase.from("investor_distributions")
           .select("*, distributions(deal_id, deals(currency))")
@@ -104,7 +104,7 @@ export default function InvestorPortfolio({ session }) {
   // ── AUM totals ───────────────────────────────────────────────────────────
   const privateNAV = investments.reduce((s, i) => {
     const sorted = (i.deals?.nav_updates || []).slice().sort((a,b) => new Date(b.effective_date)-new Date(a.effective_date));
-    const nav = sorted[0]?.nav_per_unit ?? i.deals?.nav_per_unit ?? 0;
+    const nav = sorted[0]?.current_nav ?? i.deals?.current_nav ?? 0;
     return s + toSAR((i.quantity || 0) * nav, i.deals?.currency, fx);
   }, 0) + displayPrivate.reduce((s,p) => s + toSAR(p.market_value||0, p.currency, fx), 0);
   const totalPublicMV   = displayByDate.reduce((s,p) => s + toSAR(p.market_value||0, p.currency, fx), 0);
@@ -336,7 +336,7 @@ export default function InvestorPortfolio({ session }) {
               ["asset_class_focus", "Asset Class",    false, false],
               ["geographic_focus",  "Geo Focus",      false, false],
               ["quantity",          "Units",          true,  true ],
-              ["nav_per_unit",      "NAV/Unit",       false, true ],
+              ["current_nav",      "Current NAV",       false, true ],
               ["avg_cost_price",    "Avg Cost",       false, true ],
               ["market_value",      "Mkt Value",      true,  true ],
               ["_perf",             "Perf %",         false, true ],
@@ -378,7 +378,7 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.td}>{pos.asset_class_focus||"—"}</td>
                     <td style={S.td}>{pos.geographic_focus||"—"}</td>
                     <td style={S.tdR}>{pos.quantity ? fmt.num(pos.quantity) : "—"}</td>
-                    <td style={S.tdR}>{pos.nav_per_unit ? fmt.currency(pos.nav_per_unit, pos.currency) : "—"}</td>
+                    <td style={S.tdR}>{pos.current_nav ? fmt.currency(pos.current_nav, pos.currency) : "—"}</td>
                     <td style={S.tdR}>{pos.avg_cost_price ? fmt.currency(pos.avg_cost_price, pos.currency) : "—"}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(mv, pos.currency)}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", ...(perf===null?{color:"#adb5bd"}:perf>=0?S.pnlPos:S.pnlNeg) }}>
@@ -406,7 +406,7 @@ export default function InvestorPortfolio({ session }) {
   const altRows = [
     ...investments.map(inv => {
       const navSorted = (inv.deals?.nav_updates||[]).slice().sort((a,b)=>new Date(b.effective_date)-new Date(a.effective_date));
-      const latestNav = navSorted[0]?.nav_per_unit ?? inv.deals?.nav_per_unit ?? 0;
+      const latestNav = navSorted[0]?.current_nav ?? inv.deals?.current_nav ?? 0;
       const latestNavDate = navSorted[0]?.effective_date || null;
       const nav     = (inv.quantity||0)*latestNav;
       const dist    = distByDeal[inv.deal_id]||0;
@@ -485,7 +485,7 @@ export default function InvestorPortfolio({ session }) {
               ["commitment_amount",   "Commitment",        true ],
               ["called_capital",      "Called",            true ],
               ["unfunded",            "Unfunded",          true ],
-              ["avg_cost_price",      "NAV at Entry",      true ],
+              ["avg_cost_price",      "Avg Cost Price",      true ],
               ["market_price",        "Current NAV",       true ],
               ["market_value",        "Mkt Value",         true ],
               ["distributions",       "Distributions",     true ],
