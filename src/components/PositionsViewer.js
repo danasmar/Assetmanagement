@@ -16,7 +16,7 @@ const CATEGORIES = [
 
 const INVESTOR_SPECIFIC_FIELDS = new Set([
   "investor_id", "market_value", "quantity", "mandate_type",
-  "custodian", "source_bank", "statement_date", "portfolio_weight",
+  "custodian", "statement_date", "portfolio_weight",
   "status", "called_capital", "commitment_amount", "distributions_paid",
   "nav_current", "investment_date",
 ]);
@@ -27,8 +27,7 @@ const COMMON_FIELDS = [
   { key: "currency",       label: "Currency",      type: "select", options: ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"] },
   { key: "market_value",   label: "Market Value",  type: "number" },
   { key: "mandate_type",   label: "Mandate Type",  type: "select", options: ["Advisory","Managed Account","Discretionary","Execution Only"] },
-  { key: "custodian",      label: "Custodian",     type: "text" },
-  { key: "source_bank",    label: "Source Bank",   type: "text" },
+  { key: "custodian",      label: "Custodian",     type: "select", options: ["Bank Audi Suisse","Audi Capital"] },
   { key: "statement_date", label: "Statement Date",type: "date" },
   { key: "portfolio_weight",label: "Portfolio Weight %", type: "number" },
   { key: "status",         label: "Status",        type: "select", options: ["active","closed"], default: "active" },
@@ -350,6 +349,8 @@ function MF({ label, children }) {
 const MG2 = ({ children }) => <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 0.75rem" }}>{children}</div>;
 
 // ── Alternatives modal form — NAV/MOIC read-only for deal-linked rows ─────────
+const CUSTODIANS = ["Bank Audi Suisse", "Audi Capital"];
+
 const ALT_OPT = {
   fundVehicle: ["LP","Co-Investment","SPV","Direct","Feeder"],
   strategy:    ["PE Buyout","Growth Equity","Venture Capital","Real Estate","Infrastructure","Hedge Fund","Private Debt","Fund of Funds"],
@@ -357,6 +358,7 @@ const ALT_OPT = {
   mandate:     ["Advisory","Managed Account","Discretionary","Execution Only"],
   currency:    ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"],
   status:      ["active","closed"],
+  custodian:   ["Bank Audi Suisse","Audi Capital"],
 };
 
 function AltModalFields({ formData, setFormData, deals, isEdit }) {
@@ -526,7 +528,10 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
       </MG2>
       <MG2>
         <MF label="Custodian">
-          <input style={MFI} value={formData.custodian ?? ""} onChange={e => set("custodian", e.target.value)} />
+          <select style={MFS} value={formData.custodian ?? ""} onChange={e => set("custodian", e.target.value || null)}>
+            <option value="">—</option>
+            {ALT_OPT.custodian.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
         </MF>
         <MF label="Statement Date">
           <input style={MFI} type="date" value={formData.statement_date ?? ""} onChange={e => set("statement_date", e.target.value)} />
@@ -672,6 +677,8 @@ export default function PositionsViewer({ session, investorId }) {
   const openModal = (row = null) => {
     if (row) {
       const base = { ...row };
+      // Unify source_bank → custodian so the dropdown always has a value
+      if (!base.custodian && base.source_bank) base.custodian = base.source_bank;
       // For Alternatives deal-linked rows, inject latest NAV info and deal MOIC
       if (activeCategory === "Alternatives" && row.deal_id) {
         base._latestNav  = row._latestNav || null;
@@ -698,6 +705,9 @@ export default function PositionsViewer({ session, investorId }) {
     delete payload._latestNav;
     delete payload._dealMoic;
     delete payload.deals; // joined relation, not a column
+
+    // Keep source_bank in sync with custodian for backward compatibility
+    if (payload.custodian !== undefined) payload.source_bank = payload.custodian;
 
     const allFields = [...COMMON_FIELDS, ...(CATEGORY_FIELDS[activeCategory] || [])];
     allFields.forEach((f) => {
