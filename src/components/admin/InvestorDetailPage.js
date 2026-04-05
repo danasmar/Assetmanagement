@@ -652,7 +652,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           ['Total ETF & Public Funds', fmt.currency(totalETF,      'SAR')],
           ['Total Alternatives',       fmt.currency(totalAlts,     'SAR')],
         ].map(([k,v]) => (
-          <Card key={k} style={{ padding:'0.75rem 1rem', borderBottom:'3px solid #003770' }}>
+          <Card key={k} style={{ padding:'0.75rem 1rem' }}>
             <div style={{ fontSize:'0.65rem', color:'#6c757d', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{k}</div>
             <div style={{ fontSize:'0.92rem', fontWeight:'700', color:'#003770', lineHeight:1.3 }}>{v}</div>
             <div style={{ fontSize:'0.65rem', color:'#adb5bd', marginTop:'2px' }}>SAR equivalent</div>
