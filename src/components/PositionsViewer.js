@@ -200,13 +200,9 @@ const S = {
   syncBadge:  { fontSize: "0.65rem", background: "#e8f5e9", color: "#2e7d32", borderRadius: "4px", padding: "1px 5px", marginLeft: "4px", fontWeight: "600" },
 };
 
-// ── Get latest NAV per unit from nav_updates (sorted desc) ──────────────────
+// ── Get latest NAV per unit — uses _latestNav attached during load, or falls back to deals.nav_per_unit ──
 function getLatestNavPerUnit(row) {
-  const updates = row.deals?.nav_updates || [];
-  if (updates.length > 0) {
-    const sorted = [...updates].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-    return { navPerUnit: sorted[0].nav_per_unit, date: sorted[0].effective_date };
-  }
+  if (row._latestNav) return { navPerUnit: row._latestNav.nav_per_unit, date: row._latestNav.effective_date };
   if (row.deals?.nav_per_unit != null) return { navPerUnit: row.deals.nav_per_unit, date: null };
   return null;
 }
@@ -373,11 +369,10 @@ export default function PositionsViewer({ session, investorId }) {
 
     let query;
     if (activeCategory === "Alternatives") {
-      // private_markets_positions is exclusively Alternatives — no category filter needed.
-      // All rows in this table are Alternatives regardless of whether category field is set.
+      // Join deals (with moic) — nav_updates fetched separately below to avoid deep join issues
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, moic, nav_updates(nav_per_unit, effective_date))");
+        .select("*, deals(id, name, nav_per_unit, currency, moic)");
     } else {
       query = supabase.from(cat.table).select("*").eq("category", activeCategory);
     }
@@ -385,8 +380,42 @@ export default function PositionsViewer({ session, investorId }) {
     if (selectedInvestor) query = query.eq("investor_id", selectedInvestor);
     if (filterStatus)     query = query.eq("status", filterStatus);
     query = query.order("statement_date", { ascending: false });
-    const { data } = await query;
-    setPositions(data || []);
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("PositionsViewer query error:", error);
+      setPositions([]);
+      setLoading(false);
+      return;
+    }
+
+    let rows = data || [];
+
+    // For Alternatives: fetch latest nav_updates per deal and attach to rows
+    if (activeCategory === "Alternatives" && rows.length > 0) {
+      const dealIds = [...new Set(rows.filter(r => r.deal_id).map(r => r.deal_id))];
+      if (dealIds.length > 0) {
+        const { data: navData } = await supabase
+          .from("nav_updates")
+          .select("deal_id, nav_per_unit, effective_date")
+          .in("deal_id", dealIds)
+          .order("effective_date", { ascending: false });
+
+        // Build map: deal_id → latest nav entry
+        const latestNavMap = {};
+        (navData || []).forEach(n => {
+          if (!latestNavMap[n.deal_id]) latestNavMap[n.deal_id] = n;
+        });
+
+        // Attach to rows as _latestNav
+        rows = rows.map(r => ({
+          ...r,
+          _latestNav: r.deal_id ? latestNavMap[r.deal_id] || null : null,
+        }));
+      }
+    }
+
+    setPositions(rows);
     setLoading(false);
   };
 
