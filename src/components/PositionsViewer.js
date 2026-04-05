@@ -89,7 +89,7 @@ const ALTERNATIVES_FIELDS = [
   { key: "commitment_amount",   label: "Commitment Amount",   type: "number" },
   { key: "called_capital",      label: "Called Capital",      type: "number" },
   { key: "distributions_paid",  label: "Distributions Received", type: "number" },
-  { key: "nav_current",         label: "NAV / Current Value", type: "number" },
+  { key: "nav_current",         label: "Current Value", type: "number" },
   { key: "moic",                label: "MOIC",                type: "number", placeholder: "e.g. 1.8" },
   { key: "irr",                 label: "Net IRR %",           type: "number" },
   { key: "liquidity",           label: "Liquidity",           type: "select", options: ["Illiquid","Semi-Liquid","Quarterly Redemption","Monthly Redemption"] },
@@ -167,7 +167,7 @@ const TABLE_COLUMNS = {
     { key: "commitment_amount", label: "Commitment",  fmt: true },
     { key: "called_capital",    label: "Called",      fmt: true },
     { key: "_unfunded",         label: "Unfunded",    computed: true },
-    { key: "_nav_current",      label: "NAV",         computed: true },
+    { key: "_nav_current",      label: "Current Value", computed: true },
     { key: "currency",          label: "Ccy" },
     { key: "_moic",             label: "MOIC",        computed: true },
     { key: "irr",               label: "IRR %" },
@@ -200,9 +200,8 @@ const S = {
   syncBadge:  { fontSize: "0.65rem", background: "#e8f5e9", color: "#2e7d32", borderRadius: "4px", padding: "1px 5px", marginLeft: "4px", fontWeight: "600" },
 };
 
-// ── Get latest NAV per unit — uses _latestNav attached during load, or falls back to deals.nav_per_unit ──
+// ── Get latest NAV per unit — deals.nav_per_unit is always kept current by NAV Management ──
 function getLatestNavPerUnit(row) {
-  if (row._latestNav) return { navPerUnit: row._latestNav.nav_per_unit, date: row._latestNav.effective_date };
   if (row.deals?.nav_per_unit != null) return { navPerUnit: row.deals.nav_per_unit, date: null };
   return null;
 }
@@ -222,7 +221,7 @@ function computeField(row, key) {
     return row.moic ?? null;
   }
 
-  // NAV / Current Value for Alternatives
+  // Current Value for Alternatives
   if (key === "_nav_current") {
     if (row.deal_id) {
       const latest = getLatestNavPerUnit(row);
@@ -365,9 +364,8 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
   const isDealLinked = !!formData.deal_id;
   const linkedDeal   = deals.find(d => d.id === formData.deal_id);
 
-  // NAV / Current Value — computed from latest NAV × quantity for deal-linked
-  const latestNav    = formData._latestNav;
-  const navPerUnit   = latestNav?.nav_per_unit ?? linkedDeal?.nav_per_unit ?? null;
+  // Current Value — deals.nav_per_unit × quantity (NAV Management keeps deals.nav_per_unit current)
+  const navPerUnit   = linkedDeal?.nav_per_unit ?? null;
   const computedNav  = isDealLinked && navPerUnit != null
     ? (parseFloat(formData.quantity) || 0) * navPerUnit
     : null;
@@ -375,8 +373,8 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
     ? `${(linkedDeal?.currency || formData.currency || "SAR")} ${computedNav.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
     : formData.market_value != null ? String(formData.market_value) : "—";
   const navHint = isDealLinked && navPerUnit != null
-    ? `Latest NAV: ${navPerUnit} per unit × ${parseFloat(formData.quantity)||0} units — update via NAV Management`
-    : isDealLinked ? "Update via NAV Management" : null;
+    ? `Latest NAV: ${navPerUnit} per unit × ${parseFloat(formData.quantity)||0} units — update via NAV Management page`
+    : isDealLinked ? "Controlled by NAV Management page" : null;
 
   // MOIC — from deal for deal-linked
   const dealMoic = isDealLinked ? (linkedDeal?.moic ?? null) : null;
@@ -436,17 +434,17 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
         <MF label="Avg Cost Price (NAV at Entry)">
           <input style={MFI} type="number" value={formData.avg_cost_price ?? ""} onChange={e => set("avg_cost_price", e.target.value)} />
         </MF>
-        {/* NAV / Current Value — read-only for deal-linked */}
+        {/* Current Value — read-only for deal-linked */}
         {isDealLinked ? (
           <div style={{ marginBottom:"1rem" }}>
-            <label style={{ ...MLS, color:"#6c757d" }}>NAV / Current Value</label>
+            <label style={{ ...MLS, color:"#6c757d" }}>Current Value</label>
             <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"700", cursor:"default" }}>
               {navDisplay}
             </div>
             {navHint && <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>{navHint}</div>}
           </div>
         ) : (
-          <MF label="NAV / Current Value">
+          <MF label="Current Value">
             <input style={MFI} type="number" value={formData.market_value ?? ""} onChange={e => set("market_value", e.target.value)} />
           </MF>
         )}
@@ -687,10 +685,10 @@ export default function PositionsViewer({ session, investorId }) {
         payload[f.key] = null;
     });
 
-    // For deal-linked Alternatives: compute market_value from latest NAV × quantity
+    // For deal-linked Alternatives: compute market_value = deals.nav_per_unit × quantity
     if (activeCategory === "Alternatives" && payload.deal_id) {
-      const latestNav = formData._latestNav;
-      const navPerUnit = latestNav?.nav_per_unit ?? null;
+      const linkedDeal = deals.find(d => d.id === payload.deal_id);
+      const navPerUnit = linkedDeal?.nav_per_unit ?? null;
       if (navPerUnit != null) {
         payload.market_value = (Number(payload.quantity) || 0) * navPerUnit;
       }
@@ -752,14 +750,14 @@ export default function PositionsViewer({ session, investorId }) {
         </div>
         <div style={{ display: "flex", gap: "2rem", fontSize: "0.82rem", color: "#6c757d" }}>
           <span><strong>{filtered.length}</strong> positions</span>
-          <span>Total {activeCategory === "Alternatives" ? "NAV" : "Market Value"}: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+          <span>Total {activeCategory === "Alternatives" ? "Current Value" : "Market Value"}: <strong>{totalMV.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
         </div>
       </Card>
 
       <div style={{ fontSize: "0.75rem", color: "#6c757d", marginBottom: "0.75rem", display: "flex", gap: "1.5rem" }}>
         <span>💡 Click any cell to edit inline.</span>
         <span><span style={{ ...S.syncBadge, marginLeft: 0 }}>synced</span> = updated across all matching securities</span>
-        {activeCategory === "Alternatives" && <span>📌 NAV = quantity × latest published NAV per unit</span>}
+        {activeCategory === "Alternatives" && <span>📌 Current Value = quantity × NAV per unit (from NAV Management)</span>}
       </div>
 
       <Card style={{ overflowX: "auto" }}>
