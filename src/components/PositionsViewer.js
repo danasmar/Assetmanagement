@@ -169,7 +169,7 @@ const TABLE_COLUMNS = {
     { key: "_unfunded",         label: "Unfunded",    computed: true },
     { key: "_nav_current",      label: "NAV",         computed: true },
     { key: "currency",          label: "Ccy" },
-    { key: "moic",              label: "MOIC" },
+    { key: "_moic",             label: "MOIC",        computed: true },
     { key: "irr",               label: "IRR %" },
     { key: "_tvpi",             label: "TVPI",        computed: true },
     { key: "deal_id",           label: "Linked Deal", type: "deal_link" },
@@ -220,6 +220,12 @@ function computeField(row, key) {
   }
   if (key === "_unfunded") return (row.commitment_amount || 0) - (row.called_capital || 0);
 
+  // MOIC — prefer linked deal's MOIC, fall back to position-level moic
+  if (key === "_moic") {
+    if (row.deal_id && row.deals?.moic != null) return row.deals.moic;
+    return row.moic ?? null;
+  }
+
   // NAV / Current Value for Alternatives
   if (key === "_nav_current") {
     if (row.deal_id) {
@@ -254,6 +260,7 @@ function formatVal(val, col) {
     if (isNaN(n)) return "—";
     if (["_pnl","_unfunded","_nav_current"].includes(col.key))
       return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    if (col.key === "_moic") return `${n.toFixed(2)}x`;
     return n.toFixed(2);
   }
   if (col.fmt && typeof val === "number") return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -371,7 +378,7 @@ export default function PositionsViewer({ session, investorId }) {
       // Join deals + nav_updates to compute NAV from latest published value
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, nav_updates(nav_per_unit, effective_date))")
+        .select("*, deals(id, name, nav_per_unit, currency, moic, nav_updates(nav_per_unit, effective_date))")
         .eq("category", "Alternatives");
     } else {
       query = supabase.from(cat.table).select("*").eq("category", activeCategory);
@@ -527,6 +534,7 @@ export default function PositionsViewer({ session, investorId }) {
                       const display = formatVal(val, col);
                       const isPnl   = col.key === "_pnl" && val !== null;
                       const isNav   = col.key === "_nav_current";
+                      const isMoic  = col.key === "_moic";
                       // Get latest NAV date for the tooltip/sub-label
                       const navInfo = isNav && row.deal_id ? getLatestNavPerUnit(row) : null;
                       return (
@@ -535,6 +543,7 @@ export default function PositionsViewer({ session, investorId }) {
                           ...(isPnl && val >= 0 ? S.pnlPos : {}),
                           ...(isPnl && val <  0 ? S.pnlNeg : {}),
                           ...(isNav             ? { fontWeight:"700", color:"#003770" } : {}),
+                          ...(isMoic && val != null ? { fontWeight:"700", color: val >= 1 ? "#003770" : "#dc3545" } : {}),
                         }}>
                           {display}
                           {navInfo?.date && (
