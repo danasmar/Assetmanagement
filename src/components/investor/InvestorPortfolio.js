@@ -435,8 +435,8 @@ export default function InvestorPortfolio({ session }) {
         market_price_date:   latestNavDate,
         market_value:        nav,
         distributions:       dist,
-        moic:                inv.moic || null,
-        irr:                 inv.irr  || null,
+        moic:                inv.deals?.moic ?? null,
+        irr:                 inv.deals?.target_irr_pct ?? inv.irr ?? null,
         tvpi,
         currency:            inv.deals?.currency || inv.currency || "SAR",
       };
