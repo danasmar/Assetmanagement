@@ -375,11 +375,11 @@ export default function PositionsViewer({ session, investorId }) {
 
     let query;
     if (activeCategory === "Alternatives") {
-      // Join deals + nav_updates to compute NAV from latest published value
+      // private_markets_positions is exclusively Alternatives — no category filter needed.
+      // All rows in this table are Alternatives regardless of whether category field is set.
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, moic, nav_updates(nav_per_unit, effective_date))")
-        .eq("category", "Alternatives");
+        .select("*, deals(id, name, nav_per_unit, currency, moic, nav_updates(nav_per_unit, effective_date))");
     } else {
       query = supabase.from(cat.table).select("*").eq("category", activeCategory);
     }
