@@ -49,6 +49,7 @@ export default function DealManagement() {
     distribution_frequency: 'Quarterly',
     currency: 'SAR',
     target_irr: '',
+    moic: '',
     closing_date: '',
     description: '',
     investment_thesis: '',
@@ -60,7 +61,7 @@ export default function DealManagement() {
   const save = async () => {
     setSaving(true);
     const data = { ...form };
-    ['target_raise', 'total_fund_size', 'amount_raised', 'min_investment', 'total_units', 'distribution_pct'].forEach(k => {
+    ['target_raise', 'total_fund_size', 'amount_raised', 'min_investment', 'total_units', 'distribution_pct', 'moic'].forEach(k => {
       if (data[k]) data[k] = parseFloat(data[k]) || 0;
     });
     if (modal === 'new') await supabase.from('deals').insert(data);
@@ -123,6 +124,23 @@ export default function DealManagement() {
             <DistributionPctInput form={form} setForm={setForm} />
             {f('distribution_frequency', 'Distribution Frequency', 'select', ['Monthly', 'Quarterly', 'Semi-Annually', 'Yearly', 'No Distributions'])}
             <IrrInput form={form} setForm={setForm} />
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#495057', marginBottom: '5px', letterSpacing: '0.04em' }}>Target MOIC</label>
+              <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                <input type="text" inputMode="decimal"
+                  value={form.moic || ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                    const parts = raw.split('.');
+                    const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0, 2) : raw;
+                    setForm(f => ({ ...f, moic: formatted }));
+                  }}
+                  placeholder="e.g. 1.80"
+                  style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', background: 'transparent' }}
+                />
+                <span style={{ padding: '0.6rem 0.75rem', background: '#f1f3f5', color: '#6c757d', fontSize: '0.82rem', fontWeight: '700', borderLeft: '1.5px solid #dee2e6' }}>x</span>
+              </div>
+            </div>
             <DateInput fieldKey="closing_date" label="Closing Date" form={form} setForm={setForm} />
           </div>
 
