@@ -29,16 +29,25 @@ const CATEGORIES = [
   { key: 'Alternatives',       label: 'Alternatives',       icon: '🏗️' },
 ];
 
-// ─── Tiny reusable form atoms ────────────────────────────────────────────────
+// ─── Reusable form atoms ─────────────────────────────────────────────────────
 const LS = { display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#495057', marginBottom:'5px', letterSpacing:'0.04em' };
 const IS = { width:'100%', padding:'0.6rem 0.85rem', border:'1.5px solid #dee2e6', borderRadius:'8px', fontSize:'0.9rem', fontFamily:'DM Sans,sans-serif', boxSizing:'border-box', outline:'none' };
 
-function FI({ label, fk, f, sf, type='text', placeholder='' }) {
+function FI({ label, fk, f, sf, type='text', placeholder='', readOnly=false, hint=null }) {
   return (
     <div style={{ marginBottom:'1rem' }}>
-      <label style={LS}>{label}</label>
-      <input type={type} value={f[fk] ?? ''} placeholder={placeholder}
-        onChange={e => sf(p => ({ ...p, [fk]: e.target.value }))} style={IS} />
+      <label style={{ ...LS, color: readOnly ? '#6c757d' : '#495057' }}>{label}</label>
+      {readOnly ? (
+        <div>
+          <div style={{ ...IS, background:'#f8f9fa', border:'1.5px solid #f1f3f5', color:'#003770', fontWeight:'700', cursor:'default' }}>
+            {f[fk] != null && f[fk] !== '' ? f[fk] : '—'}
+          </div>
+          {hint && <div style={{ fontSize:'0.72rem', color:'#6c757d', marginTop:'4px' }}>{hint}</div>}
+        </div>
+      ) : (
+        <input type={type} value={f[fk] ?? ''} placeholder={placeholder}
+          onChange={e => sf(p => ({ ...p, [fk]: e.target.value }))} style={IS} />
+      )}
     </div>
   );
 }
@@ -56,48 +65,56 @@ function FS({ label, fk, f, sf, options, blank=false }) {
 }
 const G2 = ({ children }) => <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 0.75rem' }}>{children}</div>;
 
+// ─── Detect category from a public_markets_positions row ──────────────────────
+function detectCat(row) {
+  if (row.category && row.category !== 'Alternatives') return row.category;
+  if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
+  if (row.fund_type || row.fund_manager || row.nav_per_unit != null) return 'ETF & Public Funds';
+  return 'Public Equities';
+}
+
 // ════════════════════════════════════════════════════════════════════════════
-// FIELD FORMS — one per category, used by both Add and Edit
+// FIELD FORMS
 // ════════════════════════════════════════════════════════════════════════════
 
 function EquityFields({ f, sf }) {
   return <>
-    <FI label="Security Name *"        fk="security_name"   f={f} sf={sf} />
+    <FI label="Security Name *"        fk="security_name"    f={f} sf={sf} />
     <G2>
-      <FI label="Ticker"               fk="ticker"          f={f} sf={sf} placeholder="e.g. 2222.SR" />
-      <FI label="ISIN"                 fk="isin"            f={f} sf={sf} placeholder="e.g. SA0007879782" />
+      <FI label="Ticker"               fk="ticker"           f={f} sf={sf} placeholder="e.g. 2222.SR" />
+      <FI label="ISIN"                 fk="isin"             f={f} sf={sf} placeholder="e.g. SA0007879782" />
     </G2>
     <G2>
-      <FI label="Exchange"             fk="exchange"        f={f} sf={sf} placeholder="e.g. NYSE, TADAWUL, LSE" />
-      <FI label="Country"              fk="country"         f={f} sf={sf} />
+      <FI label="Exchange"             fk="exchange"         f={f} sf={sf} placeholder="e.g. NYSE, TADAWUL, LSE" />
+      <FI label="Country"              fk="country"          f={f} sf={sf} />
     </G2>
     <G2>
-      <FS label="Sector"               fk="sector"          f={f} sf={sf} options={OPT.sector} blank />
-      <FI label="Industry"             fk="industry"        f={f} sf={sf} />
+      <FS label="Sector"               fk="sector"           f={f} sf={sf} options={OPT.sector} blank />
+      <FI label="Industry"             fk="industry"         f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Quantity (Shares)"    fk="quantity"        f={f} sf={sf} type="number" />
-      <FI label="Avg Cost Price"       fk="avg_cost_price"  f={f} sf={sf} type="number" />
+      <FI label="Quantity (Shares)"    fk="quantity"         f={f} sf={sf} type="number" />
+      <FI label="Avg Cost Price"       fk="avg_cost_price"   f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Current Price"        fk="price"           f={f} sf={sf} type="number" />
-      <FI label="Market Value"         fk="market_value"    f={f} sf={sf} type="number" />
+      <FI label="Current Price"        fk="price"            f={f} sf={sf} type="number" />
+      <FI label="Market Value"         fk="market_value"     f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Dividend Yield %"     fk="dividend_yield"  f={f} sf={sf} type="number" />
+      <FI label="Dividend Yield %"     fk="dividend_yield"   f={f} sf={sf} type="number" />
       <FI label="Portfolio Weight %"   fk="portfolio_weight" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Currency"             fk="currency"        f={f} sf={sf} options={OPT.currency} />
-      <FS label="Mandate Type"         fk="mandate_type"    f={f} sf={sf} options={OPT.mandate} blank />
+      <FS label="Currency"             fk="currency"         f={f} sf={sf} options={OPT.currency} />
+      <FS label="Mandate Type"         fk="mandate_type"     f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
-      <FI label="Custodian"            fk="custodian"       f={f} sf={sf} />
-      <FI label="Source Bank"          fk="source_bank"     f={f} sf={sf} />
+      <FI label="Custodian"            fk="custodian"        f={f} sf={sf} />
+      <FI label="Source Bank"          fk="source_bank"      f={f} sf={sf} />
     </G2>
     <G2>
-      <FI label="Statement Date"       fk="statement_date"  f={f} sf={sf} type="date" />
-      <FS label="Status"               fk="status"          f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"       fk="statement_date"   f={f} sf={sf} type="date" />
+      <FS label="Status"               fk="status"           f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
 }
@@ -202,7 +219,27 @@ function ETFFields({ f, sf }) {
   </>;
 }
 
-function AltFields({ f, sf, deals }) {
+// ── Alternatives — NAV/Current Value is read-only for deal-linked positions ──
+function AltFields({ f, sf, deals, isAdd }) {
+  const isDealLinked = !!f.deal_id;
+  const linkedDeal   = deals?.find(d => d.id === f.deal_id);
+
+  // Compute current NAV value display for deal-linked positions
+  const latestNavPerUnit = f._latestNavPerUnit;  // injected when opening edit modal
+  const computedNav = isDealLinked && latestNavPerUnit != null && f.quantity
+    ? (parseFloat(f.quantity) || 0) * latestNavPerUnit
+    : null;
+  const navDisplay = computedNav != null
+    ? `${fmt.currency(computedNav, linkedDeal?.currency || f.currency || 'SAR')}`
+    : f.market_value != null && f.market_value !== ''
+      ? `${fmt.currency(f.market_value, linkedDeal?.currency || f.currency || 'SAR')}`
+      : '—';
+  const navHint = isDealLinked
+    ? latestNavPerUnit != null
+      ? `Latest NAV: ${fmt.currency(latestNavPerUnit, linkedDeal?.currency || f.currency || 'SAR')} per unit × ${parseFloat(f.quantity)||0} units — managed via NAV Management`
+      : 'Managed via NAV Management page'
+    : null;
+
   return <>
     <FI label="Security / Fund Name *"         fk="security_name"        f={f} sf={sf} />
     <G2>
@@ -223,11 +260,22 @@ function AltFields({ f, sf, deals }) {
     </G2>
     <G2>
       <FI label="Amount Invested"              fk="amount_invested"      f={f} sf={sf} type="number" />
-      <FI label="NAV / Current Value"          fk="market_value"         f={f} sf={sf} type="number" />
+      <FI label="Quantity / Units"             fk="quantity"             f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Quantity / Units"             fk="quantity"             f={f} sf={sf} type="number" />
       <FI label="Avg Cost Price (NAV at Entry)" fk="avg_cost_price"      f={f} sf={sf} type="number" />
+      {/* NAV / Current Value — read-only for deal-linked, editable otherwise */}
+      {isDealLinked ? (
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={{ ...LS, color:'#6c757d' }}>NAV / Current Value</label>
+          <div style={{ ...IS, background:'#f0f4fa', border:'1.5px solid #e3ecfa', color:'#003770', fontWeight:'700', cursor:'default' }}>
+            {navDisplay}
+          </div>
+          {navHint && <div style={{ fontSize:'0.72rem', color:'#6c757d', marginTop:'4px' }}>{navHint}</div>}
+        </div>
+      ) : (
+        <FI label="NAV / Current Value"        fk="market_value"         f={f} sf={sf} type="number" />
+      )}
     </G2>
     <G2>
       <FI label="MOIC"                         fk="moic"                 f={f} sf={sf} type="number" placeholder="e.g. 1.8" />
@@ -249,26 +297,31 @@ function AltFields({ f, sf, deals }) {
       <FI label="Statement Date"               fk="statement_date"       f={f} sf={sf} type="date" />
       <FS label="Status"                       fk="status"               f={f} sf={sf} options={OPT.status} />
     </G2>
-    {/* Deal link — only shown when adding */}
-    {deals && (
+
+    {/* Deal link selector — only shown when adding */}
+    {isAdd && (
       <div style={{ marginBottom:'1rem', paddingTop:'0.5rem', borderTop:'1px solid #f1f3f5' }}>
         <label style={LS}>Link to Deal (optional)</label>
         <select value={f.deal_id ?? ''} onChange={e => sf(p => ({ ...p, deal_id: e.target.value || null }))}
           style={{ ...IS, background:'#fff' }}>
           <option value="">No linked deal</option>
-          {deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          {deals && deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        {f.deal_id && (() => {
-          const d = deals.find(x => x.id === f.deal_id);
-          const nav = d?.nav_per_unit || 0;
-          return nav > 0 ? <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>Current NAV: <strong>{fmt.currency(nav, d?.currency||'SAR')}</strong> per unit</div> : null;
-        })()}
+        {f.deal_id && linkedDeal && linkedDeal.nav_per_unit > 0 && (
+          <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>
+            Current NAV: <strong>{fmt.currency(linkedDeal.nav_per_unit, linkedDeal.currency||'SAR')}</strong> per unit
+          </div>
+        )}
       </div>
     )}
-    {/* Deal-linked info banner — shown when editing */}
-    {!deals && f.deal_id && (
-      <div style={{ background:'#f0f4fa', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.82rem', color:'#003770', marginBottom:'1rem' }}>
-        🔗 Deal-linked — Market Value updates automatically when NAV is published.
+
+    {/* Deal info banner — shown when editing a deal-linked position */}
+    {!isAdd && isDealLinked && (
+      <div style={{ background:'#f0f4fa', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.82rem', color:'#003770', marginTop:'0.5rem' }}>
+        🔗 Linked to deal: <strong>{linkedDeal?.name || f.deal_id}</strong>
+        <div style={{ fontSize:'0.74rem', color:'#6c757d', marginTop:'3px' }}>
+          NAV / Current Value is controlled by the NAV Management page and updates automatically.
+        </div>
       </div>
     )}
   </>;
@@ -276,44 +329,31 @@ function AltFields({ f, sf, deals }) {
 
 function CashFields({ f, sf }) {
   return <>
-    <FI label="Description"      fk="description"   f={f} sf={sf} placeholder="e.g. Current Account" />
-    <FI label="Source Bank"      fk="source_bank"   f={f} sf={sf} placeholder="e.g. Riyad Bank" />
+    <FI label="Description"       fk="description"    f={f} sf={sf} placeholder="e.g. Current Account" />
+    <FI label="Source Bank"       fk="source_bank"    f={f} sf={sf} placeholder="e.g. Riyad Bank" />
     <G2>
-      <FI label="Balance"        fk="balance"       f={f} sf={sf} type="number" />
-      <FS label="Currency"       fk="currency"      f={f} sf={sf} options={OPT.currency} />
+      <FI label="Balance"         fk="balance"        f={f} sf={sf} type="number" />
+      <FS label="Currency"        fk="currency"       f={f} sf={sf} options={OPT.currency} />
     </G2>
     <G2>
-      <FI label="Statement Date" fk="statement_date" f={f} sf={sf} type="date" />
-      <FS label="Status"         fk="status"        f={f} sf={sf} options={OPT.status} />
+      <FI label="Statement Date"  fk="statement_date" f={f} sf={sf} type="date" />
+      <FS label="Status"          fk="status"         f={f} sf={sf} options={OPT.status} />
     </G2>
   </>;
-}
-
-// ── Which DB table each category reads/writes ────────────────────────────────
-function tableFor(cat) {
-  return cat === 'Alternatives' ? 'private_markets_positions' : 'public_markets_positions';
-}
-
-// ── Detect category from a public_markets_positions row ──────────────────────
-function detectCat(row) {
-  if (row.category && row.category !== 'Alternatives') return row.category;
-  if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
-  if (row.fund_type || row.fund_manager || row.nav_per_unit != null) return 'ETF & Public Funds';
-  return 'Public Equities';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════════════════════════
 export default function InvestorDetailPage({ investor, deals, onBack, onUpdateStatus, onEdit }) {
-  const [rows, setRows]     = useState({}); // keyed by category key
+  const [rows, setRows]       = useState({});
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]       = useState('Public Equities');
+  const [tab, setTab]         = useState('Public Equities');
 
-  // Modal: { mode:'add'|'edit', cat: category key }
-  const [modal, setModal]   = useState(null);
-  const [form, setForm]     = useState({});
-  const [saving, setSaving] = useState(false);
+  // Modal: { mode:'add'|'edit', cat }
+  const [modal, setModal]     = useState(null);
+  const [form, setForm]       = useState({});
+  const [saving, setSaving]   = useState(false);
 
   const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.10, gbp_to_sar:4.73, aed_to_sar:1.02 });
 
@@ -321,16 +361,13 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setLoading(true);
     const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,nav_updates(nav_per_unit,effective_date))').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
-
     if (assumpRes.data?.[0]) setFx(assumpRes.data[0]);
-
     const pub  = pubRes.data  || [];
     const priv = privRes.data || [];
-
     setRows({
       'Public Equities':    pub.filter(r => (r.category || detectCat(r)) === 'Public Equities'),
       'Fixed Income':       pub.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
@@ -349,11 +386,27 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     return (amount||0)*(r[currency]||1);
   };
 
+  // ── Latest NAV per unit from nav_updates (same logic as NAV Management) ──
+  const getLatestNav = (row) => {
+    const updates = row.deals?.nav_updates || [];
+    if (updates.length === 0) return row.deals?.nav_per_unit ?? null;
+    const sorted = [...updates].sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+    return sorted[0].nav_per_unit;
+  };
+
+  // ── Compute market value for alt rows using latest NAV ──────────────────
+  const altNavValue = (row) => {
+    if (!row.deal_id) return row.market_value || 0;
+    const nav = getLatestNav(row);
+    if (nav == null) return row.market_value || 0;
+    return (row.quantity || 0) * nav;
+  };
+
   // Summary totals
-  const altRows   = rows['Alternatives'] || [];
-  const pubRows   = [...(rows['Public Equities']||[]), ...(rows['Fixed Income']||[]), ...(rows['ETF & Public Funds']||[])];
-  const cashRows  = rows['Cash'] || [];
-  const totalPrivNAV  = altRows.reduce((s,i) => s + toSAR((i.quantity||0)*(i.deals?.nav_per_unit||0), i.deals?.currency||i.currency||'SAR'), 0);
+  const altRows      = rows['Alternatives'] || [];
+  const pubRows      = [...(rows['Public Equities']||[]), ...(rows['Fixed Income']||[]), ...(rows['ETF & Public Funds']||[])];
+  const cashRows     = rows['Cash'] || [];
+  const totalPrivNAV  = altRows.reduce((s,i) => s + toSAR(altNavValue(i), i.deals?.currency||i.currency||'SAR'), 0);
   const totalInvested = altRows.reduce((s,i) => s + toSAR(parseFloat(i.amount_invested)||0, i.deals?.currency||i.currency||'SAR'), 0);
   const totalPublicMV = pubRows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency), 0);
   const totalCash     = cashRows.reduce((s,c) => s + toSAR(c.balance||0, c.currency), 0);
@@ -365,56 +418,77 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setForm({ status:'active', currency:'SAR', category: tab });
     setModal({ mode:'add', cat: tab });
   };
+
   const openEdit = (cat, row) => {
-    setForm({ ...row, category: cat });
+    const base = { ...row, category: cat };
+    // For Alternatives, inject the latest NAV per unit so the form can display it
+    if (cat === 'Alternatives' && row.deal_id) {
+      base._latestNavPerUnit = getLatestNav(row);
+    }
+    setForm(base);
     setModal({ mode:'edit', cat });
   };
+
   const closeModal = () => { setModal(null); setForm({}); };
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
-    const today = new Date().toISOString().slice(0,10);
+    const today  = new Date().toISOString().slice(0,10);
     const isEdit = modal.mode === 'edit';
     const cat    = modal.cat;
 
     if (cat === 'Alternatives') {
+      const isDealLinked = !!form.deal_id;
+      // For deal-linked: market_value is computed from latest NAV × quantity, NOT from the form field
+      let savedMarketValue;
+      if (isDealLinked) {
+        const latestNav = form._latestNavPerUnit;
+        savedMarketValue = latestNav != null
+          ? (parseFloat(form.quantity) || 0) * latestNav
+          : toN(form.market_value); // fallback if no nav_updates yet
+      } else {
+        savedMarketValue = toN(form.market_value);
+      }
+
       const payload = {
         investor_id:         investor.id,
         category:            'Alternatives',
-        security_name:       form.security_name || 'Private Position',
-        fund_vehicle:        form.fund_vehicle        || null,
-        strategy:            form.strategy            || null,
-        manager_gp:          form.manager_gp          || null,
+        security_name:       form.security_name       || 'Private Position',
+        fund_vehicle:        form.fund_vehicle         || null,
+        strategy:            form.strategy             || null,
+        manager_gp:          form.manager_gp           || null,
         vintage_year:        toN(form.vintage_year),
-        investment_date:     form.investment_date      || null,
+        investment_date:     form.investment_date       || null,
         commitment_amount:   toN(form.commitment_amount),
         called_capital:      toN(form.called_capital),
         distributions_paid:  toN(form.distributions_paid),
         amount_invested:     toN(form.amount_invested),
-        market_value:        toN(form.market_value),
+        market_value:        savedMarketValue,
         quantity:            toN(form.quantity),
         avg_cost_price:      toN(form.avg_cost_price),
         moic:                toN(form.moic),
         irr:                 toN(form.irr),
-        liquidity:           form.liquidity            || null,
-        lock_up_period:      form.lock_up_period       || null,
-        next_valuation_date: form.next_valuation_date  || null,
-        mandate_type:        form.mandate_type         || null,
-        currency:            form.currency             || 'SAR',
-        custodian:           form.custodian            || null,
-        statement_date:      form.statement_date       || today,
-        status:              form.status               || 'active',
-        deal_id:             form.deal_id              || null,
+        liquidity:           form.liquidity             || null,
+        lock_up_period:      form.lock_up_period        || null,
+        next_valuation_date: form.next_valuation_date   || null,
+        mandate_type:        form.mandate_type          || null,
+        currency:            form.currency              || 'SAR',
+        custodian:           form.custodian             || null,
+        statement_date:      form.statement_date        || today,
+        status:              form.status                || 'active',
+        deal_id:             form.deal_id               || null,
       };
-      // When adding deal-linked, auto-compute quantity from NAV
+
+      // When adding deal-linked: auto-compute quantity from NAV if not provided
       if (!isEdit && form.deal_id && form.amount_invested && !form.quantity) {
         const d = deals.find(x => x.id === form.deal_id);
         const nav = d?.nav_per_unit || 1;
-        payload.quantity    = (parseFloat(form.amount_invested)||0) / nav;
-        payload.market_value = payload.market_value || payload.quantity * nav;
+        payload.quantity     = (parseFloat(form.amount_invested)||0) / nav;
+        payload.market_value = payload.quantity * nav;
         payload.avg_cost_price = payload.avg_cost_price || nav;
       }
+
       if (isEdit) await supabase.from('private_markets_positions').update(payload).eq('id', form.id);
       else        await supabase.from('private_markets_positions').insert(payload);
 
@@ -512,9 +586,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   const DB  = { background:'transparent', border:'1px solid #e63946', color:'#e63946', borderRadius:'5px', padding:'2px 7px', cursor:'pointer', fontSize:'0.72rem', fontWeight:'700', fontFamily:'DM Sans,sans-serif' };
   const statBadge = (s) => ({ fontSize:'0.72rem', padding:'2px 7px', borderRadius:'99px', fontWeight:'700', background:s==='active'?'#e8f5e9':'#f3e5f5', color:s==='active'?'#2e7d32':'#6a1b9a' });
 
-  const currentCat = CATEGORIES.find(c => c.key === tab);
+  const currentCat  = CATEGORIES.find(c => c.key === tab);
   const currentRows = rows[tab] || [];
-  const modalTitle = modal
+  const modalTitle  = modal
     ? `${modal.mode==='add'?'Add':'Edit'} ${modal.cat} Position`
     : '';
 
@@ -555,7 +629,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         ))}
       </div>
 
-      {/* ── Category Cards — mirrors PositionsViewer exactly ── */}
+      {/* Category cards — mirrors PositionsViewer */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'1.25rem' }}>
         {CATEGORIES.map(cat => (
           <Card key={cat.key} onClick={() => setTab(cat.key)} style={{
@@ -579,13 +653,14 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         ))}
       </div>
 
-      {/* Add button + table */}
+      {/* Add button */}
       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'0.75rem' }}>
         <Btn onClick={openAdd} style={{ fontSize:'0.85rem' }}>
           + Add {currentCat?.label} Position
         </Btn>
       </div>
 
+      {/* Table */}
       {loading ? (
         <Card><p style={{ color:'#adb5bd', textAlign:'center', padding:'2rem', fontSize:'0.9rem' }}>Loading positions...</p></Card>
       ) : (
@@ -602,7 +677,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                        <tr key={row.id} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                           <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.security_name||'—'}</td>
                           <td style={{ ...td, fontFamily:'monospace', fontWeight:'700' }}>{row.ticker||'—'}</td>
                           <td style={{ ...td, fontFamily:'monospace', fontSize:'0.75rem', color:'#adb5bd' }}>{row.isin||'—'}</td>
@@ -638,14 +713,11 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
-                            {row.security_name||'—'}
-                            {row.isin && <div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}
-                          </td>
+                        <tr key={row.id} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.security_name||'—'}{row.isin&&<div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}</td>
                           <td style={td}>{row.issuer||'—'}</td>
-                          <td style={td}>{row.bond_type ? <span style={{ background:'#e8f0fe', color:'#1a56db', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.bond_type}</span> : '—'}</td>
-                          <td style={td}>{row.credit_rating ? <span style={{ background:'#fff8e1', color:'#b45309', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.credit_rating}</span> : '—'}</td>
+                          <td style={td}>{row.bond_type?<span style={{ background:'#e8f0fe', color:'#1a56db', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.bond_type}</span>:'—'}</td>
+                          <td style={td}>{row.credit_rating?<span style={{ background:'#fff8e1', color:'#b45309', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.credit_rating}</span>:'—'}</td>
                           <td style={tdr}>{row.face_value!=null?fmt.currency(row.face_value,row.currency):'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{row.coupon_rate!=null?`${row.coupon_rate}%`:'—'}</td>
                           <td style={tdr}>{row.price!=null?row.price:'—'}</td>
@@ -678,13 +750,10 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
-                            {row.security_name||'—'}
-                            {row.isin && <div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}
-                          </td>
+                        <tr key={row.id} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>{row.security_name||'—'}{row.isin&&<div style={{ fontSize:'0.72rem', fontFamily:'monospace', color:'#adb5bd' }}>{row.isin}</div>}</td>
                           <td style={{ ...td, fontFamily:'monospace', fontWeight:'700', color:'#6c757d' }}>{row.ticker||'—'}</td>
-                          <td style={td}>{row.fund_type ? <span style={{ background:'#f3e5f5', color:'#7b1fa2', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.fund_type}</span> : '—'}</td>
+                          <td style={td}>{row.fund_type?<span style={{ background:'#f3e5f5', color:'#7b1fa2', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.fund_type}</span>:'—'}</td>
                           <td style={td}>{row.fund_manager||'—'}</td>
                           <td style={td}>{row.asset_class_focus||'—'}</td>
                           <td style={td}>{row.geographic_focus||'—'}</td>
@@ -717,30 +786,34 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                       {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','NAV / Value','CCY','MOIC','IRR %','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {currentRows.map(row => (
-                        <tr key={row.id} style={{ background:'#fff' }} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                          <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
-                            {row.security_name||'—'}
-                            {row.deals?.name && row.deals.name !== row.security_name && <div style={{ fontSize:'0.72rem', color:'#adb5bd' }}>{row.deals.name}</div>}
-                          </td>
-                          <td style={td}>{row.strategy ? <span style={{ background:'#f1f3f5', borderRadius:'10px', padding:'2px 9px', fontSize:'0.75rem', fontWeight:'600', color:'#495057' }}>{row.strategy}</span> : '—'}</td>
-                          <td style={td}>{row.manager_gp||'—'}</td>
-                          <td style={td}>{row.fund_vehicle||'—'}</td>
-                          <td style={tdr}>{row.vintage_year||'—'}</td>
-                          <td style={tdr}>{row.commitment_amount!=null?fmt.currency(row.commitment_amount,row.deals?.currency||row.currency||'SAR'):'—'}</td>
-                          <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,row.deals?.currency||row.currency||'SAR'):'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.deals?.currency||row.currency||'SAR')}</td>
-                          <td style={td}>{row.currency||row.deals?.currency||'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700', color: (row.moic||0)>=1?'#003770':'#dc3545' }}>{row.moic!=null?`${row.moic.toFixed?.(2)}x`:'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700', color: (row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr>=0?'+':''}${row.irr}%`:'—'}</td>
-                          <td style={td}>{fmt.date(row.statement_date)}</td>
-                          <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
-                          <td style={td}>
-                            <button onClick={() => openEdit('Alternatives', row)} style={EB}>Edit</button>
-                            <button onClick={() => deletePos('Alternatives', row.id)} style={DB}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
+                      {currentRows.map(row => {
+                        const navVal = altNavValue(row);
+                        const ccy = row.deals?.currency || row.currency || 'SAR';
+                        return (
+                          <tr key={row.id} onMouseEnter={e=>e.currentTarget.style.background='#f8f9fa'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                            <td style={{ ...td, fontWeight:'600', color:'#003770' }}>
+                              {row.security_name||'—'}
+                              {row.deals?.name && row.deals.name !== row.security_name && <div style={{ fontSize:'0.72rem', color:'#adb5bd' }}>{row.deals.name}</div>}
+                            </td>
+                            <td style={td}>{row.strategy?<span style={{ background:'#f1f3f5', borderRadius:'10px', padding:'2px 9px', fontSize:'0.75rem', fontWeight:'600', color:'#495057' }}>{row.strategy}</span>:'—'}</td>
+                            <td style={td}>{row.manager_gp||'—'}</td>
+                            <td style={td}>{row.fund_vehicle||'—'}</td>
+                            <td style={tdr}>{row.vintage_year||'—'}</td>
+                            <td style={tdr}>{row.commitment_amount!=null?fmt.currency(row.commitment_amount,ccy):'—'}</td>
+                            <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,ccy):'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(navVal,ccy)}</td>
+                            <td style={td}>{ccy}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:(row.moic||0)>=1?'#003770':'#dc3545' }}>{row.moic!=null?`${Number(row.moic).toFixed(2)}x`:'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:(row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr>=0?'+':''}${row.irr}%`:'—'}</td>
+                            <td style={td}>{fmt.date(row.statement_date)}</td>
+                            <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
+                            <td style={td}>
+                              <button onClick={() => openEdit('Alternatives', row)} style={EB}>Edit</button>
+                              <button onClick={() => deletePos('Alternatives', row.id)} style={DB}>Delete</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -755,7 +828,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
             {modal.cat === 'Public Equities'    && <EquityFields      f={form} sf={setForm} />}
             {modal.cat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
             {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
-            {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={modal.mode==='add'?deals:null} />}
+            {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={deals} isAdd={modal.mode==='add'} />}
             {modal.cat === 'Cash'               && <CashFields        f={form} sf={setForm} />}
           </div>
           <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #f1f3f5' }}>
