@@ -13,7 +13,7 @@ export default function NAVManagement() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    supabase.from("deals").select("id,name,nav_per_unit,currency").order("name").then(({ data }) => {
+    supabase.from("deals").select("id,name,current_nav,currency").order("name").then(({ data }) => {
       setDeals(data || []);
       if (data && data.length > 0) setSelected(data[0].id);
     });
@@ -30,8 +30,8 @@ export default function NAVManagement() {
     if (!selected || !navValue || !navDate) { setMsg("Please fill in all fields."); return; }
     setSaving(true);
     setMsg("");
-    await supabase.from("deals").update({ nav_per_unit: parseFloat(navValue) }).eq("id", selected);
-    await supabase.from("nav_updates").insert({ deal_id: selected, nav_per_unit: parseFloat(navValue), effective_date: navDate });
+    await supabase.from("deals").update({ current_nav: parseFloat(navValue) }).eq("id", selected);
+    await supabase.from("nav_updates").insert({ deal_id: selected, current_nav: parseFloat(navValue), effective_date: navDate });
     const newNav = parseFloat(navValue);
     await supabase.from("private_markets_positions").update({ price: newNav }).eq("deal_id", selected);
     const { data: linkedPos } = await supabase.from("private_markets_positions").select("id, quantity").eq("deal_id", selected);
@@ -43,13 +43,13 @@ export default function NAVManagement() {
     setMsg("NAV updated successfully.");
     setNavValue("");
     supabase.from("nav_updates").select("*").eq("deal_id", selected).order("effective_date", { ascending: false }).then(({ data }) => setHistory(data || []));
-    supabase.from("deals").select("id,name,nav_per_unit,currency").order("name").then(({ data }) => setDeals(data || []));
+    supabase.from("deals").select("id,name,current_nav,currency").order("name").then(({ data }) => setDeals(data || []));
     setSaving(false);
   };
 
   return (
     <div>
-      <PageHeader title="NAV Management" subtitle="Update and track NAV per unit for each fund" />
+      <PageHeader title="NAV Management" subtitle="Update and track Current NAV for each fund" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "1.5rem", alignItems: "start" }}>
         <div>
           <Card style={{ marginBottom: "1rem" }}>
@@ -63,11 +63,11 @@ export default function NAVManagement() {
             </div>
             {currentDeal && (
               <div style={{ background: "#f8f9fa", borderRadius: "8px", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "#6c757d" }}>
-                Current NAV: <strong style={{ color: "#003770" }}>{fmt.currency(currentDeal.nav_per_unit, currentDeal.currency || "SAR")}</strong> per unit
+                Current NAV: <strong style={{ color: "#003770" }}>{fmt.currency(currentDeal.current_nav, currentDeal.currency || "SAR")}</strong> per unit
               </div>
             )}
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "600", color: "#495057", marginBottom: "5px" }}>New NAV Per Unit</label>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "600", color: "#495057", marginBottom: "5px" }}>New Current NAV</label>
               <input type="number" value={navValue} onChange={e => setNavValue(e.target.value)} placeholder="e.g. 105.50"
                 style={{ width: "100%", padding: "0.6rem 0.85rem", border: "1.5px solid #dee2e6", borderRadius: "8px", fontSize: "0.9rem", fontFamily: "DM Sans,sans-serif", boxSizing: "border-box" }} />
             </div>
@@ -97,7 +97,7 @@ export default function NAVManagement() {
                       {fmt.date(h.effective_date)}
                       {i === 0 && <span style={{ marginLeft: "0.5rem", background: "#e8f5e9", color: "#2e7d32", padding: "2px 8px", borderRadius: "20px", fontSize: "0.7rem", fontWeight: "600" }}>Latest</span>}
                     </td>
-                    <td style={{ padding: "0.65rem 0.75rem", fontWeight: "700", color: "#003770" }}>{fmt.currency(h.nav_per_unit, currentDeal?.currency || "SAR")}</td>
+                    <td style={{ padding: "0.65rem 0.75rem", fontWeight: "700", color: "#003770" }}>{fmt.currency(h.current_nav, currentDeal?.currency || "SAR")}</td>
                   </tr>
                 ))}
               </tbody>
