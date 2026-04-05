@@ -63,7 +63,7 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
       <div style={nav.logo}>
         <div>
           <span style={nav.logoText}>Audi Capital</span>
-          <span style={nav.logoSub}>Management Portal</span>
+          <span style={nav.logoSub}>Investor Portal</span>
         </div>
       </div>
       <div style={nav.navArea}>
