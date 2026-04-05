@@ -438,6 +438,7 @@ export default function InvestorPortfolio({ session }) {
         moic:                inv.deals?.moic ?? null,
         irr:                 inv.deals?.target_irr_pct ?? inv.irr ?? null,
         tvpi,
+        mandate_type:        inv.mandate_type || null,
         currency:            inv.deals?.currency || inv.currency || "SAR",
       };
     }),
@@ -466,6 +467,7 @@ export default function InvestorPortfolio({ session }) {
         moic:                pos.moic||null,
         irr:                 pos.irr||null,
         tvpi,
+        mandate_type:        pos.mandate_type||null,
         currency:            pos.currency||"SAR",
       };
     }),
