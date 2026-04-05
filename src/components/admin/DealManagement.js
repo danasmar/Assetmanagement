@@ -3,7 +3,7 @@ import { supabase } from "../../supabaseClient";
 import { Card, Badge, Btn, Input, Select, Modal, PageHeader } from "../shared";
 import { fmt } from "../../utils/formatters";
 import { DocUploader, PhotoUploader } from "./FileUploaders";
-import { CurrencyInput, NumberInput, DistributionPctInput, IrrInput, DateInput } from "../FormInputs";
+import { CurrencyInput, NumberInput, DistributionPctInput, DateInput } from "../FormInputs";
 
 export default function DealManagement() {
   const [deals, setDeals] = useState([]);
@@ -39,6 +39,9 @@ export default function DealManagement() {
   const defaultForm = {
     name: '',
     strategy: '',
+    fund_vehicle: '',
+    manager_gp: '',
+    vintage_year: '',
     status: 'Open',
     target_raise: '',
     total_fund_size: '',
@@ -48,7 +51,7 @@ export default function DealManagement() {
     distribution_pct: '',
     distribution_frequency: 'Quarterly',
     currency: 'SAR',
-    target_irr: '',
+    target_irr_pct: '',
     moic: '',
     liquidity: '',
     lock_up_period: '',
@@ -63,7 +66,7 @@ export default function DealManagement() {
   const save = async () => {
     setSaving(true);
     const data = { ...form };
-    ['target_raise', 'total_fund_size', 'amount_raised', 'min_investment', 'total_units', 'distribution_pct', 'moic'].forEach(k => {
+    ['target_raise', 'total_fund_size', 'amount_raised', 'min_investment', 'total_units', 'distribution_pct', 'moic', 'target_irr_pct', 'vintage_year'].forEach(k => {
       if (data[k]) data[k] = parseFloat(data[k]) || 0;
     });
     if (modal === 'new') await supabase.from('deals').insert(data);
@@ -113,6 +116,9 @@ export default function DealManagement() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
             {f('name', 'Deal Name')}
             {f('strategy', 'Strategy', 'select', ['Venture Capital', 'Growth Equity', 'Small Buyouts', 'Mid-Market Buyouts', 'Large Buyouts', 'Direct Lending (Private Credit)', 'Mezzanine Debt', 'Distressed Debt', 'Special Situations', 'Infrastructure – Core', 'Infrastructure – Value Add / Opportunistic', 'Real Estate – Core', 'Real Estate – Core Plus', 'Real Estate – Value Add', 'Real Estate – Opportunistic', 'Secondaries (LP stake purchases)', 'GP-Led Secondaries / Continuation Funds', 'Fund of Funds', 'Arts & Collectibles'])}
+            {f('fund_vehicle', 'Fund Vehicle', 'select', ['LP','Co-Investment','SPV','Direct','Feeder'])}
+            {f('manager_gp', 'Manager / GP')}
+            {f('vintage_year', 'Vintage Year', 'number')}
             {f('status', 'Status', 'select', ['Open', 'Closing Soon', 'Closed'])}
             {f('currency', 'Currency', 'select', ['SAR', 'USD', 'EUR', 'GBP', 'AED'])}
           </div>
@@ -125,7 +131,23 @@ export default function DealManagement() {
             <NumberInput fieldKey="total_units" label="Total Fund Units" form={form} setForm={setForm} />
             <DistributionPctInput form={form} setForm={setForm} />
             {f('distribution_frequency', 'Distribution Frequency', 'select', ['Monthly', 'Quarterly', 'Semi-Annually', 'Yearly', 'No Distributions'])}
-            <IrrInput form={form} setForm={setForm} />
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#495057', marginBottom: '5px', letterSpacing: '0.04em' }}>Target Net IRR %</label>
+              <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                <input type="text" inputMode="decimal"
+                  value={form.target_irr_pct || ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                    const parts = raw.split('.');
+                    const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0, 2) : raw;
+                    setForm(f => ({ ...f, target_irr_pct: formatted }));
+                  }}
+                  placeholder="e.g. 12.00"
+                  style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', background: 'transparent' }}
+                />
+                <span style={{ padding: '0.6rem 0.75rem', background: '#f1f3f5', color: '#6c757d', fontSize: '0.82rem', fontWeight: '700', borderLeft: '1.5px solid #dee2e6' }}>%</span>
+              </div>
+            </div>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#495057', marginBottom: '5px', letterSpacing: '0.04em' }}>Target MOIC</label>
               <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
