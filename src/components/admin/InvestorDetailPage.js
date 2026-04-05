@@ -236,7 +236,7 @@ function AltFields({ f, sf, deals, isAdd }) {
       : '—';
   const navHint = isDealLinked
     ? latestNavPerUnit != null
-      ? `Latest NAV: ${fmt.currency(latestNavPerUnit, linkedDeal?.currency || f.currency || 'SAR')} per unit × ${parseFloat(f.quantity)||0} units — managed via NAV Management`
+      ? `Latest NAV: ${fmt.currency(latestNavPerUnit, linkedDeal?.currency || f.currency || 'SAR')} per unit × ${parseFloat(f.quantity)||0} units — controlled by NAV Management`
       : 'Managed via NAV Management page'
     : null;
 
@@ -264,17 +264,17 @@ function AltFields({ f, sf, deals, isAdd }) {
     </G2>
     <G2>
       <FI label="Avg Cost Price (NAV at Entry)" fk="avg_cost_price"      f={f} sf={sf} type="number" />
-      {/* NAV / Current Value — read-only for deal-linked, editable otherwise */}
+      {/* Current Value — read-only for deal-linked, editable otherwise */}
       {isDealLinked ? (
         <div style={{ marginBottom:'1rem' }}>
-          <label style={{ ...LS, color:'#6c757d' }}>NAV / Current Value</label>
+          <label style={{ ...LS, color:'#6c757d' }}>Current Value</label>
           <div style={{ ...IS, background:'#f0f4fa', border:'1.5px solid #e3ecfa', color:'#003770', fontWeight:'700', cursor:'default' }}>
             {navDisplay}
           </div>
           {navHint && <div style={{ fontSize:'0.72rem', color:'#6c757d', marginTop:'4px' }}>{navHint}</div>}
         </div>
       ) : (
-        <FI label="NAV / Current Value"        fk="market_value"         f={f} sf={sf} type="number" />
+        <FI label="Current Value"        fk="market_value"         f={f} sf={sf} type="number" />
       )}
     </G2>
     <G2>
@@ -334,7 +334,7 @@ function AltFields({ f, sf, deals, isAdd }) {
       <div style={{ background:'#f0f4fa', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.82rem', color:'#003770', marginTop:'0.5rem' }}>
         🔗 Linked to deal: <strong>{linkedDeal?.name || f.deal_id}</strong>
         <div style={{ fontSize:'0.74rem', color:'#6c757d', marginTop:'3px' }}>
-          NAV / Current Value is controlled by the NAV Management page and updates automatically.
+          Current Value is controlled by the NAV Management page and updates automatically.
         </div>
       </div>
     )}
@@ -414,16 +414,16 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     return (amount||0)*(r[currency]||1);
   };
 
-  // ── Latest NAV per unit — uses _latestNav attached during load ──
+  // ── Latest NAV per unit — deals.nav_per_unit is kept current by NAV Management ──
   const getLatestNav = (row) => {
-    if (row._latestNav) return row._latestNav.nav_per_unit;
     return row.deals?.nav_per_unit ?? null;
   };
 
   // ── Compute market value for alt rows using latest NAV ──────────────────
+  // Current Value = deals.nav_per_unit × quantity for deal-linked; market_value for unlinked
   const altNavValue = (row) => {
     if (!row.deal_id) return row.market_value || 0;
-    const nav = getLatestNav(row);
+    const nav = row.deals?.nav_per_unit ?? null;
     if (nav == null) return row.market_value || 0;
     return (row.quantity || 0) * nav;
   };
@@ -473,10 +473,12 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       // For deal-linked: market_value is computed from latest NAV × quantity, NOT from the form field
       let savedMarketValue;
       if (isDealLinked) {
-        const latestNav = form._latestNavPerUnit;
-        savedMarketValue = latestNav != null
-          ? (parseFloat(form.quantity) || 0) * latestNav
-          : toN(form.market_value); // fallback if no nav_updates yet
+        // Current Value = deals.nav_per_unit × quantity
+        const linkedDeal = deals.find(d => d.id === form.deal_id);
+        const navPerUnit = linkedDeal?.nav_per_unit ?? null;
+        savedMarketValue = navPerUnit != null
+          ? (parseFloat(form.quantity) || 0) * navPerUnit
+          : toN(form.market_value);
       } else {
         savedMarketValue = toN(form.market_value);
       }
@@ -814,7 +816,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
               : <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.83rem' }}>
                     <thead><tr style={{ background:'#f8f9fa' }}>
-                      {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','NAV / Value','CCY','MOIC','IRR %','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
+                      {['Fund / Deal','Strategy','Manager / GP','Vehicle','Vintage','Commitment','Called','Current Value','CCY','MOIC','IRR %','Date','Status',''].map(h=><th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {currentRows.map(row => {
