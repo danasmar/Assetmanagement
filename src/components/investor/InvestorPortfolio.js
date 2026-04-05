@@ -47,7 +47,7 @@ export default function InvestorPortfolio({ session }) {
     const load = async () => {
       const [invRes, distRes, posRes, privPosRes, cashRes, assumpRes] = await Promise.all([
         supabase.from("private_markets_positions")
-          .select("*, deals(*, nav_updates(current_nav, effective_date))")
+          .select("*, deals(*, nav_updates(current_nav, effective_date, created_at))")
           .eq("investor_id", session.user.id).not("deal_id","is",null).eq("status","active"),
         supabase.from("investor_distributions")
           .select("*, distributions(deal_id, deals(currency))")
@@ -103,7 +103,10 @@ export default function InvestorPortfolio({ session }) {
 
   // ── AUM totals ───────────────────────────────────────────────────────────
   const privateNAV = investments.reduce((s, i) => {
-    const sorted = (i.deals?.nav_updates || []).slice().sort((a,b) => new Date(b.effective_date)-new Date(a.effective_date));
+    const sorted = (i.deals?.nav_updates || []).slice().sort((a,b) => {
+      const dateDiff = new Date(b.effective_date) - new Date(a.effective_date);
+      return dateDiff !== 0 ? dateDiff : new Date(b.created_at) - new Date(a.created_at);
+    });
     const nav = sorted[0]?.current_nav ?? i.deals?.current_nav ?? 0;
     return s + toSAR((i.quantity || 0) * nav, i.deals?.currency, fx);
   }, 0) + displayPrivate.reduce((s,p) => s + toSAR(p.market_value||0, p.currency, fx), 0);
@@ -405,7 +408,10 @@ export default function InvestorPortfolio({ session }) {
   // ════════════════════════════════════════════════════════════════════════
   const altRows = [
     ...investments.map(inv => {
-      const navSorted = (inv.deals?.nav_updates||[]).slice().sort((a,b)=>new Date(b.effective_date)-new Date(a.effective_date));
+      const navSorted = (inv.deals?.nav_updates||[]).slice().sort((a,b)=>{
+        const dd = new Date(b.effective_date)-new Date(a.effective_date);
+        return dd !== 0 ? dd : new Date(b.created_at)-new Date(a.created_at);
+      });
       const latestNav = navSorted[0]?.current_nav ?? inv.deals?.current_nav ?? 0;
       const latestNavDate = navSorted[0]?.effective_date || null;
       const nav     = (inv.quantity||0)*latestNav;
