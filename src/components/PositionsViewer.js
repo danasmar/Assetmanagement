@@ -72,7 +72,7 @@ const FUND_FIELDS = [
   { key: "asset_class_focus",    label: "Asset Class Focus",     type: "select", options: ["Equity","Fixed Income","Multi-Asset","Commodity","Real Estate","Money Market"] },
   { key: "geographic_focus",     label: "Geographic Focus",      type: "select", options: ["Global","US","Europe","EM","MENA","GCC","Asia","Africa","Latin America"] },
   { key: "quantity",             label: "Units",                 type: "number" },
-  { key: "nav_per_unit",         label: "NAV per Unit",          type: "number" },
+  { key: "current_nav",         label: "Current NAV",          type: "number" },
   { key: "avg_cost_price",       label: "Avg Cost Price",        type: "number" },
   { key: "expense_ratio",        label: "Expense Ratio (TER) %", type: "number" },
   { key: "distribution_yield",   label: "Distribution Yield %",  type: "number" },
@@ -150,7 +150,7 @@ const TABLE_COLUMNS = {
     { key: "asset_class_focus", label: "Asset Class" },
     { key: "geographic_focus",  label: "Geo Focus" },
     { key: "quantity",          label: "Units",          fmt: true },
-    { key: "nav_per_unit",      label: "NAV/Unit" },
+    { key: "current_nav",      label: "Current NAV" },
     { key: "market_value",      label: "Market Value",   fmt: true },
     { key: "currency",          label: "Ccy" },
     { key: "_pnl",              label: "Unrealized P&L", computed: true },
@@ -200,9 +200,9 @@ const S = {
   syncBadge:  { fontSize: "0.65rem", background: "#e8f5e9", color: "#2e7d32", borderRadius: "4px", padding: "1px 5px", marginLeft: "4px", fontWeight: "600" },
 };
 
-// ── Get latest NAV per unit — deals.nav_per_unit is always kept current by NAV Management ──
+// ── Get latest NAV per unit — deals.current_nav is always kept current by NAV Management ──
 function getLatestNavPerUnit(row) {
-  if (row.deals?.nav_per_unit != null) return { navPerUnit: row.deals.nav_per_unit, date: null };
+  if (row.deals?.current_nav != null) return { navPerUnit: row.deals.current_nav, date: null };
   return null;
 }
 
@@ -367,8 +367,8 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
   const isDealLinked = !!formData.deal_id;
   const linkedDeal   = deals.find(d => d.id === formData.deal_id);
 
-  // Current Value — deals.nav_per_unit × quantity (NAV Management keeps deals.nav_per_unit current)
-  const navPerUnit   = linkedDeal?.nav_per_unit ?? null;
+  // Current Value — deals.current_nav × quantity (NAV Management keeps deals.current_nav current)
+  const navPerUnit   = linkedDeal?.current_nav ?? null;
   const computedNav  = isDealLinked && navPerUnit != null
     ? (parseFloat(formData.quantity) || 0) * navPerUnit
     : null;
@@ -644,7 +644,7 @@ export default function PositionsViewer({ session, investorId }) {
       // Join deals (with moic) — nav_updates fetched separately below to avoid deep join issues
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, moic, liquidity, lock_up_period, strategy, fund_vehicle, manager_gp, vintage_year, target_irr_pct)");
+        .select("*, deals(id, name, current_nav, currency, moic, liquidity, lock_up_period, strategy, fund_vehicle, manager_gp, vintage_year, target_irr_pct)");
     } else if (activeCategory === "Cash & Deposits") {
       // cash_positions uses balance not market_value, and has no category column
       query = supabase.from("cash_positions").select("*");
@@ -672,7 +672,7 @@ export default function PositionsViewer({ session, investorId }) {
       if (dealIds.length > 0) {
         const { data: navData } = await supabase
           .from("nav_updates")
-          .select("deal_id, nav_per_unit, effective_date")
+          .select("deal_id, current_nav, effective_date")
           .in("deal_id", dealIds)
           .order("effective_date", { ascending: false });
 
@@ -798,7 +798,7 @@ export default function PositionsViewer({ session, investorId }) {
         payload.manager_gp    = linkedDeal.manager_gp    || payload.manager_gp    || null;
         payload.vintage_year  = linkedDeal.vintage_year  || payload.vintage_year  || null;
         payload.irr           = linkedDeal.target_irr_pct != null ? linkedDeal.target_irr_pct : (payload.irr || null);
-        const navPerUnit = linkedDeal.nav_per_unit ?? null;
+        const navPerUnit = linkedDeal.current_nav ?? null;
         if (navPerUnit != null) {
           payload.market_value = (Number(payload.quantity) || 0) * navPerUnit;
         }
