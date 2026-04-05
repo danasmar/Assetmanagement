@@ -469,15 +469,37 @@ function AltModalFields({ formData, setFormData, deals, isEdit }) {
         </MF>
       </MG2>
       <MG2>
-        <MF label="Liquidity">
-          <select style={MFS} value={formData.liquidity ?? ""} onChange={e => set("liquidity", e.target.value || null)}>
-            <option value="">—</option>
-            {ALT_OPT.liquidity.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </MF>
-        <MF label="Lock-up Period">
-          <input style={MFI} value={formData.lock_up_period ?? ""} placeholder="e.g. 3 years" onChange={e => set("lock_up_period", e.target.value)} />
-        </MF>
+        {/* Liquidity — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Liquidity</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>
+              {linkedDeal?.liquidity || "—"}
+            </div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Liquidity">
+            <select style={MFS} value={formData.liquidity ?? ""} onChange={e => set("liquidity", e.target.value || null)}>
+              <option value="">—</option>
+              {ALT_OPT.liquidity.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </MF>
+        )}
+        {/* Lock-up Period — from deal for deal-linked */}
+        {isDealLinked ? (
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={{ ...MLS, color:"#6c757d" }}>Lock-up Period</label>
+            <div style={{ ...MFI, background:"#f0f4fa", border:"1.5px solid #e3ecfa", color:"#003770", fontWeight:"600", cursor:"default" }}>
+              {linkedDeal?.lock_up_period || "—"}
+            </div>
+            <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>Managed via Deal Management</div>
+          </div>
+        ) : (
+          <MF label="Lock-up Period">
+            <input style={MFI} value={formData.lock_up_period ?? ""} placeholder="e.g. 3 years" onChange={e => set("lock_up_period", e.target.value)} />
+          </MF>
+        )}
       </MG2>
       <MG2>
         <MF label="Next Valuation Date">
@@ -569,7 +591,7 @@ export default function PositionsViewer({ session, investorId }) {
       // Join deals (with moic) — nav_updates fetched separately below to avoid deep join issues
       query = supabase
         .from("private_markets_positions")
-        .select("*, deals(id, name, nav_per_unit, currency, moic)");
+        .select("*, deals(id, name, nav_per_unit, currency, moic, liquidity, lock_up_period)");
     } else {
       query = supabase.from(cat.table).select("*").eq("category", activeCategory);
     }
