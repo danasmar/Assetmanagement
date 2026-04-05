@@ -292,8 +292,28 @@ function AltFields({ f, sf, deals, isAdd }) {
       <FI label="Net IRR %"                    fk="irr"                  f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FS label="Liquidity"                    fk="liquidity"            f={f} sf={sf} options={OPT.liquidity} blank />
-      <FI label="Lock-up Period"               fk="lock_up_period"       f={f} sf={sf} placeholder="e.g. 3 years" />
+      {isDealLinked ? (
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={{ ...LS, color:'#6c757d' }}>Liquidity</label>
+          <div style={{ ...IS, background:'#f0f4fa', border:'1.5px solid #e3ecfa', color:'#003770', fontWeight:'600', cursor:'default' }}>
+            {linkedDeal?.liquidity || '—'}
+          </div>
+          <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>Managed via Deal Management</div>
+        </div>
+      ) : (
+        <FS label="Liquidity" fk="liquidity" f={f} sf={sf} options={OPT.liquidity} blank />
+      )}
+      {isDealLinked ? (
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={{ ...LS, color:'#6c757d' }}>Lock-up Period</label>
+          <div style={{ ...IS, background:'#f0f4fa', border:'1.5px solid #e3ecfa', color:'#003770', fontWeight:'600', cursor:'default' }}>
+            {linkedDeal?.lock_up_period || '—'}
+          </div>
+          <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>Managed via Deal Management</div>
+        </div>
+      ) : (
+        <FI label="Lock-up Period" fk="lock_up_period" f={f} sf={sf} placeholder="e.g. 3 years" />
+      )}
     </G2>
     <G2>
       <FI label="Next Valuation Date"          fk="next_valuation_date"  f={f} sf={sf} type="date" />
@@ -375,7 +395,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setLoading(true);
     const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic,liquidity,lock_up_period)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
