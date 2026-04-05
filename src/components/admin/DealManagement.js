@@ -50,6 +50,8 @@ export default function DealManagement() {
     currency: 'SAR',
     target_irr: '',
     moic: '',
+    liquidity: '',
+    lock_up_period: '',
     closing_date: '',
     description: '',
     investment_thesis: '',
@@ -140,6 +142,16 @@ export default function DealManagement() {
                 />
                 <span style={{ padding: '0.6rem 0.75rem', background: '#f1f3f5', color: '#6c757d', fontSize: '0.82rem', fontWeight: '700', borderLeft: '1.5px solid #dee2e6' }}>x</span>
               </div>
+            </div>
+            {f('liquidity', 'Liquidity', 'select', ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'])}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#495057', marginBottom: '5px', letterSpacing: '0.04em' }}>Lock-up Period</label>
+              <input type="text"
+                value={form.lock_up_period || ''}
+                onChange={e => setForm(f => ({ ...f, lock_up_period: e.target.value }))}
+                placeholder="e.g. 3 years"
+                style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #dee2e6', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+              />
             </div>
             <DateInput fieldKey="closing_date" label="Closing Date" form={form} setForm={setForm} />
           </div>
