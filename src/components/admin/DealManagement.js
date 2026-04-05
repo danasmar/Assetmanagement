@@ -23,13 +23,13 @@ export default function DealManagement() {
     const { data, error } = await supabase.storage.from("deal-images").upload(path, file, { upsert: true });
     if (error) { alert("Upload failed: " + error.message); setImageUploading(false); return; }
     const { data: urlData } = supabase.storage.from("deal-images").getPublicUrl(path);
-    setForm(f => ({ ...f, image_url: urlData.publicUrl }));
+    setForm(prev => ({ ...prev, image_url: urlData.publicUrl }));
     setImagePreview(urlData.publicUrl);
     setImageUploading(false);
   };
 
   const handleImageRemove = () => {
-    setForm(f => ({ ...f, image_url: "" }));
+    setForm(prev => ({ ...prev, image_url: "" }));
     setImagePreview(null);
   };
 
@@ -140,7 +140,7 @@ export default function DealManagement() {
                     const raw = e.target.value.replace(/[^0-9.]/g, '');
                     const parts = raw.split('.');
                     const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0, 2) : raw;
-                    setForm(f => ({ ...f, target_irr_pct: formatted }));
+                    setForm(prev => ({ ...prev, target_irr_pct: formatted }));
                   }}
                   placeholder="e.g. 12.00"
                   style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', background: 'transparent' }}
@@ -157,7 +157,7 @@ export default function DealManagement() {
                     const raw = e.target.value.replace(/[^0-9.]/g, '');
                     const parts = raw.split('.');
                     const formatted = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0, 2) : raw;
-                    setForm(f => ({ ...f, moic: formatted }));
+                    setForm(prev => ({ ...prev, moic: formatted }));
                   }}
                   placeholder="e.g. 1.80"
                   style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', background: 'transparent' }}
@@ -170,7 +170,7 @@ export default function DealManagement() {
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#495057', marginBottom: '5px', letterSpacing: '0.04em' }}>Lock-up Period</label>
               <input type="text"
                 value={form.lock_up_period || ''}
-                onChange={e => setForm(f => ({ ...f, lock_up_period: e.target.value }))}
+                onChange={e => setForm(prev => ({ ...prev, lock_up_period: e.target.value }))}
                 placeholder="e.g. 3 years"
                 style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #dee2e6', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'DM Sans,sans-serif', outline: 'none', boxSizing: 'border-box' }}
               />
@@ -267,7 +267,7 @@ export default function DealManagement() {
                 <button onClick={() => { const arr = (form.documents || []).filter((_, j) => j !== i); setForm({ ...form, documents: arr }); }} style={{ background: 'transparent', border: 'none', color: '#e63946', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0 }}>×</button>
               </div>
             ))}
-            <DocUploader onUploaded={doc => setForm(f => ({ ...f, documents: [...(f.documents || []), doc] }))} />
+            <DocUploader onUploaded={doc => setForm(prev => ({ ...prev, documents: [...(prev.documents || []), doc] }))} />
           </div>
 
           {/* Photos */}
@@ -281,7 +281,7 @@ export default function DealManagement() {
                 </div>
               ))}
             </div>
-            <PhotoUploader onUploaded={photo => setForm(f => ({ ...f, photos: [...(f.photos || []), photo] }))} />
+            <PhotoUploader onUploaded={photo => setForm(prev => ({ ...prev, photos: [...(prev.photos || []), photo] }))} />
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
