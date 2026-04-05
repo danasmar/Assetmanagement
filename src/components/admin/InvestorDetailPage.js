@@ -895,10 +895,12 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                             <td style={tdr}>{row.vintage_year||'—'}</td>
                             <td style={tdr}>{row.commitment_amount!=null?fmt.currency(row.commitment_amount,ccy):'—'}</td>
                             <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,ccy):'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:(row.commitment_amount||0)-(row.called_capital||0)>0?'#dc3545':'#adb5bd' }}>{row.commitment_amount!=null?fmt.currency((row.commitment_amount||0)-(row.called_capital||0),ccy):'—'}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(navVal,ccy)}</td>
                             <td style={td}>{ccy}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:((row.deal_id?row.deals?.moic:row.moic)||0)>=1?'#003770':'#dc3545' }}>{(()=>{const m=row.deal_id&&row.deals?.moic!=null?row.deals.moic:row.moic;return m!=null?`${Number(m).toFixed(2)}x`:'—';})()}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:(row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr}%`:'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:(()=>{ const called=row.called_capital||0; const dist=row.distributions_paid||0; const nav=altNavValue(row); const tvpi=called>0?(dist+nav)/called:null; return tvpi===null?'#adb5bd':tvpi>=1?'#003770':'#dc3545'; })() }}>{(()=>{ const called=row.called_capital||0; const dist=row.distributions_paid||0; const nav=altNavValue(row); const tvpi=called>0?(dist+nav)/called:null; return tvpi!==null?`${tvpi.toFixed(2)}x`:'—'; })()}</td>
                             <td style={td}>{fmt.date(row.statement_date)}</td>
                             <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
                             <td style={td}>
