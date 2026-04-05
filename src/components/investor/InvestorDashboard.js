@@ -6,32 +6,56 @@ import { toSAR } from "../../utils/fxConversion";
 // ── Palette shared across all three charts ───────────────────────────────────
 const PALETTE = ["#003770","#1565c0","#7b1fa2","#b45309","#00695c","#c62828","#00838f","#558b2f","#6a1b9a","#37474f"];
 
-// ── Donut chart (pure canvas, no library dependency) ─────────────────────────
+// ── Donut chart — device-pixel-ratio aware for sharp rendering ───────────────
 function DonutChart({ data, title }) {
-  const canvasRef = useRef(null);
+  const canvasRef    = useRef(null);
+  const containerRef = useRef(null);
+
+  const legendRows = Math.ceil(data.length / 2);
+  // Logical (CSS) dimensions
+  const CSS_H = 210 + legendRows * 18 + 10;
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !data.length) return;
-    const ctx    = canvas.getContext("2d");
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H * 0.46;
-    const R = Math.min(W, H * 0.9) * 0.34;
-    const r = R * 0.58;
+    const canvas    = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !data.length) return;
+
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = container.clientWidth || 280;
+    const cssH = CSS_H;
+
+    // Set physical backing-store size
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    // Keep CSS display size unchanged
+    canvas.style.width  = cssW + "px";
+    canvas.style.height = cssH + "px";
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);          // all subsequent draws are in CSS px
+
+    const W  = cssW;
+    const H  = cssH;
+    const cx = W / 2;
+    const cy = H * 0.40;
+    const R  = Math.min(W * 0.38, cy * 0.82);
+    const r  = R * 0.55;
+
     const total = data.reduce((s, d) => s + d.value, 0);
     if (total === 0) return;
 
     ctx.clearRect(0, 0, W, H);
 
+    // Build slices
     let angle = -Math.PI / 2;
     const slices = data.map((d, i) => {
       const sweep = (d.value / total) * 2 * Math.PI;
-      const slice = { start: angle, sweep, color: PALETTE[i % PALETTE.length], label: d.label, pct: d.value / total };
+      const s = { start: angle, sweep, color: PALETTE[i % PALETTE.length] };
       angle += sweep;
-      return slice;
+      return s;
     });
 
-    // Draw slices
+    // Draw slices with thin white separator
     slices.forEach(s => {
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -39,62 +63,68 @@ function DonutChart({ data, title }) {
       ctx.closePath();
       ctx.fillStyle = s.color;
       ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
     });
 
     // Donut hole
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("background-color") || "#ffffff";
+    ctx.fillStyle = "#ffffff";
     ctx.fill();
 
-    // Centre text
-    ctx.fillStyle   = "#003770";
-    ctx.font        = "600 11px DM Sans, sans-serif";
-    ctx.textAlign   = "center";
+    // Centre label
+    ctx.fillStyle    = "#003770";
+    ctx.font         = "600 12px DM Sans, sans-serif";
+    ctx.textAlign    = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(data.length + " items", cx, cy);
+    ctx.fillText(data.length + (data.length === 1 ? " item" : " items"), cx, cy);
 
-    // Legend below
-    const legendY = cy + R + 14;
+    // Legend
+    const legendY = cy + R + 18;
     const colW    = W / 2;
+
     data.forEach((d, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
-      const lx  = col === 0 ? 10 : W / 2 + 4;
-      const ly  = legendY + row * 16;
-      const pct = total > 0 ? (d.value / total * 100).toFixed(1) : "0.0";
+      const lx  = col === 0 ? 8 : W / 2 + 6;
+      const ly  = legendY + row * 18;
+      const pct = (d.value / total * 100).toFixed(1);
 
-      ctx.fillStyle = PALETTE[i % PALETTE.length];
-      ctx.fillRect(lx, ly + 2, 8, 8);
+      // Colour swatch
+      ctx.fillStyle   = PALETTE[i % PALETTE.length];
+      ctx.beginPath();
+      ctx.roundRect(lx, ly + 3, 9, 9, 2);
+      ctx.fill();
 
-      ctx.fillStyle   = "#212529";
-      ctx.font        = "400 10px DM Sans, sans-serif";
-      ctx.textAlign   = "start";
+      // Label — truncate to fit
+      const maxLabelW = colW - 38;
+      ctx.font         = "400 11px DM Sans, sans-serif";
+      ctx.textAlign    = "start";
       ctx.textBaseline = "middle";
-      // truncate label
-      const maxW    = colW - 34;
-      let   label   = d.label;
-      while (ctx.measureText(label).width > maxW && label.length > 4) label = label.slice(0, -2) + "…";
-      ctx.fillText(label, lx + 11, ly + 6);
+      ctx.fillStyle    = "#212529";
+      let label = d.label;
+      while (ctx.measureText(label).width > maxLabelW && label.length > 4)
+        label = label.slice(0, -2) + "…";
+      ctx.fillText(label, lx + 13, ly + 7.5);
 
+      // Percentage — right-aligned in its column
+      ctx.font      = "600 10px DM Sans, sans-serif";
       ctx.fillStyle = "#6c757d";
-      ctx.font      = "400 10px DM Sans, sans-serif";
       ctx.textAlign = "end";
-      ctx.fillText(pct + "%", (col === 0 ? W / 2 - 4 : W - 4), ly + 6);
+      ctx.fillText(pct + "%", col === 0 ? W / 2 - 4 : W - 4, ly + 7.5);
     });
-  }, [data]);
-
-  const legendRows = Math.ceil(data.length / 2);
-  const H = 200 + legendRows * 16 + 10;
+  }, [data, CSS_H]);
 
   return (
-    <div style={{ flex: 1, minWidth: 220 }}>
+    <div ref={containerRef} style={{ flex: 1, minWidth: 220, maxWidth: 340 }}>
       <div style={{ fontSize: "0.78rem", fontWeight: "700", color: "#003770", marginBottom: "0.5rem", textAlign: "center" }}>
         {title}
       </div>
       {data.length === 0
         ? <div style={{ textAlign: "center", color: "#adb5bd", fontSize: "0.82rem", padding: "2rem 0" }}>No data</div>
-        : <canvas ref={canvasRef} width={280} height={H} style={{ width: "100%", display: "block" }} />
+        : <canvas ref={canvasRef} style={{ width: "100%", display: "block" }} />
       }
     </div>
   );
