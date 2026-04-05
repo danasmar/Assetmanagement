@@ -375,13 +375,27 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     setLoading(true);
     const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
       supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic,nav_updates(nav_per_unit,effective_date))').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('private_markets_positions').select('*,deals(name,nav_per_unit,currency,moic)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
     if (assumpRes.data?.[0]) setFx(assumpRes.data[0]);
     const pub  = pubRes.data  || [];
-    const priv = privRes.data || [];
+    let priv   = privRes.data || [];
+
+    // Fetch latest nav_updates per deal separately to avoid deep join issues
+    const dealIds = [...new Set(priv.filter(r => r.deal_id).map(r => r.deal_id))];
+    if (dealIds.length > 0) {
+      const { data: navData } = await supabase
+        .from('nav_updates')
+        .select('deal_id, nav_per_unit, effective_date')
+        .in('deal_id', dealIds)
+        .order('effective_date', { ascending: false });
+      const latestNavMap = {};
+      (navData || []).forEach(n => { if (!latestNavMap[n.deal_id]) latestNavMap[n.deal_id] = n; });
+      priv = priv.map(r => ({ ...r, _latestNav: r.deal_id ? latestNavMap[r.deal_id] || null : null }));
+    }
+
     setRows({
       'Public Equities':    pub.filter(r => (r.category || detectCat(r)) === 'Public Equities'),
       'Fixed Income':       pub.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
@@ -400,12 +414,10 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     return (amount||0)*(r[currency]||1);
   };
 
-  // ── Latest NAV per unit from nav_updates (same logic as NAV Management) ──
+  // ── Latest NAV per unit — uses _latestNav attached during load ──
   const getLatestNav = (row) => {
-    const updates = row.deals?.nav_updates || [];
-    if (updates.length === 0) return row.deals?.nav_per_unit ?? null;
-    const sorted = [...updates].sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
-    return sorted[0].nav_per_unit;
+    if (row._latestNav) return row._latestNav.nav_per_unit;
+    return row.deals?.nav_per_unit ?? null;
   };
 
   // ── Compute market value for alt rows using latest NAV ──────────────────
