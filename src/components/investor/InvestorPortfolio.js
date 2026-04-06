@@ -702,23 +702,7 @@ export default function InvestorPortfolio({ session }) {
     <div>
       <PageHeader title="My Investments" subtitle="Your complete investment portfolio" />
 
-      {/* ── AUM Summary Cards ── */}
-      {!loading && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
-          {[
-            { label:"Private Markets", value:fmt.currency(privateNAV),    color:"#003770" },
-            { label:"Public Markets",  value:fmt.currency(totalPublicMV), color:"#1565c0" },
-            { label:"Cash",            value:fmt.currency(totalCash),     color:"#00695c" },
-            { label:"Total AUM",       value:fmt.currency(totalAUM),      color:"#C9A84C", highlight:true },
-          ].map(({ label, value, color, highlight }) => (
-            <div key={label} style={{ background:highlight?"#003770":"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"1rem 1.25rem", borderLeft:highlight?"none":`4px solid ${color}` }}>
-              <div style={{ fontSize:"0.72rem", color:highlight?"rgba(255,255,255,0.65)":"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0.4rem" }}>{label}</div>
-              <div style={{ fontSize:"1.1rem", fontWeight:"700", color:highlight?"#C9A84C":color }}>{value}</div>
-              {!highlight && <div style={{ fontSize:"0.7rem", color:"#adb5bd", marginTop:"3px" }}>in SAR</div>}
-            </div>
-          ))}
-        </div>
-      )}
+
 
       {/* ── Category Cards — MIRRORS ADMIN EXACTLY ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
