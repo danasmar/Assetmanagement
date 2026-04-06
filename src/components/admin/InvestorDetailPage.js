@@ -554,56 +554,48 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     const cat    = modal.cat;
 
     if (cat === 'Alternatives') {
-      const isDealLinked = !!form.deal_id;
-      // For deal-linked: market_value is computed from latest NAV × quantity, NOT from the form field
-      let savedMarketValue;
-      if (isDealLinked) {
-        // Current Value = deals.current_nav × quantity
-        const linkedDeal = deals.find(d => d.id === form.deal_id);
-        const navPerUnit = linkedDeal?.current_nav ?? null;
-        savedMarketValue = navPerUnit != null
-          ? (parseFloat(form.quantity) || 0) * navPerUnit
-          : toN(form.market_value);
-      } else {
-        savedMarketValue = toN(form.market_value);
-      }
+      // Resolve deal inline to avoid minifier variable scope issues
+      const deal = form.deal_id ? deals.find(d => d.id === form.deal_id) : null;
+      const dealNav = deal?.current_nav ?? null;
+      const computedMV = deal && dealNav != null
+        ? (parseFloat(form.quantity)||0) * dealNav
+        : null;
 
       const payload = {
         investor_id:         investor.id,
         category:            'Alternatives',
         security_name:       form.security_name       || 'Private Position',
-        fund_vehicle:        isDealLinked ? (linkedDeal?.fund_vehicle   || null) : (form.fund_vehicle  || null),
-        strategy:            isDealLinked ? (linkedDeal?.strategy      || null) : (form.strategy     || null),
-        manager_gp:          isDealLinked ? (linkedDeal?.manager_gp    || null) : (form.manager_gp   || null),
-        vintage_year:        isDealLinked ? (linkedDeal?.vintage_year  || null) : toN(form.vintage_year),
-        irr:                 isDealLinked ? (linkedDeal?.target_irr_pct != null ? linkedDeal.target_irr_pct : null) : toN(form.irr),
+        fund_vehicle:        deal ? (deal.fund_vehicle   || null) : (form.fund_vehicle  || null),
+        strategy:            deal ? (deal.strategy       || null) : (form.strategy      || null),
+        manager_gp:          deal ? (deal.manager_gp     || null) : (form.manager_gp    || null),
+        vintage_year:        deal ? (deal.vintage_year   || null) : toN(form.vintage_year),
+        irr:                 deal ? (deal.target_irr_pct != null ? deal.target_irr_pct : null) : toN(form.irr),
         investment_date:     form.investment_date       || null,
         commitment_amount:   toN(form.commitment_amount),
         called_capital:      toN(form.called_capital),
         distributions_paid:  toN(form.distributions_paid),
         amount_invested:     toN(form.amount_invested),
-        market_value:        savedMarketValue,
+        market_value:        computedMV != null ? computedMV : toN(form.market_value),
         quantity:            toN(form.quantity),
         avg_cost_price:      toN(form.avg_cost_price),
-        moic:                toN(form.moic),
-        liquidity:           form.liquidity             || null,
-        lock_up_period:      form.lock_up_period        || null,
+        moic:                deal ? (deal.moic ?? null) : toN(form.moic),
+        liquidity:           deal ? (deal.liquidity      || null) : (form.liquidity     || null),
+        lock_up_period:      deal ? (deal.lock_up_period || null) : (form.lock_up_period|| null),
         next_valuation_date: form.next_valuation_date   || null,
         mandate_type:        form.mandate_type          || null,
-        currency:            form.currency              || 'SAR',
+        currency:            deal ? (deal.currency       || form.currency || 'SAR') : (form.currency || 'SAR'),
         custodian:           form.custodian             || null,
-        source_bank:         form.custodian             || null,  // keep source_bank in sync
+        source_bank:         form.custodian             || null,
         statement_date:      form.statement_date        || today,
         status:              form.status                || 'active',
         deal_id:             form.deal_id               || null,
       };
 
       // When adding deal-linked: auto-compute quantity from NAV if not provided
-      if (!isEdit && form.deal_id && form.amount_invested && !form.quantity) {
-        const d = deals.find(x => x.id === form.deal_id);
-        const nav = d?.current_nav || 1;
-        payload.quantity     = (parseFloat(form.amount_invested)||0) / nav;
-        payload.market_value = payload.quantity * nav;
+      if (!isEdit && deal && form.amount_invested && !form.quantity) {
+        const nav = deal.current_nav || 1;
+        payload.quantity       = (parseFloat(form.amount_invested)||0) / nav;
+        payload.market_value   = payload.quantity * nav;
         payload.avg_cost_price = payload.avg_cost_price || nav;
       }
 
