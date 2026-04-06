@@ -162,9 +162,21 @@ export default function InvestorDashboard({ session, onPage }) {
 
       const pubData  = pubRes.data  || [];
       const cashData = cashRes.data || [];
-      const latestPub  = pubData.length  ? pubData[0].statement_date  : null;
+      // Per-category latest date — prevents one category's newer date from hiding others
+      const latestForCat = (cat) => {
+        const rows = pubData.filter(p => p.category === cat);
+        return rows.length ? rows[0].statement_date : null;
+      };
+      const latestEq   = latestForCat("Public Equities");
+      const latestFI   = latestForCat("Fixed Income");
+      const latestETF  = latestForCat("ETF & Public Funds");
+      const filteredPub = [
+        ...pubData.filter(p => p.category === "Public Equities"    && (!latestEq  || p.statement_date === latestEq)),
+        ...pubData.filter(p => p.category === "Fixed Income"       && (!latestFI  || p.statement_date === latestFI)),
+        ...pubData.filter(p => p.category === "ETF & Public Funds" && (!latestETF || p.statement_date === latestETF)),
+      ];
       const latestCash = cashData.length ? cashData[0].statement_date : null;
-      setPubPositions(latestPub  ? pubData.filter(p => p.statement_date === latestPub)   : []);
+      setPubPositions(filteredPub);
       setCashPositions(latestCash ? cashData.filter(c => c.statement_date === latestCash) : []);
       setLoading(false);
     };
