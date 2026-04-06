@@ -63,7 +63,7 @@ function FS({ label, fk, f, sf, options, blank=false }) {
       <select value={f[fk] ?? ''} onChange={e => sf(p => ({ ...p, [fk]: e.target.value || null }))}
         style={{ ...IS, background:'#fff', cursor:'pointer' }}>
         {blank && <option value=''>—</option>}
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {(options||[]).map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
   );
