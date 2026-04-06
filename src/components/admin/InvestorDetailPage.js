@@ -18,6 +18,7 @@ const OPT = {
   assetClassFocus:    ['Equity','Fixed Income','Multi-Asset','Commodity','Real Estate','Money Market'],
   geographicFocus:    ['Global','US','Europe','EM','MENA','GCC','Asia','Africa','Latin America'],
   distributionPolicy: ['Distributing','Accumulating'],
+  domicile:           ['Luxembourg','Ireland','United States','Cayman Islands','Jersey','Guernsey','Singapore','Saudi Arabia','United Arab Emirates','Bahrain'],
   fundVehicle:        ['LP','Co-Investment','SPV','Direct','Feeder'],
   altStrategy:        ['PE Buyout','Growth Equity','Venture Capital','Real Estate','Infrastructure','Hedge Fund','Private Debt','Fund of Funds'],
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
@@ -195,7 +196,7 @@ function FixedIncomeFields({ f, sf }) {
   </>;
 }
 
-function ETFFields({ f, sf }) {
+function ETFFields({ f, sf, totalAUM=0 }) {
   return <>
     <FI label="Fund Name *"                    fk="security_name"        f={f} sf={sf} />
     <G2>
@@ -216,7 +217,14 @@ function ETFFields({ f, sf }) {
     </G2>
     <G2>
       <FI label="Avg Cost Price"               fk="avg_cost_price"       f={f} sf={sf} type="number" />
-      <FI label="Market Value"                 fk="market_value"         f={f} sf={sf} type="number" />
+      {/* Market Value — computed: Units × Current NAV */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Market Value</label>
+        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
+          {(()=>{ const q=parseFloat(f.quantity)||0; const n=parseFloat(f.nav_per_unit)||0; const mv=q*n; return mv>0?`${f.currency||'SAR'} ${mv.toLocaleString('en-US',{maximumFractionDigits:2})}`:'—'; })()}
+        </div>
+        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Units × Current NAV</div>
+      </div>
     </G2>
     <G2>
       <FI label="Expense Ratio (TER) %"        fk="expense_ratio"        f={f} sf={sf} type="number" />
@@ -224,10 +232,17 @@ function ETFFields({ f, sf }) {
     </G2>
     <G2>
       <FS label="Distribution Policy"          fk="distribution_policy"  f={f} sf={sf} options={OPT.distributionPolicy} blank />
-      <FI label="Domicile"                     fk="domicile"             f={f} sf={sf} placeholder="e.g. Luxembourg, Ireland, KSA" />
+      <FS label="Domicile"                     fk="domicile"             f={f} sf={sf} options={OPT.domicile} blank />
     </G2>
     <G2>
-      <FI label="Portfolio Weight %"           fk="portfolio_weight"     f={f} sf={sf} type="number" />
+      {/* Portfolio Weight — computed: market value in SAR / total client AUM */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Portfolio Weight %</label>
+        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
+          {(()=>{ const q=parseFloat(f.quantity)||0; const n=parseFloat(f.nav_per_unit)||0; const mv=q*n; const sarMV=mv*(f.currency==='USD'?3.75:f.currency==='EUR'?4.35:f.currency==='GBP'?4.98:f.currency==='AED'?1.02:1); return (totalAUM>0&&sarMV>0)?`${(sarMV/totalAUM*100).toFixed(2)}%`:'—'; })()}
+        </div>
+        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Market Value (SAR) ÷ Total AUM</div>
+      </div>
       <FS label="Mandate Type"                 fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
@@ -665,19 +680,29 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                             ? Math.max(0, (new Date(form.maturity_date) - new Date()) / (1000 * 60 * 60 * 24 * 365.25))
                             : null,
       });
-      if (cat === 'ETF & Public Funds') Object.assign(base, {
-        fund_type:           form.fund_type           || null,
-        fund_manager:        form.fund_manager        || null,
-        asset_class_focus:   form.asset_class_focus   || null,
-        geographic_focus:    form.geographic_focus    || null,
-        quantity:            toN(form.quantity),
-        nav_per_unit:        toN(form.nav_per_unit),
-        avg_cost_price:      toN(form.avg_cost_price),
-        expense_ratio:       toN(form.expense_ratio),
-        distribution_yield:  toN(form.distribution_yield),
-        distribution_policy: form.distribution_policy || null,
-        domicile:            form.domicile            || null,
-      });
+      if (cat === 'ETF & Public Funds') {
+        const etfQty = parseFloat(form.quantity)    || 0;
+        const etfNav = parseFloat(form.nav_per_unit) || 0;
+        const etfMV  = etfQty * etfNav;
+        const etfCcy = form.currency || 'SAR';
+        const fxRate = etfCcy==='USD'?3.75:etfCcy==='EUR'?4.35:etfCcy==='GBP'?4.98:etfCcy==='AED'?1.02:1;
+        const etfMVsar = etfMV * fxRate;
+        Object.assign(base, {
+          fund_type:           form.fund_type           || null,
+          fund_manager:        form.fund_manager        || null,
+          asset_class_focus:   form.asset_class_focus   || null,
+          geographic_focus:    form.geographic_focus    || null,
+          quantity:            toN(form.quantity),
+          nav_per_unit:        etfNav || null,
+          avg_cost_price:      toN(form.avg_cost_price),
+          market_value:        etfMV > 0 ? etfMV : toN(form.market_value),
+          expense_ratio:       toN(form.expense_ratio),
+          distribution_yield:  toN(form.distribution_yield),
+          distribution_policy: form.distribution_policy || null,
+          domicile:            form.domicile            || null,
+          portfolio_weight:    totalAUM > 0 && etfMVsar > 0 ? (etfMVsar / totalAUM * 100) : null,
+        });
+      }
       if (isEdit) await supabase.from('public_markets_positions').update(base).eq('id', form.id);
       else        await supabase.from('public_markets_positions').insert(base);
     }
@@ -948,7 +973,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           <div style={{ maxHeight:'62vh', overflowY:'auto', paddingRight:'0.5rem' }}>
             {modal.cat === 'Public Equities'    && <EquityFields      f={form} sf={setForm} />}
             {modal.cat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
-            {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
+            {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} totalAUM={totalAUM} />}
             {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={deals} isAdd={modal.mode==='add'} />}
             {modal.cat === 'Cash & Deposits'   && <CashFields        f={form} sf={setForm} />}
           </div>
