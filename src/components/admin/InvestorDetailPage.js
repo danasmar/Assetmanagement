@@ -150,19 +150,24 @@ function FixedIncomeFields({ f, sf }) {
       <FI label="Accrued Interest"             fk="accrued_interest" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      {/* Market Value — computed: (Current Price / 100) × Face Value */}
-      <div style={{ marginBottom:'1rem' }}>
-        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Market Value</label>
-        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
-          {(()=>{ const p=parseFloat(f.price)||0; const fv=parseFloat(f.face_value)||0; const mv=(p/100)*fv; return mv>0?`${f.currency||'SAR'} ${mv.toLocaleString('en-US',{maximumFractionDigits:2})}`:'—'; })()}
-        </div>
-        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= (Current Price / 100) × Face Value</div>
-      </div>
+      <FI label="Market Value"                 fk="market_value"     f={f} sf={sf} type="number" />
       <FI label="YTM %"                        fk="ytm"              f={f} sf={sf} type="number" />
     </G2>
     <G2>
       <FI label="YTW %"                        fk="ytw"              f={f} sf={sf} type="number" />
-      <FI label="Duration (Years)"             fk="duration_years"   f={f} sf={sf} type="number" />
+      {/* Duration — computed from maturity date minus today */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Duration (Years)</label>
+        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
+          {(()=>{
+            if (!f.maturity_date) return '—';
+            const diff = new Date(f.maturity_date) - new Date();
+            if (diff <= 0) return '0.00';
+            return (diff / (1000 * 60 * 60 * 24 * 365.25)).toFixed(2);
+          })()}
+        </div>
+        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Maturity Date − Today</div>
+      </div>
     </G2>
     <G2>
       <FI label="Maturity Date"                fk="maturity_date"    f={f} sf={sf} type="date" />
@@ -641,15 +646,14 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         coupon_frequency: form.coupon_frequency || null,
         purchase_price:   toN(form.purchase_price),
         price:            toN(form.price),
-        market_value:     (parseFloat(form.price)||0) > 0 && (parseFloat(form.face_value)||0) > 0
-                            ? ((parseFloat(form.price)||0) / 100) * (parseFloat(form.face_value)||0)
-                            : toN(form.market_value),
         accrued_interest: toN(form.accrued_interest),
         ytm:              toN(form.ytm),
         ytw:              toN(form.ytw),
         maturity_date:    form.maturity_date    || null,
         call_date:        form.call_date        || null,
-        duration_years:   toN(form.duration_years),
+        duration_years:   form.maturity_date
+                            ? Math.max(0, (new Date(form.maturity_date) - new Date()) / (1000 * 60 * 60 * 24 * 365.25))
+                            : null,
       });
       if (cat === 'ETF & Public Funds') Object.assign(base, {
         fund_type:           form.fund_type           || null,
