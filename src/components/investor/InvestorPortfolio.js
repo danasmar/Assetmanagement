@@ -323,10 +323,10 @@ export default function InvestorPortfolio({ session }) {
                       : "—"}
                   </td>
                   <td style={S.tdR}>{pos.face_value ? fmt.currency(pos.face_value, pos.currency) : "—"}</td>
-                  <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{pos.coupon_rate!=null ? `${pos.coupon_rate}%` : "—"}</td>
+                  <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{pos.coupon_rate!=null ? `${Number(pos.coupon_rate).toFixed(2)}%` : "—"}</td>
                   <td style={S.td}>{pos.coupon_frequency||"—"}</td>
-                  <td style={S.tdR}>{pos.purchase_price!=null ? pos.purchase_price : "—"}</td>
-                  <td style={S.tdR}>{pos.price!=null ? pos.price : "—"}</td>
+                  <td style={S.tdR}>{pos.purchase_price!=null ? `${Number(pos.purchase_price).toFixed(2)}%` : "—"}</td>
+                  <td style={S.tdR}>{pos.price!=null ? `${Number(pos.price).toFixed(2)}%` : "—"}</td>
                   <td style={S.tdR}>{pos.accrued_interest ? fmt.currency(pos.accrued_interest, pos.currency) : "—"}</td>
                   <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(pos.market_value, pos.currency)}</td>
                   <td style={{ ...S.tdR, fontWeight:"700", color:"#2a9d5c" }}>{pos.ytm!=null ? `${pos.ytm}%` : "—"}</td>
