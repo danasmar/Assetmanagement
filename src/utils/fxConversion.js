@@ -10,6 +10,7 @@ const DEFAULT_RATES = {
   eur_to_sar: 4.10,
   gbp_to_sar: 4.73,
   aed_to_sar: 1.02,
+  chf_to_sar: 4.12,
 };
 
 /**
@@ -28,6 +29,7 @@ export function toSAR(amount, currency, rates = DEFAULT_RATES) {
     EUR: rates.eur_to_sar || DEFAULT_RATES.eur_to_sar,
     GBP: rates.gbp_to_sar || DEFAULT_RATES.gbp_to_sar,
     AED: rates.aed_to_sar || DEFAULT_RATES.aed_to_sar,
+    CHF: rates.chf_to_sar || DEFAULT_RATES.chf_to_sar,
   };
   return val * (map[currency] || 1);
 }
