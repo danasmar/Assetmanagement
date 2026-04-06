@@ -379,8 +379,45 @@ function ETFFields({ f, sf }) {
     </G2>
     <G2>
       <FS label="Distribution Policy"          fk="distribution_policy"  f={f} sf={sf} options={OPT.distributionPolicy} blank />
-      <FS label="Domicile"                     fk="domicile"             f={f} sf={sf} options={OPT.domicile} blank />
+      {/* Domicile only for non-ETF fund types */}
+      {f.fund_type !== 'ETF'
+        ? <FS label="Domicile" fk="domicile" f={f} sf={sf} options={OPT.domicile} blank />
+        : <div style={{ marginBottom:'1rem' }}>
+            <label style={LS}>Domicile</label>
+            <div style={{ padding:'0.6rem 0.85rem', background:'#f8f9fa', borderRadius:'8px', fontSize:'0.85rem', color:'#adb5bd', border:'1.5px solid #f1f3f5' }}>N/A for ETFs</div>
+          </div>
+      }
     </G2>
+    {/* Exchange + Country — shown only for ETFs, with smart link */}
+    {f.fund_type === 'ETF' && (
+      <G2>
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={LS}>Exchange</label>
+          <select value={f.exchange||''} style={{ ...IS, background:'#fff', cursor:'pointer' }}
+            onChange={e => {
+              const exch = e.target.value;
+              const country = EXCHANGE_COUNTRY[exch] || f.country || '';
+              sf(p => ({ ...p, exchange: exch || null, country }));
+            }}>
+            <option value=''>—</option>
+            {OPT.exchange.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom:'1rem' }}>
+          <label style={LS}>Country</label>
+          <select value={f.country||''} style={{ ...IS, background:'#fff', cursor:'pointer' }}
+            onChange={e => sf(p => ({ ...p, country: e.target.value || null }))}>
+            <option value=''>—</option>
+            {['Saudi Arabia','United Arab Emirates','Kuwait','Bahrain','Oman','Qatar','Egypt','Jordan','Lebanon',
+              'United States','United Kingdom','France','Germany','Switzerland','Netherlands','Belgium','Italy','Spain',
+              'Japan','China','Hong Kong','Singapore','South Korea','India','Canada','Australia',
+              'South Africa','Brazil','Russia','Sweden','Norway','Austria','Poland','Turkey','Other'].map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </G2>
+    )}
     <G2>
       <FI label="Portfolio Weight %"           fk="portfolio_weight"     f={f} sf={sf} type="number" readOnly hint="Auto-computed on save" />
       <FS label="Mandate Type"                 fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
@@ -823,6 +860,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           fund_manager:        form.fund_manager        || null,
           asset_class_focus:   form.asset_class_focus   || null,
           geographic_focus:    form.geographic_focus    || null,
+          exchange:            form.fund_type === 'ETF' ? (form.exchange || null) : null,
+          country:             form.fund_type === 'ETF' ? (form.country  || null) : (form.country || null),
           quantity:            toN(form.quantity),
           nav_per_unit:        toN(form.nav_per_unit),
           avg_cost_price:      toN(form.avg_cost_price),
@@ -832,7 +871,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           expense_ratio:       toN(form.expense_ratio),
           distribution_yield:  toN(form.distribution_yield),
           distribution_policy: form.distribution_policy || null,
-          domicile:            form.domicile            || null,
+          domicile:            form.fund_type === 'ETF' ? null : (form.domicile || null),
           portfolio_weight:    toN(form.portfolio_weight),
         });
       }
