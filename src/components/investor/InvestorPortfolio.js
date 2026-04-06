@@ -77,21 +77,43 @@ export default function InvestorPortfolio({ session }) {
       });
       setDistByDeal(byDeal);
 
-      const latest = (posRes.data || []).length ? posRes.data[0].statement_date : "";
-      setSelectedDate(latest);
       setLoading(false);
     };
     load();
   }, [session.user.id]);
 
-  // ── Derived: dates & filtered public positions ──────────────────────────
-  const allDates = [...new Set(positions.map(p => p.statement_date).filter(Boolean))]
-    .sort((a, b) => new Date(b) - new Date(a));
-  const effectiveDate   = selectedDate || allDates[0] || null;
-  const displayByDate   = effectiveDate ? positions.filter(p => p.statement_date === effectiveDate) : positions;
-  const equityRows      = displayByDate.filter(p => p.category === "Public Equities");
-  const fiRows          = displayByDate.filter(p => p.category === "Fixed Income");
-  const etfRows         = displayByDate.filter(p => p.category === "ETF & Public Funds");
+  // ── Derived: per-category latest date, each filtered independently ────────
+  // Helper: latest date for a given category
+  const latestDateFor = (cat) => {
+    const dates = [...new Set(positions.filter(p => p.category === cat).map(p => p.statement_date).filter(Boolean))]
+      .sort((a, b) => new Date(b) - new Date(a));
+    return dates[0] || null;
+  };
+
+  // All unique dates for the active category — drives the date dropdown
+  const activeCatLabel = activeCategory === "equities" ? "Public Equities"
+    : activeCategory === "fi"  ? "Fixed Income"
+    : activeCategory === "etf" ? "ETF & Public Funds"
+    : null;
+  const allDates = activeCatLabel
+    ? [...new Set(positions.filter(p => p.category === activeCatLabel).map(p => p.statement_date).filter(Boolean))]
+        .sort((a, b) => new Date(b) - new Date(a))
+    : [];
+
+  // Each category uses its own latest date (or the user-selected date if it matches)
+  const equityLatest = selectedDate && positions.some(p => p.category === "Public Equities" && p.statement_date === selectedDate)
+    ? selectedDate : latestDateFor("Public Equities");
+  const fiLatest     = selectedDate && positions.some(p => p.category === "Fixed Income" && p.statement_date === selectedDate)
+    ? selectedDate : latestDateFor("Fixed Income");
+  const etfLatest    = selectedDate && positions.some(p => p.category === "ETF & Public Funds" && p.statement_date === selectedDate)
+    ? selectedDate : latestDateFor("ETF & Public Funds");
+
+  const equityRows = positions.filter(p => p.category === "Public Equities" && (!equityLatest || p.statement_date === equityLatest));
+  const fiRows     = positions.filter(p => p.category === "Fixed Income"     && (!fiLatest     || p.statement_date === fiLatest));
+  const etfRows    = positions.filter(p => p.category === "ETF & Public Funds" && (!etfLatest  || p.statement_date === etfLatest));
+
+  // displayByDate kept for AUM total — union of all per-category filtered rows
+  const displayByDate = [...equityRows, ...fiRows, ...etfRows];
 
   // ── Private ─────────────────────────────────────────────────────────────
   const latestPrivDate  = privatePositions[0]?.statement_date || null;
