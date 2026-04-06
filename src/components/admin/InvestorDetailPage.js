@@ -443,7 +443,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   const [form, setForm]       = useState({});
   const [saving, setSaving]   = useState(false);
 
-  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.10, gbp_to_sar:4.73, aed_to_sar:1.02 });
+  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.35, gbp_to_sar:4.98, aed_to_sar:1.02 });
 
   const load = async () => {
     setLoading(true);
@@ -484,7 +484,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
   const toSAR = (amount, currency) => {
     if (!currency || currency === 'SAR') return amount || 0;
-    const r = { USD:fx.usd_to_sar||3.75, EUR:fx.eur_to_sar||4.10, GBP:fx.gbp_to_sar||4.73, AED:fx.aed_to_sar||1.02 };
+    const r = { USD:fx.usd_to_sar||3.75, EUR:fx.eur_to_sar||4.35, GBP:fx.gbp_to_sar||4.98, AED:fx.aed_to_sar||1.02 };
     return (amount||0)*(r[currency]||1);
   };
 
