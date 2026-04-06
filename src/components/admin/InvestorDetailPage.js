@@ -674,26 +674,22 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                             : null,
       });
       if (cat === 'ETF & Public Funds') {
-        const etfQty = parseFloat(form.quantity)    || 0;
-        const etfNav = parseFloat(form.nav_per_unit) || 0;
-        const etfMV  = etfQty * etfNav;
-        const etfCcy = form.currency || 'SAR';
-        const fxRate = etfCcy==='USD'?3.75:etfCcy==='EUR'?4.35:etfCcy==='GBP'?4.98:etfCcy==='AED'?1.02:1;
-        const etfMVsar = etfMV * fxRate;
         Object.assign(base, {
           fund_type:           form.fund_type           || null,
           fund_manager:        form.fund_manager        || null,
           asset_class_focus:   form.asset_class_focus   || null,
           geographic_focus:    form.geographic_focus    || null,
           quantity:            toN(form.quantity),
-          nav_per_unit:        etfNav || null,
+          nav_per_unit:        toN(form.nav_per_unit),
           avg_cost_price:      toN(form.avg_cost_price),
-          market_value:        etfMV > 0 ? etfMV : toN(form.market_value),
+          market_value:        (parseFloat(form.quantity)||0)*(parseFloat(form.nav_per_unit)||0) > 0
+                                 ? (parseFloat(form.quantity)||0)*(parseFloat(form.nav_per_unit)||0)
+                                 : toN(form.market_value),
           expense_ratio:       toN(form.expense_ratio),
           distribution_yield:  toN(form.distribution_yield),
           distribution_policy: form.distribution_policy || null,
           domicile:            form.domicile            || null,
-          portfolio_weight:    _totalAUM > 0 && etfMVsar > 0 ? (etfMVsar / _totalAUM * 100) : null,
+          portfolio_weight:    toN(form.portfolio_weight),
         });
       }
       if (isEdit) await supabase.from('public_markets_positions').update(base).eq('id', form.id);
