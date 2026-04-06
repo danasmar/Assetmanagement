@@ -150,7 +150,14 @@ function FixedIncomeFields({ f, sf }) {
       <FI label="Accrued Interest"             fk="accrued_interest" f={f} sf={sf} type="number" />
     </G2>
     <G2>
-      <FI label="Market Value"                 fk="market_value"     f={f} sf={sf} type="number" />
+      {/* Market Value — computed: (Current Price / 100) × Face Value */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Market Value</label>
+        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
+          {(()=>{ const p=parseFloat(f.price)||0; const fv=parseFloat(f.face_value)||0; const mv=(p/100)*fv; return mv>0?`${f.currency||'SAR'} ${mv.toLocaleString('en-US',{maximumFractionDigits:2})}`:'—'; })()}
+        </div>
+        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= (Current Price / 100) × Face Value</div>
+      </div>
       <FI label="YTM %"                        fk="ytm"              f={f} sf={sf} type="number" />
     </G2>
     <G2>
@@ -634,6 +641,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         coupon_frequency: form.coupon_frequency || null,
         purchase_price:   toN(form.purchase_price),
         price:            toN(form.price),
+        market_value:     (parseFloat(form.price)||0) > 0 && (parseFloat(form.face_value)||0) > 0
+                            ? ((parseFloat(form.price)||0) / 100) * (parseFloat(form.face_value)||0)
+                            : toN(form.market_value),
         accrued_interest: toN(form.accrued_interest),
         ytm:              toN(form.ytm),
         ytw:              toN(form.ytw),
