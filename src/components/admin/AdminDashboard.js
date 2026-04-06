@@ -16,8 +16,9 @@ export default function AdminDashboard() {
   const [stats,     setStats]     = useState({ aum: 0, funds: 0, investors: 0 });
   const [deals,     setDeals]     = useState([]);
   const [interests, setInterests] = useState([]);
-  const [topClients, setTopClients] = useState([]);
-  const [topInvest,  setTopInvest]  = useState([]);
+  const [topClients,  setTopClients]  = useState([]);
+  const [topInvest,   setTopInvest]   = useState([]);
+  const [custodyAUM,  setCustodyAUM]  = useState({ audiCapital: 0, bankAudi: 0, others: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -28,13 +29,13 @@ export default function AdminDashboard() {
           .select("*, investors(full_name), deals(name)")
           .order("created_at", { ascending: false }).limit(5),
         supabase.from("public_markets_positions")
-          .select("investor_id, security_name, category, market_value, currency")
+          .select("investor_id, security_name, category, market_value, currency, custodian, source_bank")
           .eq("status", "active"),
         supabase.from("private_markets_positions")
-          .select("investor_id, security_name, quantity, currency, deals(name, current_nav, currency)")
+          .select("investor_id, security_name, quantity, currency, custodian, source_bank, deals(name, current_nav, currency)")
           .eq("status", "active"),
         supabase.from("cash_positions")
-          .select("investor_id, balance, currency")
+          .select("investor_id, balance, currency, source_bank")
           .eq("status", "active"),
         supabase.from("assumptions").select("*").order("updated_at", { ascending: false }).limit(1),
       ]);
@@ -87,6 +88,30 @@ export default function AdminDashboard() {
       const allInvest = [...Object.values(pubMap), ...Object.values(altMap)]
         .sort((a, b) => b.valueSAR - a.valueSAR).slice(0, 5);
       setTopInvest(allInvest);
+
+      // ── Custody AUM ───────────────────────────────────────────────────────
+      const custodyBucket = (custodian, source_bank) => {
+        const eff = custodian || source_bank || "";
+        if (eff === "Audi Capital")    return "audiCapital";
+        if (eff === "Bank Audi Suisse") return "bankAudi";
+        return "others";
+      };
+
+      const cAUM = { audiCapital: 0, bankAudi: 0, others: 0 };
+
+      pubPos.forEach(p => {
+        const bucket = custodyBucket(p.custodian, p.source_bank);
+        cAUM[bucket] += toSAR(p.market_value || 0, p.currency, fx);
+      });
+      privPos.forEach(p => {
+        const bucket = custodyBucket(p.custodian, p.source_bank);
+        cAUM[bucket] += toSAR((p.quantity || 0) * (p.deals?.current_nav || 0), p.deals?.currency || p.currency, fx);
+      });
+      cashPos.forEach(c => {
+        const bucket = custodyBucket(null, c.source_bank);
+        cAUM[bucket] += toSAR(c.balance || 0, c.currency, fx);
+      });
+      setCustodyAUM(cAUM);
     };
     load();
   }, []);
@@ -100,10 +125,12 @@ export default function AdminDashboard() {
       <PageHeader title="Admin Dashboard" subtitle="Platform overview and management" />
 
       {/* ── Summary stats ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
-        <StatCard label="Total AUM"       value={fmt.currency(stats.aum)} color="#003770" />
-        <StatCard label="Active Funds"    value={stats.funds} />
-        <StatCard label="Total Investors" value={stats.investors} />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
+        <StatCard label="Total AUM"                    value={fmt.currency(stats.aum)}                  color="#003770" />
+        <StatCard label="Total AUM — Audi Capital"     value={fmt.currency(custodyAUM.audiCapital)}      color="#003770" />
+        <StatCard label="Total AUM — Bank Audi Suisse" value={fmt.currency(custodyAUM.bankAudi)}         color="#185FA5" />
+        <StatCard label="Total AUM — Others"           value={fmt.currency(custodyAUM.others)}           color="#5F5E5A" />
+        <StatCard label="Total Investors"              value={stats.investors} />
       </div>
 
       {/* ── Fundraising + Interest ── */}
