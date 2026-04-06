@@ -142,7 +142,7 @@ export default function InvestorDashboard({ session, onPage }) {
     const load = async () => {
       const [pubRes, altRes, cashRes, updRes, assumpRes] = await Promise.all([
         supabase.from("public_markets_positions")
-          .select("category, market_value, currency, custodian, source_bank, security_name, quantity, avg_cost_price, price, statement_date")
+          .select("category, market_value, currency, custodian, source_bank, security_name, quantity, avg_cost_price, price, statement_date, mandate_type, country, sector, industry, nav_per_unit, fund_type, geographic_focus, asset_class_focus")
           .eq("investor_id", session.user.id).eq("status","active")
           .order("statement_date", { ascending: false }),
         supabase.from("private_markets_positions")
@@ -262,6 +262,62 @@ export default function InvestorDashboard({ session, onPage }) {
     .sort((a,b) => b[1]-a[1])
     .map(([label, value]) => ({ label, value }));
 
+  // ── Mandate allocation ───────────────────────────────────────────────────────
+  const mandateMap = {};
+  pubPositions.forEach(p => {
+    const key = p.mandate_type || "Unspecified";
+    const v   = toSAR(p.market_value||0, p.currency, fx);
+    mandateMap[key] = (mandateMap[key]||0) + v;
+  });
+  altPositions.forEach(i => {
+    const key = i.mandate_type || "Unspecified";
+    const v   = toSAR((i.quantity||0)*(i.deals?.current_nav||0), i.deals?.currency||i.currency, fx);
+    mandateMap[key] = (mandateMap[key]||0) + v;
+  });
+  cashPositions.forEach(c => {
+    const key = "Cash";
+    const v   = toSAR(c.balance||0, c.currency, fx);
+    mandateMap[key] = (mandateMap[key]||0) + v;
+  });
+  const mandateData = Object.entries(mandateMap)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1])
+    .map(([label, value]) => ({ label, value }));
+
+  // ── Geography (country) allocation ───────────────────────────────────────────
+  const geoMap = {};
+  pubPositions.forEach(p => {
+    const key = p.country || "Other";
+    const v   = toSAR(p.market_value||0, p.currency, fx);
+    geoMap[key] = (geoMap[key]||0) + v;
+  });
+  altPositions.forEach(i => {
+    const key = i.country || "Other";
+    const v   = toSAR((i.quantity||0)*(i.deals?.current_nav||0), i.deals?.currency||i.currency, fx);
+    geoMap[key] = (geoMap[key]||0) + v;
+  });
+  const geoData = Object.entries(geoMap)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1])
+    .map(([label, value]) => ({ label, value }));
+
+  // ── Sector allocation ────────────────────────────────────────────────────────
+  const sectorMap = {};
+  pubPositions.forEach(p => {
+    const key = p.sector || p.asset_class_focus || "Other";
+    const v   = toSAR(p.market_value||0, p.currency, fx);
+    sectorMap[key] = (sectorMap[key]||0) + v;
+  });
+  altPositions.forEach(i => {
+    const key = i.deals?.strategy || i.strategy || "Alternatives";
+    const v   = toSAR((i.quantity||0)*(i.deals?.current_nav||0), i.deals?.currency||i.currency, fx);
+    sectorMap[key] = (sectorMap[key]||0) + v;
+  });
+  const sectorData = Object.entries(sectorMap)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1])
+    .map(([label, value]) => ({ label, value }));
+
   const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
   const catColor = {
@@ -360,10 +416,15 @@ export default function InvestorDashboard({ session, onPage }) {
         {loading ? (
           <p style={{ color:"#adb5bd", fontSize:"0.85rem" }}>Loading...</p>
         ) : (
-          <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around" }}>
+          <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around", marginBottom:"1.5rem" }}>
             <DonutChart data={assetClassData} title="By asset class" />
             <DonutChart data={currencyData}   title="By currency" />
             <DonutChart data={countryData}    title="By custodian" />
+          </div>
+          <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around" }}>
+            <DonutChart data={mandateData}  title="By mandate" />
+            <DonutChart data={geoData}      title="By geography" />
+            <DonutChart data={sectorData}   title="By sector" />
           </div>
         )}
       </Card>
