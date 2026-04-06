@@ -23,6 +23,50 @@ const OPT = {
   altStrategy:        ['PE Buyout','Growth Equity','Venture Capital','Real Estate','Infrastructure','Hedge Fund','Private Debt','Fund of Funds'],
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
   custodian:          ['Bank Audi Suisse','Audi Capital','JP Morgan','UBS','Jadwa','MEFIC','GII','Riyad Capital','Jazeera Capital'],
+  exchange: [
+    // MENA
+    'Tadawul (Saudi Exchange)','Dubai Financial Market (DFM)','Abu Dhabi Securities Exchange (ADX)',
+    'Boursa Kuwait','Bahrain Bourse','Muscat Stock Exchange (MSX)','Qatar Stock Exchange (QSE)',
+    'Egyptian Exchange (EGX)','Amman Stock Exchange (ASE)','Beirut Stock Exchange (BSE)',
+    // Global
+    'NYSE','NASDAQ','NYSE American (AMEX)','Chicago Board Options Exchange (CBOE)',
+    'London Stock Exchange (LSE)','Euronext Paris','Euronext Amsterdam','Euronext Brussels',
+    'Deutsche Börse (XETRA)','SIX Swiss Exchange','Borsa Italiana','BME Spanish Exchanges',
+    'Tokyo Stock Exchange (TSE)','Shanghai Stock Exchange (SSE)','Shenzhen Stock Exchange (SZSE)',
+    'Hong Kong Stock Exchange (HKEX)','Singapore Exchange (SGX)','Korea Exchange (KRX)',
+    'Bombay Stock Exchange (BSE)','National Stock Exchange of India (NSE)',
+    'Toronto Stock Exchange (TSX)','Australian Securities Exchange (ASX)',
+    'Johannesburg Stock Exchange (JSE)','BM&F Bovespa (B3)','Moscow Exchange (MOEX)',
+    'Nasdaq Nordic','Stockholm Stock Exchange','Oslo Stock Exchange',
+    'Vienna Stock Exchange','Warsaw Stock Exchange','Istanbul Stock Exchange (Borsa Istanbul)',
+  ],
+  industry: [
+    // Financials
+    'Banking','Insurance','Asset Management','Investment Banking','Real Estate Investment Trust (REIT)',
+    'Diversified Financial Services','Capital Markets','Consumer Finance',
+    // Technology
+    'Software','Hardware & Semiconductors','IT Services','Internet & E-Commerce',
+    'Telecommunications Equipment','Electronic Components',
+    // Healthcare
+    'Pharmaceuticals','Biotechnology','Medical Devices','Healthcare Services','Hospitals',
+    // Energy
+    'Oil & Gas Exploration','Oil & Gas Refining','Oil & Gas Equipment & Services',
+    'Renewable Energy','Utilities – Electric','Utilities – Gas','Utilities – Water',
+    // Industrials
+    'Aerospace & Defense Industry','Machinery & Equipment','Construction & Engineering',
+    'Transportation & Logistics','Airlines','Shipping & Ports','Railroads',
+    // Consumer
+    'Food & Beverages','Retail','Luxury Goods','Automotive','Consumer Electronics',
+    'Textiles & Apparel','Personal Care Products','Household Products',
+    // Materials
+    'Chemicals','Metals & Mining','Steel','Paper & Packaging','Construction Materials',
+    // Real Estate
+    'Real Estate Development','Real Estate Services',
+    // Communication
+    'Telecom Services','Media & Entertainment','Publishing',
+    // Other
+    'Conglomerates','Agriculture','Education','Tourism & Hospitality',
+  ],
 };
 
 // ─── Category definitions — mirrors PositionsViewer CATEGORIES ───────────────
@@ -82,6 +126,52 @@ function detectCat(row) {
 // FIELD FORMS
 // ════════════════════════════════════════════════════════════════════════════
 
+
+// ── Exchange → Country mapping ────────────────────────────────────────────────
+const EXCHANGE_COUNTRY = {
+  'Tadawul (Saudi Exchange)':               'Saudi Arabia',
+  'Dubai Financial Market (DFM)':           'United Arab Emirates',
+  'Abu Dhabi Securities Exchange (ADX)':    'United Arab Emirates',
+  'Boursa Kuwait':                          'Kuwait',
+  'Bahrain Bourse':                         'Bahrain',
+  'Muscat Stock Exchange (MSX)':            'Oman',
+  'Qatar Stock Exchange (QSE)':             'Qatar',
+  'Egyptian Exchange (EGX)':               'Egypt',
+  'Amman Stock Exchange (ASE)':             'Jordan',
+  'Beirut Stock Exchange (BSE)':            'Lebanon',
+  'NYSE':                                   'United States',
+  'NASDAQ':                                 'United States',
+  'NYSE American (AMEX)':                   'United States',
+  'Chicago Board Options Exchange (CBOE)':  'United States',
+  'London Stock Exchange (LSE)':            'United Kingdom',
+  'Euronext Paris':                         'France',
+  'Euronext Amsterdam':                     'Netherlands',
+  'Euronext Brussels':                      'Belgium',
+  'Deutsche Börse (XETRA)':               'Germany',
+  'SIX Swiss Exchange':                     'Switzerland',
+  'Borsa Italiana':                         'Italy',
+  'BME Spanish Exchanges':                  'Spain',
+  'Tokyo Stock Exchange (TSE)':             'Japan',
+  'Shanghai Stock Exchange (SSE)':          'China',
+  'Shenzhen Stock Exchange (SZSE)':         'China',
+  'Hong Kong Stock Exchange (HKEX)':        'Hong Kong',
+  'Singapore Exchange (SGX)':               'Singapore',
+  'Korea Exchange (KRX)':                   'South Korea',
+  'Bombay Stock Exchange (BSE)':            'India',
+  'National Stock Exchange of India (NSE)': 'India',
+  'Toronto Stock Exchange (TSX)':           'Canada',
+  'Australian Securities Exchange (ASX)':   'Australia',
+  'Johannesburg Stock Exchange (JSE)':      'South Africa',
+  'BM&F Bovespa (B3)':                     'Brazil',
+  'Moscow Exchange (MOEX)':                 'Russia',
+  'Nasdaq Nordic':                          'Sweden',
+  'Stockholm Stock Exchange':               'Sweden',
+  'Oslo Stock Exchange':                    'Norway',
+  'Vienna Stock Exchange':                  'Austria',
+  'Warsaw Stock Exchange':                  'Poland',
+  'Istanbul Stock Exchange (Borsa Istanbul)': 'Turkey',
+};
+
 function EquityFields({ f, sf }) {
   return <>
     <FI label="Security Name *"        fk="security_name"    f={f} sf={sf} />
@@ -90,12 +180,45 @@ function EquityFields({ f, sf }) {
       <FI label="ISIN"                 fk="isin"             f={f} sf={sf} placeholder="e.g. SA0007879782" />
     </G2>
     <G2>
-      <FI label="Exchange"             fk="exchange"         f={f} sf={sf} placeholder="e.g. NYSE, TADAWUL, LSE" />
-      <FI label="Country"              fk="country"          f={f} sf={sf} />
+      {/* Exchange — dropdown with auto country selection */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={LS}>Exchange</label>
+        <select value={f.exchange||''} style={{ ...IS, background:'#fff', cursor:'pointer' }}
+          onChange={e => {
+            const exch = e.target.value;
+            const country = EXCHANGE_COUNTRY[exch] || f.country || '';
+            sf(p => ({ ...p, exchange: exch || null, country }));
+          }}>
+          <option value=''>—</option>
+          {OPT.exchange.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+      {/* Country — auto-filled from exchange, still editable */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={LS}>Country</label>
+        <select value={f.country||''} style={{ ...IS, background:'#fff', cursor:'pointer' }}
+          onChange={e => sf(p => ({ ...p, country: e.target.value || null }))}>
+          <option value=''>—</option>
+          {['Saudi Arabia','United Arab Emirates','Kuwait','Bahrain','Oman','Qatar','Egypt','Jordan','Lebanon',
+            'United States','United Kingdom','France','Germany','Switzerland','Netherlands','Belgium','Italy','Spain',
+            'Japan','China','Hong Kong','Singapore','South Korea','India','Canada','Australia',
+            'South Africa','Brazil','Russia','Sweden','Norway','Austria','Poland','Turkey','Other'].map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
     </G2>
     <G2>
       <FS label="Sector"               fk="sector"           f={f} sf={sf} options={OPT.sector} blank />
-      <FI label="Industry"             fk="industry"         f={f} sf={sf} />
+      {/* Industry — dropdown */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={LS}>Industry</label>
+        <select value={f.industry||''} style={{ ...IS, background:'#fff', cursor:'pointer' }}
+          onChange={e => sf(p => ({ ...p, industry: e.target.value || null }))}>
+          <option value=''>—</option>
+          {OPT.industry.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
     </G2>
     <G2>
       <FI label="Quantity (Shares)"    fk="quantity"         f={f} sf={sf} type="number" />
@@ -103,7 +226,14 @@ function EquityFields({ f, sf }) {
     </G2>
     <G2>
       <FI label="Current Price"        fk="price"            f={f} sf={sf} type="number" />
-      <FI label="Market Value"         fk="market_value"     f={f} sf={sf} type="number" />
+      {/* Market Value — computed: Quantity × Current Price */}
+      <div style={{ marginBottom:'1rem' }}>
+        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Market Value</label>
+        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
+          {(()=>{ const q=parseFloat(f.quantity)||0; const p=parseFloat(f.price)||0; const mv=q*p; return mv>0?`${f.currency||'SAR'} ${mv.toLocaleString('en-US',{maximumFractionDigits:2})}`:'—'; })()}
+        </div>
+        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Quantity × Current Price</div>
+      </div>
     </G2>
     <G2>
       <FI label="Dividend Yield %"     fk="dividend_yield"   f={f} sf={sf} type="number" />
@@ -658,6 +788,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         quantity:       toN(form.quantity),
         avg_cost_price: toN(form.avg_cost_price),
         price:          toN(form.price),
+        market_value:   (parseFloat(form.quantity)||0)*(parseFloat(form.price)||0) > 0
+                          ? (parseFloat(form.quantity)||0)*(parseFloat(form.price)||0)
+                          : toN(form.market_value),
         dividend_yield: toN(form.dividend_yield),
       });
       if (cat === 'Fixed Income') Object.assign(base, {
