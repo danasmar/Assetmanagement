@@ -35,7 +35,7 @@ export default function InvestorPortfolio({ session }) {
   const [cashPositions, setCashPositions]     = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [distByDeal, setDistByDeal]           = useState({});
-  const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 });
+  const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.35, gbp_to_sar: 4.98, aed_to_sar: 1.02, chf_to_sar: 4.12 });
 
   // Filters
   const [search, setSearch]               = useState("");
