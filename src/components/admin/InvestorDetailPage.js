@@ -838,10 +838,10 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                           <td style={td}>{row.credit_rating?<span style={{ background:'#fff8e1', color:'#b45309', borderRadius:'10px', padding:'2px 9px', fontSize:'0.72rem', fontWeight:'700' }}>{row.credit_rating}</span>:'—'}</td>
                           <td style={tdr}>{row.face_value!=null?fmt.currency(row.face_value,row.currency):'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{row.coupon_rate!=null?`${row.coupon_rate}%`:'—'}</td>
-                          <td style={tdr}>{row.price!=null?row.price:'—'}</td>
+                          <td style={tdr}>{row.price!=null?`${Number(row.price).toFixed(3)}%`:'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
                           <td style={td}>{row.currency||'—'}</td>
-                          <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{row.ytm!=null?`${row.ytm}%`:'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{row.ytm!=null?`${Number(row.ytm).toFixed(2)}%`:'—'}</td>
                           <td style={td}>{row.maturity_date?fmt.date(row.maturity_date):'—'}</td>
                           <td style={td}>{row.mandate_type||'—'}</td>
                           <td style={td}>{fmt.date(row.statement_date)}</td>
