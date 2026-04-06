@@ -28,7 +28,7 @@ const COMMON_FIELDS = [
   { key: "currency",       label: "Currency",      type: "select", options: ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"] },
   { key: "market_value",   label: "Market Value",  type: "number" },
   { key: "mandate_type",   label: "Mandate Type",  type: "select", options: ["Advisory","Managed Account","Discretionary","Execution Only"] },
-  { key: "custodian",      label: "Custodian",     type: "select", options: ["Bank Audi Suisse","Audi Capital"] },
+  { key: "custodian",      label: "Custodian",     type: "select", options: ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII"] },
   { key: "statement_date", label: "Statement Date",type: "date" },
   { key: "portfolio_weight",label: "Portfolio Weight %", type: "number" },
   { key: "status",         label: "Status",        type: "select", options: ["active","closed"], default: "active" },
@@ -49,7 +49,7 @@ const EQUITY_FIELDS = [
 const FIXED_INCOME_FIELDS = [
   { key: "ticker",           label: "Ticker",                    type: "text" },
   { key: "issuer",           label: "Issuer",                    type: "text" },
-  { key: "bond_type",        label: "Bond Type",                 type: "select", options: ["Government","Corporate","Sukuk","Structured Note","CD","Municipal"] },
+  { key: "bond_type",        label: "Bond Type",                 type: "select", options: ["Government","Corporate","Sukuk","Structured Note","CD","Municipal","Floating Rate Notes"] },
   { key: "credit_rating",    label: "Credit Rating",             type: "text", placeholder: "e.g. AAA, AA+, BBB-" },
   { key: "seniority",        label: "Seniority",                 type: "select", options: ["Senior Secured","Senior Unsecured","Subordinated"] },
   { key: "face_value",       label: "Face Value",                type: "number" },
@@ -361,7 +361,7 @@ function MF({ label, children }) {
 const MG2 = ({ children }) => <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 0.75rem" }}>{children}</div>;
 
 // ── Alternatives modal form — NAV/MOIC read-only for deal-linked rows ─────────
-const CUSTODIANS = ["Bank Audi Suisse", "Audi Capital"];
+const CUSTODIANS = ["Bank Audi Suisse", "Audi Capital", "JP Morgan", "UBS", "Jadwa", "MEFIC", "GII"];
 
 const ALT_OPT = {
   fundVehicle: ["LP","Co-Investment","SPV","Direct","Feeder"],
@@ -370,7 +370,7 @@ const ALT_OPT = {
   mandate:     ["Advisory","Managed Account","Discretionary","Execution Only"],
   currency:    ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"],
   status:      ["active","closed"],
-  custodian:   ["Bank Audi Suisse","Audi Capital"],
+  custodian:   ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII"],
 };
 
 function AltModalFields({ formData, setFormData, deals, isEdit }) {
