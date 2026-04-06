@@ -253,7 +253,7 @@ export default function InvestorPortfolio({ session }) {
                     </td>
                     <td style={S.tdR}>{pos.dividend_yield!=null ? `${pos.dividend_yield}%` : "—"}</td>
                     <td style={S.td}>{pos.custodian||"—"}</td>
-                    <td style={S.tdR}>{pos.portfolio_weight!=null ? `${pos.portfolio_weight}%` : "—"}</td>
+                    <td style={S.tdR}>{totalAUM>0 ? `${(toSAR(pos.market_value||0,pos.currency,fx)/totalAUM*100).toFixed(2)}%` : "—"}</td>
                     <td style={S.td}><MandateBadge val={pos.mandate_type} /></td>
                     <td style={S.tdR}>{currencyFlag(pos.currency)} {pos.currency}</td>
                   </tr>
@@ -293,6 +293,7 @@ export default function InvestorPortfolio({ session }) {
               ["custodian",      "Custodian",        false, false],
               ["mandate_type",   "Mandate",          false, false],
               ["currency",       "CCY",              false, true ],
+              ["_weight",        "Weight %",         false, true ],
             ].map(([key,label,sortable,right]) => (
               <th key={key}
                 onClick={sortable ? ()=>handleSort(key) : undefined}
@@ -329,17 +330,18 @@ export default function InvestorPortfolio({ session }) {
                   <td style={S.tdR}>{pos.price!=null ? `${Number(pos.price).toFixed(2)}%` : "—"}</td>
                   <td style={S.tdR}>{pos.accrued_interest ? fmt.currency(pos.accrued_interest, pos.currency) : "—"}</td>
                   <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(pos.market_value, pos.currency)}</td>
-                  <td style={{ ...S.tdR, fontWeight:"700", color:"#2a9d5c" }}>{pos.ytm!=null ? `${pos.ytm}%` : "—"}</td>
+                  <td style={{ ...S.tdR, fontWeight:"700", color:"#2a9d5c" }}>{pos.ytm!=null ? `${Number(pos.ytm).toFixed(2)}%` : "—"}</td>
                   <td style={S.td}>{pos.maturity_date ? fmt.date(pos.maturity_date) : "—"}</td>
                   <td style={S.td}>{pos.call_date ? fmt.date(pos.call_date) : "—"}</td>
                   <td style={S.td}>{pos.custodian||"—"}</td>
                   <td style={S.td}><MandateBadge val={pos.mandate_type} /></td>
                   <td style={S.tdR}>{currencyFlag(pos.currency)} {pos.currency}</td>
+                  <td style={S.tdR}>{totalAUM>0 ? `${(toSAR(pos.market_value||0,pos.currency,fx)/totalAUM*100).toFixed(2)}%` : "—"}</td>
                 </tr>
               ))
           }
         </tbody>
-        <TableFooter rows={sortedFI} colSpanLeft={10} colSpanRight={6} />
+        <TableFooter rows={sortedFI} colSpanLeft={10} colSpanRight={7} />
       </table>
     </Card>
   );
@@ -412,7 +414,7 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.tdR}>{pos.expense_ratio!=null ? `${pos.expense_ratio}%` : "—"}</td>
                     <td style={S.tdR}>{pos.distribution_yield!=null ? `${pos.distribution_yield}%` : "—"}</td>
                     <td style={S.td}>{pos.custodian||"—"}</td>
-                    <td style={S.tdR}>{pos.portfolio_weight!=null ? `${pos.portfolio_weight}%` : "—"}</td>
+                    <td style={S.tdR}>{totalAUM>0 ? `${(toSAR(pos.market_value||0,pos.currency,fx)/totalAUM*100).toFixed(2)}%` : "—"}</td>
                     <td style={S.td}><MandateBadge val={pos.mandate_type} /></td>
                     <td style={S.tdR}>{currencyFlag(pos.currency)} {pos.currency}</td>
                   </tr>
