@@ -1120,7 +1120,15 @@ export default function PositionsViewer({ session, investorId }) {
                 <div style={S.formGrid}>
                   {COMMON_FIELDS.map((field) => (
                     <div key={field.key}>
-                      {field.type === "select" ? (
+                      {field.key === "market_value" && activeCategory === "Fixed Income" ? (
+                        <div style={{ marginBottom:"1rem" }}>
+                          <label style={{ display:"block", fontSize:"0.78rem", fontWeight:"600", color:"#6c757d", marginBottom:"5px", letterSpacing:"0.04em" }}>Market Value</label>
+                          <div style={{ padding:"0.6rem 0.85rem", border:"1.5px solid #e3ecfa", borderRadius:"8px", background:"#f0f4fa", color:"#003770", fontWeight:"700", fontSize:"0.9rem" }}>
+                            {(()=>{ const p=parseFloat(formData.price)||0; const fv=parseFloat(formData.face_value)||0; const mv=(p/100)*fv; return mv>0?`${formData.currency||"SAR"} ${mv.toLocaleString("en-US",{maximumFractionDigits:2})}`:"—"; })()}
+                          </div>
+                          <div style={{ fontSize:"0.7rem", color:"#6c757d", marginTop:"4px" }}>= (Current Price / 100) × Face Value</div>
+                        </div>
+                      ) : field.type === "select" ? (
                         <MF label={field.label + (field.required ? " *" : "")}>
                           <select style={MFS} value={formData[field.key] || field.default || ""}
                             onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value || null })}>
