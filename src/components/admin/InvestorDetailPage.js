@@ -843,6 +843,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                           <td style={td}>{row.currency||'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#2a9d5c' }}>{row.ytm!=null?`${Number(row.ytm).toFixed(2)}%`:'—'}</td>
                           <td style={td}>{row.maturity_date?fmt.date(row.maturity_date):'—'}</td>
+                          <td style={tdr}>{row.duration_years!=null?`${Number(row.duration_years).toFixed(2)}y`:'—'}</td>
                           <td style={td}>{row.mandate_type||'—'}</td>
                           <td style={td}>{fmt.date(row.statement_date)}</td>
                           <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
