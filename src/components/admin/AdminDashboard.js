@@ -127,20 +127,20 @@ export default function AdminDashboard() {
       {/* ── Summary stats ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
         {[
-          { label:"Total AUM",                    value:fmt.currency(stats.aum),               color:"#003770", sar:true },
-          { label:"Total AUM — Audi Capital",     value:fmt.currency(custodyAUM.audiCapital),   color:"#003770", sar:true },
-          { label:"Total AUM — Bank Audi Suisse", value:fmt.currency(custodyAUM.bankAudi),      color:"#185FA5", sar:true },
-          { label:"Total AUM — Others",           value:fmt.currency(custodyAUM.others),        color:"#5F5E5A", sar:true },
+          { label:"Total AUM",                    value: stats.aum,               color:"#003770" },
+          { label:"Total AUM — Audi Capital",     value: custodyAUM.audiCapital,   color:"#003770" },
+          { label:"Total AUM — Bank Audi Suisse", value: custodyAUM.bankAudi,      color:"#185FA5" },
+          { label:"Total AUM — Others",           value: custodyAUM.others,        color:"#5F5E5A" },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"1rem 1.25rem" }}>
-            <div style={{ fontSize:"0.72rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0.4rem" }}>{label}</div>
-            <div style={{ fontSize:"1.05rem", fontWeight:"700", color, lineHeight:1.2 }}>{value}</div>
-            <div style={{ fontSize:"0.65rem", color:"#adb5bd", marginTop:"3px" }}>SAR</div>
+          <div key={label} style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"0.85rem 1rem" }}>
+            <div style={{ fontSize:"0.62rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem", lineHeight:1.3 }}>{label}</div>
+            <div style={{ fontSize:"0.65rem", color:"#adb5bd", fontWeight:"500", marginBottom:"2px" }}>SAR</div>
+            <div style={{ fontSize:"0.95rem", fontWeight:"700", color, fontVariantNumeric:"tabular-nums", lineHeight:1.2 }}>{Number(value||0).toLocaleString("en-US",{maximumFractionDigits:0})}</div>
           </div>
         ))}
-        <div style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"1rem 1.25rem" }}>
-          <div style={{ fontSize:"0.72rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0.4rem" }}>Total Investors</div>
-          <div style={{ fontSize:"1.5rem", fontWeight:"700", color:"#003770" }}>{stats.investors}</div>
+        <div style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"0.85rem 1rem" }}>
+          <div style={{ fontSize:"0.62rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Total Investors</div>
+          <div style={{ fontSize:"1.5rem", fontWeight:"700", color:"#003770", lineHeight:1.2 }}>{stats.investors}</div>
         </div>
       </div>
 
