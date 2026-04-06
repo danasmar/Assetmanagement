@@ -363,7 +363,7 @@ export default function InvestorPortfolio({ session }) {
               ["asset_class_focus", "Asset Class",    false, false],
               ["geographic_focus",  "Geo Focus",      false, false],
               ["quantity",          "Units",          true,  true ],
-              ["current_nav",      "Current NAV",       false, true ],
+              ["nav_per_unit",     "Current NAV",       false, true ],
               ["avg_cost_price",    "Avg Cost",       false, true ],
               ["market_value",      "Mkt Value",      true,  true ],
               ["_perf",             "Perf %",         false, true ],
@@ -405,7 +405,7 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.td}>{pos.asset_class_focus||"—"}</td>
                     <td style={S.td}>{pos.geographic_focus||"—"}</td>
                     <td style={S.tdR}>{pos.quantity ? fmt.num(pos.quantity) : "—"}</td>
-                    <td style={S.tdR}>{pos.current_nav ? fmt.currency(pos.current_nav, pos.currency) : "—"}</td>
+                    <td style={S.tdR}>{pos.nav_per_unit ? Number(pos.nav_per_unit).toFixed(2) : "—"}</td>
                     <td style={S.tdR}>{pos.avg_cost_price ? fmt.currency(pos.avg_cost_price, pos.currency) : "—"}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(mv, pos.currency)}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", ...(perf===null?{color:"#adb5bd"}:perf>=0?S.pnlPos:S.pnlNeg) }}>
@@ -414,7 +414,7 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.tdR}>{pos.expense_ratio!=null ? `${pos.expense_ratio}%` : "—"}</td>
                     <td style={S.tdR}>{pos.distribution_yield!=null ? `${pos.distribution_yield}%` : "—"}</td>
                     <td style={S.td}>{pos.custodian||"—"}</td>
-                    <td style={S.tdR}>{totalAUM>0 ? `${(toSAR(pos.market_value||0,pos.currency,fx)/totalAUM*100).toFixed(2)}%` : "—"}</td>
+                    <td style={S.tdR}>{(()=>{const t=privateNAV+totalPublicMV+totalCash;return t>0?`${(toSAR(pos.market_value||0,pos.currency,fx)/t*100).toFixed(2)}%`:"—";})()}</td>
                     <td style={S.td}><MandateBadge val={pos.mandate_type} /></td>
                     <td style={S.tdR}>{currencyFlag(pos.currency)} {pos.currency}</td>
                   </tr>
