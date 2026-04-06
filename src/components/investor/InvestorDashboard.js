@@ -135,7 +135,7 @@ export default function InvestorDashboard({ session, onPage }) {
   const [altPositions,  setAltPositions]  = useState([]);
   const [cashPositions, setCashPositions] = useState([]);
   const [updates,       setUpdates]       = useState([]);
-  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.10, gbp_to_sar:4.73, aed_to_sar:1.02 });
+  const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.35, gbp_to_sar:4.98, aed_to_sar:1.02, chf_to_sar:4.12 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
