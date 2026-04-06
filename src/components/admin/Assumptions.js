@@ -3,8 +3,8 @@ import { supabase } from "../../supabaseClient";
 import { Card, Btn, Input, PageHeader } from "../shared";
 
 export default function Assumptions() {
-  const [current, setCurrent] = useState({ usd_to_sar: '', eur_to_sar: '', gbp_to_sar: '', aed_to_sar: '' });
-  const [form, setForm] = useState({ usd_to_sar: '', eur_to_sar: '', gbp_to_sar: '', aed_to_sar: '' });
+  const [current, setCurrent] = useState({ usd_to_sar: '', eur_to_sar: '', gbp_to_sar: '', aed_to_sar: '', chf_to_sar: '' });
+  const [form, setForm] = useState({ usd_to_sar: '', eur_to_sar: '', gbp_to_sar: '', aed_to_sar: '', chf_to_sar: '' });
   const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -20,6 +20,7 @@ export default function Assumptions() {
       eur_to_sar: parseFloat(form.eur_to_sar) || 0,
       gbp_to_sar: parseFloat(form.gbp_to_sar) || 0,
       aed_to_sar: parseFloat(form.aed_to_sar) || 0,
+      chf_to_sar: parseFloat(form.chf_to_sar) || 0,
       updated_at: new Date().toISOString(),
     };
     const { data: existing } = await supabase.from('assumptions').select('id').order('updated_at', { ascending: false }).limit(1);
@@ -36,6 +37,7 @@ export default function Assumptions() {
     { key: 'eur_to_sar', label: 'EUR → SAR', flag: '🇪🇺' },
     { key: 'gbp_to_sar', label: 'GBP → SAR', flag: '🇬🇧' },
     { key: 'aed_to_sar', label: 'AED → SAR', flag: '🇦🇪' },
+    { key: 'chf_to_sar', label: 'CHF → SAR', flag: '🇨🇭' },
   ];
 
   return (
