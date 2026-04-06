@@ -163,11 +163,12 @@ function FixedIncomeFields({ f, sf }) {
     </G2>
     <G2>
       <FI label="YTW %"                        fk="ytw"              f={f} sf={sf} type="number" />
-      {/* Duration — computed from maturity date minus today */}
+      {/* Duration — computed from maturity date minus today; — for perpetual */}
       <div style={{ marginBottom:'1rem' }}>
         <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Duration (Years)</label>
         <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
           {(()=>{
+            if (f.is_perpetual) return '— (Perpetual)';
             if (!f.maturity_date) return '—';
             const diff = new Date(f.maturity_date) - new Date();
             if (diff <= 0) return '0.00';
@@ -177,9 +178,25 @@ function FixedIncomeFields({ f, sf }) {
         <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Maturity Date − Today</div>
       </div>
     </G2>
+    {/* Perpetual toggle */}
+    <div style={{ marginBottom:'1rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+      <input type="checkbox" id="perpetual_chk"
+        checked={!!f.is_perpetual}
+        onChange={e => sf(p => ({ ...p, is_perpetual: e.target.checked, maturity_date: e.target.checked ? null : p.maturity_date, duration_years: e.target.checked ? null : p.duration_years }))}
+        style={{ width:'16px', height:'16px', cursor:'pointer' }} />
+      <label htmlFor="perpetual_chk" style={{ fontSize:'0.85rem', fontWeight:'600', color:'#495057', cursor:'pointer' }}>
+        Perpetual Bond (no fixed maturity)
+      </label>
+    </div>
     <G2>
-      <FI label="Maturity Date"                fk="maturity_date"    f={f} sf={sf} type="date" />
-      <FI label="Call Date"                    fk="call_date"        f={f} sf={sf} type="date" />
+      {f.is_perpetual
+        ? <div style={{ marginBottom:'1rem' }}>
+            <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Maturity Date</label>
+            <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#adb5bd', fontSize:'0.9rem' }}>Perpetual — no maturity</div>
+          </div>
+        : <FI label="Maturity Date" fk="maturity_date" f={f} sf={sf} type="date" />
+      }
+      <FI label="Call Date" fk="call_date" f={f} sf={sf} type="date" />
     </G2>
     <G2>
       <FS label="Currency"                     fk="currency"         f={f} sf={sf} options={OPT.currency} />
@@ -659,11 +676,13 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         accrued_interest: toN(form.accrued_interest),
         ytm:              toN(form.ytm),
         ytw:              toN(form.ytw),
-        maturity_date:    form.maturity_date    || null,
+        is_perpetual:     !!form.is_perpetual,
+        maturity_date:    form.is_perpetual ? null : (form.maturity_date || null),
         call_date:        form.call_date        || null,
-        duration_years:   form.maturity_date
-                            ? Math.max(0, (new Date(form.maturity_date) - new Date()) / (1000 * 60 * 60 * 24 * 365.25))
-                            : null,
+        duration_years:   form.is_perpetual ? null
+                            : form.maturity_date
+                              ? Math.max(0, (new Date(form.maturity_date) - new Date()) / (1000 * 60 * 60 * 24 * 365.25))
+                              : null,
       });
       if (cat === 'ETF & Public Funds') {
         Object.assign(base, {
