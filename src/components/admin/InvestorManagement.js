@@ -17,7 +17,7 @@ export default function InvestorManagement() {
     const [{ data: inv }, { data: d }] = await Promise.all([
       supabase.from('investors').select('*').order('created_at', { ascending: false }),
       // ── moic added so InvestorDetailPage can show deal MOIC in Alternatives ──
-      supabase.from('deals').select('id,name,nav_per_unit,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct'),
+      supabase.from('deals').select('id,name,current_nav,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct'),
     ]);
     setInvestors(inv || []);
     setDeals(d || []);
@@ -74,7 +74,7 @@ export default function InvestorManagement() {
   const addInvestment = async () => {
     setSaving(true);
     const deal = deals.find(d => d.id === invForm.deal_id);
-    const nav = deal?.nav_per_unit || 1;
+    const nav = deal?.current_nav || 1;
     const units = (parseFloat(invForm.amount_invested) || 0) / nav;
     const invNavAtEntry = parseFloat(deal?.nav_at_entry) || nav;
     const invPlacementFeePct = parseFloat(deal?.placement_fee) || 0;
