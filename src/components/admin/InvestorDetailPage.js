@@ -700,7 +700,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
       else        await supabase.from('public_markets_positions').insert(base);
     }
 
-    setSaving(false); closeModal(); load();
+    closeModal();
+    setSaving(false);
+    load();
   };
 
   const deletePos = async (cat, id) => {
