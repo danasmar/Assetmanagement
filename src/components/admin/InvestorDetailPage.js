@@ -4,7 +4,7 @@ import { Card, Badge, Btn, Modal } from "../shared";
 import { fmt } from "../../utils/formatters";
 
 // ─── Option lists — mirrors PositionsViewer exactly ──────────────────────────
-const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital', 'JP Morgan', 'UBS', 'Jadwa', 'MEFIC', 'GII'];
+const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital', 'JP Morgan', 'UBS', 'Jadwa', 'MEFIC', 'GII', 'Riyad Capital', 'Jazeera Capital'];
 
 const OPT = {
   currency:           ['SAR','USD','EUR','GBP','AED','BHD','KWD','QAR','OMR','EGP','JOD'],
@@ -21,7 +21,7 @@ const OPT = {
   fundVehicle:        ['LP','Co-Investment','SPV','Direct','Feeder'],
   altStrategy:        ['PE Buyout','Growth Equity','Venture Capital','Real Estate','Infrastructure','Hedge Fund','Private Debt','Fund of Funds'],
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
-  custodian:          ['Bank Audi Suisse','Audi Capital','JP Morgan','UBS','Jadwa','MEFIC','GII'],
+  custodian:          ['Bank Audi Suisse','Audi Capital','JP Morgan','UBS','Jadwa','MEFIC','GII','Riyad Capital','Jazeera Capital'],
 };
 
 // ─── Category definitions — mirrors PositionsViewer CATEGORIES ───────────────
