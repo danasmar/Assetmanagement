@@ -416,15 +416,17 @@ export default function InvestorDashboard({ session, onPage }) {
         {loading ? (
           <p style={{ color:"#adb5bd", fontSize:"0.85rem" }}>Loading...</p>
         ) : (
-          <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around", marginBottom:"1.5rem" }}>
-            <DonutChart data={assetClassData} title="By asset class" />
-            <DonutChart data={currencyData}   title="By currency" />
-            <DonutChart data={countryData}    title="By custodian" />
-          </div>
-          <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around" }}>
-            <DonutChart data={mandateData}  title="By mandate" />
-            <DonutChart data={geoData}      title="By geography" />
-            <DonutChart data={sectorData}   title="By sector" />
+          <div>
+            <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around", marginBottom:"1.5rem" }}>
+              <DonutChart data={assetClassData} title="By asset class" />
+              <DonutChart data={currencyData}   title="By currency" />
+              <DonutChart data={countryData}    title="By custodian" />
+            </div>
+            <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around" }}>
+              <DonutChart data={mandateData}  title="By mandate" />
+              <DonutChart data={geoData}      title="By geography" />
+              <DonutChart data={sectorData}   title="By sector" />
+            </div>
           </div>
         )}
       </Card>
