@@ -108,9 +108,17 @@ export default function InvestorPortfolio({ session }) {
   const etfLatest    = selectedDate && positions.some(p => p.category === "ETF & Public Funds" && p.statement_date === selectedDate)
     ? selectedDate : latestDateFor("ETF & Public Funds");
 
-  const equityRows = positions.filter(p => p.category === "Public Equities" && (!equityLatest || p.statement_date === equityLatest));
-  const fiRows     = positions.filter(p => p.category === "Fixed Income"     && (!fiLatest     || p.statement_date === fiLatest));
-  const etfRows    = positions.filter(p => p.category === "ETF & Public Funds" && (!etfLatest  || p.statement_date === etfLatest));
+  // Show all positions for each category regardless of date.
+  // Only apply date filter if the user has explicitly selected a specific date via the dropdown.
+  const equityRows = selectedDate
+    ? positions.filter(p => p.category === "Public Equities" && p.statement_date === selectedDate)
+    : positions.filter(p => p.category === "Public Equities");
+  const fiRows = selectedDate
+    ? positions.filter(p => p.category === "Fixed Income" && p.statement_date === selectedDate)
+    : positions.filter(p => p.category === "Fixed Income");
+  const etfRows = selectedDate
+    ? positions.filter(p => p.category === "ETF & Public Funds" && p.statement_date === selectedDate)
+    : positions.filter(p => p.category === "ETF & Public Funds");
 
   // displayByDate kept for AUM total — union of all per-category filtered rows
   const displayByDate = [...equityRows, ...fiRows, ...etfRows];
