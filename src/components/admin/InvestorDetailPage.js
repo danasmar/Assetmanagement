@@ -893,9 +893,10 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                           <td style={td}>{row.asset_class_focus||'—'}</td>
                           <td style={td}>{row.geographic_focus||'—'}</td>
                           <td style={tdr}>{row.quantity!=null?fmt.num(row.quantity):'—'}</td>
-                          <td style={tdr}>{row.current_nav!=null?fmt.currency(row.current_nav,row.currency):'—'}</td>
+                          <td style={tdr}>{row.nav_per_unit!=null?fmt.currency(row.nav_per_unit,row.currency):'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
                           <td style={td}>{row.currency||'—'}</td>
+                          <td style={{ ...tdr, fontWeight:'700', ...(()=>{ const c=(row.quantity||0)*(row.avg_cost_price||0); const mv=row.market_value||0; const pnl=c>0?(mv-c):null; return pnl===null?{color:'#adb5bd'}:pnl>=0?{color:'#2a9d5c'}:{color:'#dc3545'}; })() }}>{(()=>{ const c=(row.quantity||0)*(row.avg_cost_price||0); const mv=row.market_value||0; const pnl=c>0?(mv-c):null; return pnl!==null?`${pnl>=0?'+':''}${fmt.currency(pnl,row.currency)}`:'—'; })()}</td>
                           <td style={tdr}>{row.expense_ratio!=null?`${row.expense_ratio}%`:'—'}</td>
                           <td style={td}>{row.mandate_type||'—'}</td>
                           <td style={td}>{fmt.date(row.statement_date)}</td>
