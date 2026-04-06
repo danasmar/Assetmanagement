@@ -196,7 +196,7 @@ function FixedIncomeFields({ f, sf }) {
   </>;
 }
 
-function ETFFields({ f, sf, totalAUM=0 }) {
+function ETFFields({ f, sf }) {
   return <>
     <FI label="Fund Name *"                    fk="security_name"        f={f} sf={sf} />
     <G2>
@@ -235,14 +235,7 @@ function ETFFields({ f, sf, totalAUM=0 }) {
       <FS label="Domicile"                     fk="domicile"             f={f} sf={sf} options={OPT.domicile} blank />
     </G2>
     <G2>
-      {/* Portfolio Weight — computed: market value in SAR / total client AUM */}
-      <div style={{ marginBottom:'1rem' }}>
-        <label style={{ display:'block', fontSize:'0.78rem', fontWeight:'600', color:'#6c757d', marginBottom:'5px', letterSpacing:'0.04em' }}>Portfolio Weight %</label>
-        <div style={{ padding:'0.6rem 0.85rem', border:'1.5px solid #e3ecfa', borderRadius:'8px', background:'#f0f4fa', color:'#003770', fontWeight:'700', fontSize:'0.9rem' }}>
-          {(()=>{ const q=parseFloat(f.quantity)||0; const n=parseFloat(f.nav_per_unit)||0; const mv=q*n; const sarMV=mv*(f.currency==='USD'?3.75:f.currency==='EUR'?4.35:f.currency==='GBP'?4.98:f.currency==='AED'?1.02:1); return (totalAUM>0&&sarMV>0)?`${(sarMV/totalAUM*100).toFixed(2)}%`:'—'; })()}
-        </div>
-        <div style={{ fontSize:'0.7rem', color:'#6c757d', marginTop:'4px' }}>= Market Value (SAR) ÷ Total AUM</div>
-      </div>
+      <FI label="Portfolio Weight %"           fk="portfolio_weight"     f={f} sf={sf} type="number" readOnly hint="Auto-computed on save" />
       <FS label="Mandate Type"                 fk="mandate_type"         f={f} sf={sf} options={OPT.mandate} blank />
     </G2>
     <G2>
@@ -687,15 +680,6 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         const etfCcy = form.currency || 'SAR';
         const fxRate = etfCcy==='USD'?3.75:etfCcy==='EUR'?4.35:etfCcy==='GBP'?4.98:etfCcy==='AED'?1.02:1;
         const etfMVsar = etfMV * fxRate;
-        // Compute totalAUM locally to avoid closure issues with derived variables
-        const fxR = (c) => c==='USD'?3.75:c==='EUR'?4.35:c==='GBP'?4.98:c==='AED'?1.02:1;
-        const _allRows = rows || {};
-        const _totalAUM =
-          (_allRows['Public Equities']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
-          (_allRows['Fixed Income']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
-          (_allRows['ETF & Public Funds']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
-          (_allRows['Alternatives']||[]).reduce((s,p)=>s+(altNavValue(p))*fxR(p.deals?.currency||p.currency),0)+
-          (_allRows['Cash & Deposits']||[]).reduce((s,c)=>s+(c.balance||0)*fxR(c.currency),0);
         Object.assign(base, {
           fund_type:           form.fund_type           || null,
           fund_manager:        form.fund_manager        || null,
@@ -982,7 +966,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           <div style={{ maxHeight:'62vh', overflowY:'auto', paddingRight:'0.5rem' }}>
             {modal.cat === 'Public Equities'    && <EquityFields      f={form} sf={setForm} />}
             {modal.cat === 'Fixed Income'       && <FixedIncomeFields f={form} sf={setForm} />}
-            {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} totalAUM={totalAUM} />}
+            {modal.cat === 'ETF & Public Funds' && <ETFFields         f={form} sf={setForm} />}
             {modal.cat === 'Alternatives'       && <AltFields         f={form} sf={setForm} deals={deals} isAdd={modal.mode==='add'} />}
             {modal.cat === 'Cash & Deposits'   && <CashFields        f={form} sf={setForm} />}
           </div>
