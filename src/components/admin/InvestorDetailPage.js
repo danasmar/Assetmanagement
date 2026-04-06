@@ -4,14 +4,14 @@ import { Card, Badge, Btn, Modal } from "../shared";
 import { fmt } from "../../utils/formatters";
 
 // ─── Option lists — mirrors PositionsViewer exactly ──────────────────────────
-const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital'];
+const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital', 'JP Morgan', 'UBS', 'Jadwa', 'MEFIC', 'GII'];
 
 const OPT = {
   currency:           ['SAR','USD','EUR','GBP','AED','BHD','KWD','QAR','OMR','EGP','JOD'],
   status:             ['active','closed'],
   mandate:            ['Advisory','Managed Account','Discretionary','Execution Only'],
   sector:             ['Financials','Technology','Healthcare','Energy','Materials','Industrials','Consumer Discretionary','Consumer Staples','Utilities','Real Estate','Communication Services'],
-  bondType:           ['Government','Corporate','Sukuk','Structured Note','CD','Municipal'],
+  bondType:           ['Government','Corporate','Sukuk','Structured Note','CD','Municipal','Floating Rate Notes'],
   seniority:          ['Senior Secured','Senior Unsecured','Subordinated'],
   couponFreq:         ['Annual','Semi-Annual','Quarterly','Monthly','Zero Coupon'],
   fundType:           ['ETF','Mutual Fund','Money Market','UCITS'],
@@ -21,7 +21,7 @@ const OPT = {
   fundVehicle:        ['LP','Co-Investment','SPV','Direct','Feeder'],
   altStrategy:        ['PE Buyout','Growth Equity','Venture Capital','Real Estate','Infrastructure','Hedge Fund','Private Debt','Fund of Funds'],
   liquidity:          ['Illiquid','Semi-Liquid','Quarterly Redemption','Monthly Redemption'],
-  custodian:          ['Bank Audi Suisse','Audi Capital'],
+  custodian:          ['Bank Audi Suisse','Audi Capital','JP Morgan','UBS','Jadwa','MEFIC','GII'],
 };
 
 // ─── Category definitions — mirrors PositionsViewer CATEGORIES ───────────────
