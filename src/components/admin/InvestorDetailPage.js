@@ -1114,17 +1114,17 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                               {row.security_name||'—'}
                               {row.deals?.name && row.deals.name !== row.security_name && <div style={{ fontSize:'0.72rem', color:'#adb5bd' }}>{row.deals.name}</div>}
                             </td>
-                            <td style={td}>{row.strategy?<span style={{ background:'#f1f3f5', borderRadius:'10px', padding:'2px 9px', fontSize:'0.75rem', fontWeight:'600', color:'#495057' }}>{row.strategy}</span>:'—'}</td>
-                            <td style={td}>{row.manager_gp||'—'}</td>
-                            <td style={td}>{row.fund_vehicle||'—'}</td>
-                            <td style={tdr}>{row.vintage_year||'—'}</td>
+                            <td style={td}>{(()=>{const s=row.deal_id?row.deals?.strategy||row.strategy:row.strategy;return s?<span style={{ background:'#f1f3f5', borderRadius:'10px', padding:'2px 9px', fontSize:'0.75rem', fontWeight:'600', color:'#495057' }}>{s}</span>:'—';})()}</td>
+                            <td style={td}>{(row.deal_id?row.deals?.manager_gp||row.manager_gp:row.manager_gp)||'—'}</td>
+                            <td style={td}>{(row.deal_id?row.deals?.fund_vehicle||row.fund_vehicle:row.fund_vehicle)||'—'}</td>
+                            <td style={tdr}>{(row.deal_id?row.deals?.vintage_year||row.vintage_year:row.vintage_year)||'—'}</td>
                             <td style={tdr}>{row.commitment_amount!=null?fmt.currency(row.commitment_amount,ccy):'—'}</td>
                             <td style={tdr}>{row.called_capital!=null?fmt.currency(row.called_capital,ccy):'—'}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:(row.commitment_amount||0)-(row.called_capital||0)>0?'#dc3545':'#adb5bd' }}>{row.commitment_amount!=null?fmt.currency((row.commitment_amount||0)-(row.called_capital||0),ccy):'—'}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(navVal,ccy)}</td>
                             <td style={td}>{ccy}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:((row.deal_id?row.deals?.moic:row.moic)||0)>=1?'#003770':'#dc3545' }}>{(()=>{const m=row.deal_id&&row.deals?.moic!=null?row.deals.moic:row.moic;return m!=null?`${Number(m).toFixed(2)}x`:'—';})()}</td>
-                            <td style={{ ...tdr, fontWeight:'700', color:(row.irr||0)>=0?'#2a9d5c':'#dc3545' }}>{row.irr!=null?`${row.irr}%`:'—'}</td>
+                            <td style={{ ...tdr, fontWeight:'700', color:((row.deal_id?row.deals?.target_irr_pct??row.irr:row.irr)||0)>=0?'#2a9d5c':'#dc3545' }}>{(()=>{const r=row.deal_id&&row.deals?.target_irr_pct!=null?row.deals.target_irr_pct:row.irr;return r!=null?`${r}%`:'—';})()}</td>
                             <td style={{ ...tdr, fontWeight:'700', color:(()=>{ const called=row.called_capital||0; const dist=row.distributions_paid||0; const nav=altNavValue(row); const tvpi=called>0?(dist+nav)/called:null; return tvpi===null?'#adb5bd':tvpi>=1?'#003770':'#dc3545'; })() }}>{(()=>{ const called=row.called_capital||0; const dist=row.distributions_paid||0; const nav=altNavValue(row); const tvpi=called>0?(dist+nav)/called:null; return tvpi!==null?`${tvpi.toFixed(2)}x`:'—'; })()}</td>
                             <td style={td}>{fmt.date(row.statement_date)}</td>
                             <td style={td}><span style={statBadge(row.status)}>{row.status}</span></td>
