@@ -135,7 +135,7 @@ const TABLE_COLUMNS = {
     { key: "bond_type",      label: "Type" },
     { key: "credit_rating",  label: "Rating" },
     { key: "face_value",     label: "Face Value",     fmt: true },
-    { key: "coupon_rate",    label: "Coupon %" },
+    { key: "coupon_rate",    label: "Coupon %",        couponPct: true },
     { key: "price",          label: "Price",          pricePct: true },
     { key: "market_value",   label: "Market Value",   fmt: true },
     { key: "currency",       label: "Ccy" },
@@ -267,8 +267,9 @@ function formatVal(val, col) {
     if (col.key === "_moic") return `${n.toFixed(2)}x`;
     return n.toFixed(2);
   }
-  if (col.pricePct) return `${Number(val).toFixed(3)}%`;
+  if (col.pricePct)  return `${Number(val).toFixed(3)}%`;
   if (col.ytmPct)   return `${Number(val).toFixed(2)}%`;
+  if (col.couponPct) return `${Number(val).toFixed(2)}%`;
   if (col.fmt && typeof val === "number") return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return String(val);
 }
