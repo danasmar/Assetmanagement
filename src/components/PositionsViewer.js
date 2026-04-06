@@ -28,7 +28,7 @@ const COMMON_FIELDS = [
   { key: "currency",       label: "Currency",      type: "select", options: ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"] },
   { key: "market_value",   label: "Market Value",  type: "number" },
   { key: "mandate_type",   label: "Mandate Type",  type: "select", options: ["Advisory","Managed Account","Discretionary","Execution Only"] },
-  { key: "custodian",      label: "Custodian",     type: "select", options: ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII"] },
+  { key: "custodian",      label: "Custodian",     type: "select", options: ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII","Riyad Capital","Jazeera Capital"] },
   { key: "statement_date", label: "Statement Date",type: "date" },
   { key: "portfolio_weight",label: "Portfolio Weight %", type: "number" },
   { key: "status",         label: "Status",        type: "select", options: ["active","closed"], default: "active" },
@@ -371,7 +371,7 @@ const ALT_OPT = {
   mandate:     ["Advisory","Managed Account","Discretionary","Execution Only"],
   currency:    ["SAR","USD","EUR","GBP","AED","BHD","KWD","QAR","OMR","EGP","JOD"],
   status:      ["active","closed"],
-  custodian:   ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII"],
+  custodian:   ["Bank Audi Suisse","Audi Capital","JP Morgan","UBS","Jadwa","MEFIC","GII","Riyad Capital","Jazeera Capital"],
 };
 
 function AltModalFields({ formData, setFormData, deals, isEdit }) {
