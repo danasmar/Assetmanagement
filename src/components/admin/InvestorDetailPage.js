@@ -687,6 +687,15 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         const etfCcy = form.currency || 'SAR';
         const fxRate = etfCcy==='USD'?3.75:etfCcy==='EUR'?4.35:etfCcy==='GBP'?4.98:etfCcy==='AED'?1.02:1;
         const etfMVsar = etfMV * fxRate;
+        // Compute totalAUM locally to avoid closure issues with derived variables
+        const fxR = (c) => c==='USD'?3.75:c==='EUR'?4.35:c==='GBP'?4.98:c==='AED'?1.02:1;
+        const _allRows = rows || {};
+        const _totalAUM =
+          (_allRows['Public Equities']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
+          (_allRows['Fixed Income']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
+          (_allRows['ETF & Public Funds']||[]).reduce((s,p)=>s+(p.market_value||0)*fxR(p.currency),0)+
+          (_allRows['Alternatives']||[]).reduce((s,p)=>s+(altNavValue(p))*fxR(p.deals?.currency||p.currency),0)+
+          (_allRows['Cash & Deposits']||[]).reduce((s,c)=>s+(c.balance||0)*fxR(c.currency),0);
         Object.assign(base, {
           fund_type:           form.fund_type           || null,
           fund_manager:        form.fund_manager        || null,
@@ -700,7 +709,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           distribution_yield:  toN(form.distribution_yield),
           distribution_policy: form.distribution_policy || null,
           domicile:            form.domicile            || null,
-          portfolio_weight:    totalAUM > 0 && etfMVsar > 0 ? (etfMVsar / totalAUM * 100) : null,
+          portfolio_weight:    _totalAUM > 0 && etfMVsar > 0 ? (etfMVsar / _totalAUM * 100) : null,
         });
       }
       if (isEdit) await supabase.from('public_markets_positions').update(base).eq('id', form.id);
