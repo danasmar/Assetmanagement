@@ -162,18 +162,15 @@ export default function InvestorDashboard({ session, onPage }) {
 
       const pubData  = pubRes.data  || [];
       const cashData = cashRes.data || [];
-      // Per-category latest date — prevents one category's newer date from hiding others
+      // Per-category latest date — prevents one newer date from hiding other categories
       const latestForCat = (cat) => {
         const rows = pubData.filter(p => p.category === cat);
         return rows.length ? rows[0].statement_date : null;
       };
-      const latestEq   = latestForCat("Public Equities");
-      const latestFI   = latestForCat("Fixed Income");
-      const latestETF  = latestForCat("ETF & Public Funds");
       const filteredPub = [
-        ...pubData.filter(p => p.category === "Public Equities"    && (!latestEq  || p.statement_date === latestEq)),
-        ...pubData.filter(p => p.category === "Fixed Income"       && (!latestFI  || p.statement_date === latestFI)),
-        ...pubData.filter(p => p.category === "ETF & Public Funds" && (!latestETF || p.statement_date === latestETF)),
+        ...pubData.filter(p => p.category === "Public Equities"    && p.statement_date === latestForCat("Public Equities")),
+        ...pubData.filter(p => p.category === "Fixed Income"       && p.statement_date === latestForCat("Fixed Income")),
+        ...pubData.filter(p => p.category === "ETF & Public Funds" && p.statement_date === latestForCat("ETF & Public Funds")),
       ];
       const latestCash = cashData.length ? cashData[0].statement_date : null;
       setPubPositions(filteredPub);
@@ -288,24 +285,25 @@ export default function InvestorDashboard({ session, onPage }) {
       />
 
       {/* ── Summary Cards ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(155px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(145px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
         {[
-          { label:"Total Public Equities",    value: totalEquities, color:"#003770" },
-          { label:"Total Fixed Income",       value: totalFI,       color:"#1565c0" },
-          { label:"Total ETF & Funds",        value: totalETF,      color:"#7b1fa2" },
-          { label:"Total Alternatives",       value: totalAlts,     color:"#b45309" },
-          { label:"Total Cash & Deposits",    value: totalCash,     color:"#00695c" },
+          { label:"Total Public Equities", value: totalEquities, color:"#003770" },
+          { label:"Total Fixed Income",    value: totalFI,       color:"#1565c0" },
+          { label:"Total ETF & Funds",     value: totalETF,      color:"#7b1fa2" },
+          { label:"Total Alternatives",    value: totalAlts,     color:"#b45309" },
+          { label:"Total Cash & Deposits", value: totalCash,     color:"#00695c" },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"1rem 1.25rem", borderLeft:`4px solid ${color}` }}>
-            <div style={{ fontSize:"0.65rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0.35rem" }}>{label}</div>
-            <div style={{ fontSize:"1.05rem", fontWeight:"700", color }}>{fmt.currency(value)}</div>
-            <div style={{ fontSize:"0.65rem", color:"#adb5bd", marginTop:"2px" }}>SAR</div>
+          <div key={label} style={{ background:"#fff", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"0.85rem 1rem", borderLeft:`4px solid ${color}` }}>
+            <div style={{ fontSize:"0.62rem", color:"#6c757d", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem", lineHeight:1.3 }}>{label}</div>
+            <div style={{ fontSize:"0.65rem", color:"#adb5bd", fontWeight:"500", marginBottom:"2px" }}>SAR</div>
+            <div style={{ fontSize:"0.95rem", fontWeight:"700", color, fontVariantNumeric:"tabular-nums", lineHeight:1.2 }}>{Number(value||0).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
           </div>
         ))}
         {/* Total AUM */}
-        <div style={{ background:"#003770", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"1rem 1.25rem" }}>
-          <div style={{ fontSize:"0.65rem", color:"rgba(255,255,255,0.6)", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0.35rem" }}>Total AUM</div>
-          <div style={{ fontSize:"1.05rem", fontWeight:"700", color:"#C9A84C" }}>{fmt.currency(totalAUM)}</div>
+        <div style={{ background:"#003770", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"0.85rem 1rem" }}>
+          <div style={{ fontSize:"0.62rem", color:"rgba(255,255,255,0.6)", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Total AUM</div>
+          <div style={{ fontSize:"0.65rem", color:"rgba(255,255,255,0.4)", fontWeight:"500", marginBottom:"2px" }}>SAR</div>
+          <div style={{ fontSize:"0.95rem", fontWeight:"700", color:"#C9A84C", fontVariantNumeric:"tabular-nums", lineHeight:1.2 }}>{Number(totalAUM||0).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
         </div>
       </div>
 
