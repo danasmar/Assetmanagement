@@ -3,18 +3,21 @@ import { supabase } from "../../supabaseClient";
 import { Card, StatCard, Btn, PageHeader, fmt } from "../shared";
 import { toSAR } from "../../utils/fxConversion";
 
-// ── Palette shared across all three charts ───────────────────────────────────
+// ── Palette shared across all charts ─────────────────────────────────────────
 const PALETTE = ["#003770","#1565c0","#7b1fa2","#b45309","#00695c","#c62828","#00838f","#558b2f","#6a1b9a","#37474f"];
+
+// ── Fixed chart dimensions — ensures all donuts are identical size ────────────
+const DONUT_AREA_H = 180;   // fixed pixel height reserved for the donut
+const LEGEND_ROW_H = 20;    // height per legend row
+const MAX_LEGEND_ROWS = 5;  // support up to 10 items (2 columns)
+const FIXED_CHART_H = DONUT_AREA_H + MAX_LEGEND_ROWS * LEGEND_ROW_H + 24;
 
 // ── Interactive Donut chart — hover to zoom slice + show amount ──────────────
 function DonutChart({ data, title }) {
   const canvasRef    = useRef(null);
   const containerRef = useRef(null);
-  const hoveredRef   = useRef(-1);   // index of hovered slice, -1 = none
+  const hoveredRef   = useRef(-1);
   const rafRef       = useRef(null);
-
-  const legendRows = Math.ceil(data.length / 2);
-  const CSS_H = 220 + legendRows * 20 + 10;
 
   const draw = (hoveredIdx) => {
     const canvas    = canvasRef.current;
@@ -23,7 +26,7 @@ function DonutChart({ data, title }) {
 
     const dpr  = window.devicePixelRatio || 1;
     const cssW = container.clientWidth || 280;
-    const cssH = CSS_H;
+    const cssH = FIXED_CHART_H;
 
     canvas.width  = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
@@ -35,11 +38,13 @@ function DonutChart({ data, title }) {
 
     const W  = cssW;
     const H  = cssH;
+
+    // ── Fixed donut geometry — same for every chart ──
     const cx = W / 2;
-    const cy = H * 0.40;
-    const R  = Math.min(W * 0.38, cy * 0.82);
+    const cy = DONUT_AREA_H * 0.50;
+    const R  = Math.min(W * 0.32, 72);
     const r  = R * 0.55;
-    const EXPLODE = R * 0.10;   // how far a slice pops out on hover
+    const EXPLODE = R * 0.10;
 
     const total = data.reduce((s, d) => s + d.value, 0);
     if (total === 0) return;
@@ -72,7 +77,6 @@ function DonutChart({ data, title }) {
       ctx.fillStyle = s.color;
       ctx.fill();
 
-      // Subtle shadow on hovered slice
       if (hovered) {
         ctx.shadowColor   = s.color + "66";
         ctx.shadowBlur    = 10;
@@ -92,17 +96,15 @@ function DonutChart({ data, title }) {
     ctx.fillStyle = "#ffffff";
     ctx.fill();
 
-    // Centre text — show hovered slice info or default
+    // Centre text
     ctx.textAlign    = "center";
     ctx.textBaseline = "middle";
     if (hoveredIdx >= 0 && data[hoveredIdx]) {
       const d   = data[hoveredIdx];
       const pct = (d.value / total * 100).toFixed(1);
-      // Percentage (large)
       ctx.fillStyle = PALETTE[hoveredIdx % PALETTE.length];
       ctx.font      = "700 15px DM Sans, sans-serif";
       ctx.fillText(pct + "%", cx, cy - 10);
-      // SAR amount
       ctx.fillStyle = "#003770";
       ctx.font      = "600 10px DM Sans, sans-serif";
       const amtStr  = "SAR " + Number(d.value).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -113,19 +115,18 @@ function DonutChart({ data, title }) {
       ctx.fillText(data.length + (data.length === 1 ? " item" : " items"), cx, cy);
     }
 
-    // Legend
-    const legendY = cy + R + EXPLODE + 18;
+    // ── Legend — fixed starting Y position ──
+    const legendY = DONUT_AREA_H + 4;
     const colW    = W / 2;
 
     data.forEach((d, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const lx  = col === 0 ? 8 : W / 2 + 6;
-      const ly  = legendY + row * 20;
+      const ly  = legendY + row * LEGEND_ROW_H;
       const pct = (d.value / total * 100).toFixed(1);
       const isHov = i === hoveredIdx;
 
-      // Highlight legend row on hover
       if (isHov) {
         ctx.fillStyle = PALETTE[i % PALETTE.length] + "18";
         ctx.beginPath();
@@ -133,13 +134,11 @@ function DonutChart({ data, title }) {
         ctx.fill();
       }
 
-      // Colour swatch
       ctx.fillStyle = PALETTE[i % PALETTE.length];
       ctx.beginPath();
       ctx.roundRect(lx, ly + 3.5, 9, 9, 2);
       ctx.fill();
 
-      // Label
       const maxLabelW = colW - 40;
       ctx.font         = isHov ? "600 11px DM Sans, sans-serif" : "400 11px DM Sans, sans-serif";
       ctx.textAlign    = "start";
@@ -150,7 +149,6 @@ function DonutChart({ data, title }) {
         label = label.slice(0, -2) + "…";
       ctx.fillText(label, lx + 13, ly + 8);
 
-      // Percentage
       ctx.font      = "600 10px DM Sans, sans-serif";
       ctx.fillStyle = isHov ? PALETTE[i % PALETTE.length] : "#6c757d";
       ctx.textAlign = "end";
@@ -158,10 +156,8 @@ function DonutChart({ data, title }) {
     });
   };
 
-  // Initial draw and redraw on data change
-  useEffect(() => { draw(hoveredRef.current); }, [data, CSS_H]);
+  useEffect(() => { draw(hoveredRef.current); }, [data]);
 
-  // Hit-test: which slice is the mouse over?
   const hitTest = (e) => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -172,21 +168,18 @@ function DonutChart({ data, title }) {
     const my   = e.clientY - rect.top;
     const cssW = container.clientWidth || 280;
     const cx   = cssW / 2;
-    const cy   = CSS_H * 0.40;
-    const R    = Math.min(cssW * 0.38, cy * 0.82);
+    const cy   = DONUT_AREA_H * 0.50;
+    const R    = Math.min(cssW * 0.32, 72);
     const r    = R * 0.55;
 
     const dx = mx - cx;
     const dy = my - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Must be within donut ring
     if (dist < r || dist > R * 1.12) return -1;
 
-    // Find angle and match to slice
     const total = data.reduce((s, d) => s + d.value, 0);
     let rawAngle = Math.atan2(dy, dx);
-    // Normalise to start from -π/2
     if (rawAngle < -Math.PI / 2) rawAngle += 2 * Math.PI;
     let startAngle = -Math.PI / 2;
     for (let i = 0; i < data.length; i++) {
@@ -213,7 +206,7 @@ function DonutChart({ data, title }) {
   };
 
   return (
-    <div ref={containerRef} style={{ flex: 1, minWidth: 220, maxWidth: 340 }}>
+    <div ref={containerRef} style={{ width: "100%", height: FIXED_CHART_H + 24 }}>
       <div style={{ fontSize: "0.78rem", fontWeight: "700", color: "#003770", marginBottom: "0.5rem", textAlign: "center" }}>
         {title}
       </div>
@@ -221,7 +214,7 @@ function DonutChart({ data, title }) {
         ? <div style={{ textAlign: "center", color: "#adb5bd", fontSize: "0.82rem", padding: "2rem 0" }}>No data</div>
         : <canvas
             ref={canvasRef}
-            style={{ width: "100%", display: "block", cursor: "default" }}
+            style={{ width: "100%", height: FIXED_CHART_H, display: "block", cursor: "default" }}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
           />
@@ -262,9 +255,6 @@ export default function InvestorDashboard({ session, onPage }) {
 
       const pubData  = pubRes.data  || [];
       const cashData = cashRes.data || [];
-      // Per-category latest date — prevents one newer date from hiding other categories
-      // Include ALL active positions regardless of statement date so all mandates are shown.
-      // Different mandates can have different statement dates (e.g. Advisory Apr 6, Managed Mar 11).
       const filteredPub = pubData;
       const latestCash = cashData.length ? cashData[0].statement_date : null;
       setPubPositions(filteredPub);
@@ -314,7 +304,6 @@ export default function InvestorDashboard({ session, onPage }) {
     { label: "Cash & Deposits",    value: totalCash     },
   ].filter(d => d.value > 0);
 
-  // Currency allocation — aggregate all positions by currency
   const currencyMap = {};
   pubPositions.forEach(p => {
     const v = toSAR(p.market_value||0, p.currency, fx);
@@ -334,7 +323,6 @@ export default function InvestorDashboard({ session, onPage }) {
     .sort((a,b) => b[1]-a[1])
     .map(([label, value]) => ({ label, value }));
 
-  // Custodian allocation — custodian on public + alts (source_bank fallback for cash)
   const custodianMap = {};
   pubPositions.forEach(p => {
     const key = p.custodian || p.source_bank || "Not specified";
@@ -356,7 +344,6 @@ export default function InvestorDashboard({ session, onPage }) {
     .sort((a,b) => b[1]-a[1])
     .map(([label, value]) => ({ label, value }));
 
-  // ── Mandate allocation ───────────────────────────────────────────────────────
   const mandateMap = {};
   pubPositions.forEach(p => {
     const key = p.mandate_type || "Unspecified";
@@ -378,7 +365,6 @@ export default function InvestorDashboard({ session, onPage }) {
     .sort((a,b) => b[1]-a[1])
     .map(([label, value]) => ({ label, value }));
 
-  // ── Geography (country) allocation ───────────────────────────────────────────
   const geoMap = {};
   pubPositions.forEach(p => {
     const key = p.country || "Other";
@@ -395,7 +381,6 @@ export default function InvestorDashboard({ session, onPage }) {
     .sort((a,b) => b[1]-a[1])
     .map(([label, value]) => ({ label, value }));
 
-  // ── Sector allocation ────────────────────────────────────────────────────────
   const sectorMap = {};
   pubPositions.forEach(p => {
     const key = p.sector || p.asset_class_focus || "Other";
@@ -422,7 +407,6 @@ export default function InvestorDashboard({ session, onPage }) {
     "Cash & Deposits":    "#00695c",
   };
 
-  // ── Card value style — right-aligned SAR figures ──────────────────────────
   const cardVal = (value) => (
     <span style={{ fontSize:"1.05rem", fontWeight:"700" }}>{fmt.currency(value)}</span>
   );
@@ -449,7 +433,6 @@ export default function InvestorDashboard({ session, onPage }) {
             <div style={{ fontSize:"0.95rem", fontWeight:"700", color, fontVariantNumeric:"tabular-nums", lineHeight:1.2 }}>{Number(value||0).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
           </div>
         ))}
-        {/* Total AUM */}
         <div style={{ background:"#003770", borderRadius:"12px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)", padding:"0.85rem 1rem" }}>
           <div style={{ fontSize:"0.62rem", color:"rgba(255,255,255,0.6)", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Total AUM</div>
           <div style={{ fontSize:"0.65rem", color:"rgba(255,255,255,0.4)", fontWeight:"500", marginBottom:"2px" }}>SAR</div>
@@ -504,19 +487,19 @@ export default function InvestorDashboard({ session, onPage }) {
 
       </div>
 
-      {/* ── Allocation Charts ── */}
+      {/* ── Allocation Charts — CSS grid for equal sizing ── */}
       <Card>
         <div style={{ fontSize:"0.85rem", fontWeight:"700", color:"#003770", marginBottom:"1.25rem" }}>Portfolio Allocation</div>
         {loading ? (
           <p style={{ color:"#adb5bd", fontSize:"0.85rem" }}>Loading...</p>
         ) : (
           <div>
-            <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around", marginBottom:"1.5rem" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"1.5rem", marginBottom:"1.5rem" }}>
               <DonutChart data={assetClassData} title="By asset class" />
               <DonutChart data={currencyData}   title="By currency" />
               <DonutChart data={countryData}    title="By custodian" />
             </div>
-            <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"flex", gap:"1.5rem", flexWrap:"wrap", justifyContent:"space-around" }}>
+            <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"1.5rem" }}>
               <DonutChart data={mandateData}  title="By mandate" />
               <DonutChart data={geoData}      title="By geography" />
               <DonutChart data={sectorData}   title="By sector" />
