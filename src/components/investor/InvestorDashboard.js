@@ -37,7 +37,6 @@ function DonutChart({ data, title }) {
     ctx.scale(dpr, dpr);
 
     const W  = cssW;
-    const H  = cssH;
 
     // ── Fixed donut geometry — same for every chart ──
     const cx = W / 2;
@@ -49,7 +48,7 @@ function DonutChart({ data, title }) {
     const total = data.reduce((s, d) => s + d.value, 0);
     if (total === 0) return;
 
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0, 0, W, cssH);
 
     // Build slices
     let angle = -Math.PI / 2;
@@ -206,19 +205,30 @@ function DonutChart({ data, title }) {
   };
 
   return (
-    <div ref={containerRef} style={{ width: "100%", height: FIXED_CHART_H + 24 }}>
+    <div style={{
+      background: "#fff",
+      borderRadius: "12px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      padding: "1rem 0.75rem 0.75rem",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      height: FIXED_CHART_H + 48,
+    }}>
       <div style={{ fontSize: "0.78rem", fontWeight: "700", color: "#003770", marginBottom: "0.5rem", textAlign: "center" }}>
         {title}
       </div>
-      {data.length === 0
-        ? <div style={{ textAlign: "center", color: "#adb5bd", fontSize: "0.82rem", padding: "2rem 0" }}>No data</div>
-        : <canvas
-            ref={canvasRef}
-            style={{ width: "100%", height: FIXED_CHART_H, display: "block", cursor: "default" }}
-            onMouseMove={onMouseMove}
-            onMouseLeave={onMouseLeave}
-          />
-      }
+      <div ref={containerRef} style={{ width: "100%" }}>
+        {data.length === 0
+          ? <div style={{ textAlign: "center", color: "#adb5bd", fontSize: "0.82rem", padding: "2rem 0" }}>No data</div>
+          : <canvas
+              ref={canvasRef}
+              style={{ width: "100%", height: FIXED_CHART_H, display: "block", cursor: "default" }}
+              onMouseMove={onMouseMove}
+              onMouseLeave={onMouseLeave}
+            />
+        }
+      </div>
     </div>
   );
 }
@@ -411,6 +421,14 @@ export default function InvestorDashboard({ session, onPage }) {
     <span style={{ fontSize:"1.05rem", fontWeight:"700" }}>{fmt.currency(value)}</span>
   );
 
+  // ── Chart grid style — equal-width columns ──
+  const chartGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "1rem",
+    marginBottom: "1rem",
+  };
+
   return (
     <div>
       <PageHeader
@@ -487,26 +505,28 @@ export default function InvestorDashboard({ session, onPage }) {
 
       </div>
 
-      {/* ── Allocation Charts — CSS grid for equal sizing ── */}
-      <Card>
-        <div style={{ fontSize:"0.85rem", fontWeight:"700", color:"#003770", marginBottom:"1.25rem" }}>Portfolio Allocation</div>
-        {loading ? (
-          <p style={{ color:"#adb5bd", fontSize:"0.85rem" }}>Loading...</p>
-        ) : (
-          <div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"1.5rem", marginBottom:"1.5rem" }}>
-              <DonutChart data={assetClassData} title="By asset class" />
-              <DonutChart data={currencyData}   title="By currency" />
-              <DonutChart data={countryData}    title="By custodian" />
-            </div>
-            <div style={{ borderTop:"1px solid #f1f3f5", paddingTop:"1.5rem", display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"1.5rem" }}>
-              <DonutChart data={mandateData}  title="By mandate" />
-              <DonutChart data={geoData}      title="By geography" />
-              <DonutChart data={sectorData}   title="By sector" />
-            </div>
+      {/* ── Portfolio Allocation section header ── */}
+      <div style={{ fontSize:"0.85rem", fontWeight:"700", color:"#003770", marginBottom:"1rem" }}>Portfolio Allocation</div>
+
+      {loading ? (
+        <p style={{ color:"#adb5bd", fontSize:"0.85rem" }}>Loading...</p>
+      ) : (
+        <>
+          {/* ── Row 1: Asset Class, Currency, Custodian ── */}
+          <div style={chartGridStyle}>
+            <DonutChart data={assetClassData} title="By Asset Class" />
+            <DonutChart data={currencyData}   title="By Currency" />
+            <DonutChart data={countryData}    title="By Custodian" />
           </div>
-        )}
-      </Card>
+
+          {/* ── Row 2: Mandate, Geography, Sector ── */}
+          <div style={chartGridStyle}>
+            <DonutChart data={mandateData}  title="By Mandate" />
+            <DonutChart data={geoData}      title="By Geography" />
+            <DonutChart data={sectorData}   title="By Sector" />
+          </div>
+        </>
+      )}
 
     </div>
   );
