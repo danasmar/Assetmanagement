@@ -354,9 +354,10 @@ function PortfolioNewsCard({ session }) {
 
       // 1. Fetch distinct tickers from investor's positions
       const { data: positions, error: dbErr } = await supabase
-        .from('positions')
+        .from('public_markets_positions')
         .select('ticker_symbol, security_name')
         .eq('investor_id', session.user.id)
+        .eq('status', 'active')
         .not('ticker_symbol', 'is', null);
 
       if (dbErr) {
