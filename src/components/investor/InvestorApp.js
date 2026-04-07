@@ -7,6 +7,7 @@ import InvestorReports from "./InvestorReports";
 import InvestorDistributions from "./InvestorDistributions";
 import InvestorMessages from "./InvestorMessages";
 import InvestorProfile from "./InvestorProfile";
+import MarketInsights from "./MarketInsights";
 
 export default function InvestorApp({ session, onLogout }) {
  const [page, setPage] = useState('dashboard');
@@ -14,6 +15,7 @@ export default function InvestorApp({ session, onLogout }) {
  const renderPage = () => {
    switch(page) {
      case 'dashboard':     return <InvestorDashboard session={session} onPage={setPage} />;
+     case 'market':        return <MarketInsights session={session} />;
      case 'portfolio':     return <InvestorPortfolio session={session} />;
      case 'opportunities': return <InvestorOpportunities session={session} />;
      case 'reports':       return <InvestorReports session={session} />;
