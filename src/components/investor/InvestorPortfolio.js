@@ -253,8 +253,8 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.td}>{pos.country||"—"}</td>
                     <td style={S.td}>{pos.sector||"—"}</td>
                     <td style={S.tdR}>{pos.quantity ? fmt.num(pos.quantity) : "—"}</td>
-                    <td style={S.tdR}>{pos.avg_cost_price ? fmt.currency(pos.avg_cost_price, pos.currency) : "—"}</td>
-                    <td style={S.tdR}>{pos.price ? fmt.currency(pos.price, pos.currency) : "—"}</td>
+                    <td style={S.tdR}>{pos.avg_cost_price ? `${pos.currency||"SAR"} ${Number(pos.avg_cost_price).toFixed(2)}` : "—"}</td>
+                    <td style={S.tdR}>{pos.price ? `${pos.currency||"SAR"} ${Number(pos.price).toFixed(2)}` : "—"}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(mv, pos.currency)}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", ...(perf===null?{color:"#adb5bd"}:perf>=0?S.pnlPos:S.pnlNeg) }}>
                       {perf!==null ? `${perf>=0?"+":""}${perf.toFixed(2)}%` : "—"}
@@ -414,7 +414,7 @@ export default function InvestorPortfolio({ session }) {
                     <td style={S.td}>{pos.geographic_focus||"—"}</td>
                     <td style={S.tdR}>{pos.quantity ? fmt.num(pos.quantity) : "—"}</td>
                     <td style={S.tdR}>{pos.nav_per_unit ? Number(pos.nav_per_unit).toFixed(2) : "—"}</td>
-                    <td style={S.tdR}>{pos.avg_cost_price ? fmt.currency(pos.avg_cost_price, pos.currency) : "—"}</td>
+                    <td style={S.tdR}>{pos.avg_cost_price ? `${pos.currency||"SAR"} ${Number(pos.avg_cost_price).toFixed(2)}` : "—"}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", color:"#003770" }}>{fmt.currency(mv, pos.currency)}</td>
                     <td style={{ ...S.tdR, fontWeight:"700", ...(perf===null?{color:"#adb5bd"}:perf>=0?S.pnlPos:S.pnlNeg) }}>
                       {perf!==null ? `${perf>=0?"+":""}${perf.toFixed(2)}%` : "—"}
