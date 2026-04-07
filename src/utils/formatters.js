@@ -5,9 +5,13 @@
  * the same set of pure functions.
  */
 
-/** Format currency with a code prefix, no decimals. */
+/** Format currency with a code prefix, no decimals (for totals / AUM). */
 export const formatCurrency = (value, currency = 'SAR') =>
   `${currency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+/** Format per-unit prices with 2 decimal places (for avg cost, price, NAV). */
+export const formatPrice = (value, currency = 'SAR') =>
+  `${currency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Format percentage to 1 decimal. */
 export const formatPct = (value) => `${Number(value || 0).toFixed(1)}%`;
@@ -36,6 +40,7 @@ export const formatWithCommas = (val) => {
 /** Convenience alias matching the original `fmt` object shape. */
 export const fmt = {
   currency: formatCurrency,
+  price:    formatPrice,
   pct:      formatPct,
   date:     formatDate,
   num:      formatNum,
