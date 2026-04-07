@@ -248,7 +248,6 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
 // ─── Navigation item arrays ───────────────────────────────────────────────────
 export const INVESTOR_NAV = [
   { key: "dashboard",     icon: "⊞", label: "Dashboard" },
-  { key: "market",        icon: "◈", label: "Market Insights" },
   { key: "portfolio",     icon: "◈", label: "My Investments" },
   { key: "opportunities", icon: "◉", label: "Opportunities" },
   { section: "Account" },
