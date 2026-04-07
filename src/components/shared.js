@@ -181,7 +181,7 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
         />
         <div>
           <span style={nav.logoText}>Audi Capital</span>
-          <span style={nav.logoSub}>Investor Portal</span>
+          <span style={nav.logoSub}>{session && session.role === "admin" ? "Admin Portal" : "Investor Portal"}</span>
         </div>
       </div>
 
