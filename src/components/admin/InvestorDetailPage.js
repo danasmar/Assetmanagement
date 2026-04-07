@@ -1001,8 +1001,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
                           <td style={td}>{row.exchange||'—'}</td>
                           <td style={td}>{row.sector||'—'}</td>
                           <td style={tdr}>{row.quantity!=null?fmt.num(row.quantity):'—'}</td>
-                          <td style={tdr}>{row.avg_cost_price!=null?fmt.currency(row.avg_cost_price,row.currency):'—'}</td>
-                          <td style={tdr}>{row.price!=null?fmt.currency(row.price,row.currency):'—'}</td>
+                          <td style={tdr}>{row.avg_cost_price!=null?fmt.price(row.avg_cost_price,row.currency):'—'}</td>
+                          <td style={tdr}>{row.price!=null?fmt.price(row.price,row.currency):'—'}</td>
                           <td style={{ ...tdr, fontWeight:'700', color:'#003770' }}>{fmt.currency(row.market_value,row.currency)}</td>
                           <td style={td}>{row.currency||'—'}</td>
                           <td style={td}>{row.mandate_type||'—'}</td>
