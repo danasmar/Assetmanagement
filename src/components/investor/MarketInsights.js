@@ -572,7 +572,7 @@ function HouseViewsCard() {
 
   useEffect(function() {
     var load = async function() {
-      var res = await supabase.from("updates").select("*").order("created_at", { ascending: false }).limit(5);
+      var res = await supabase.from("house_views").select("*").order("created_at", { ascending: false }).limit(5);
       setItems(res.data || []);
       setLoading(false);
     };
