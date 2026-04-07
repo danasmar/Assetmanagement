@@ -163,15 +163,9 @@ export default function InvestorDashboard({ session, onPage }) {
       const pubData  = pubRes.data  || [];
       const cashData = cashRes.data || [];
       // Per-category latest date — prevents one newer date from hiding other categories
-      const latestForCat = (cat) => {
-        const rows = pubData.filter(p => p.category === cat);
-        return rows.length ? rows[0].statement_date : null;
-      };
-      const filteredPub = [
-        ...pubData.filter(p => p.category === "Public Equities"    && p.statement_date === latestForCat("Public Equities")),
-        ...pubData.filter(p => p.category === "Fixed Income"       && p.statement_date === latestForCat("Fixed Income")),
-        ...pubData.filter(p => p.category === "ETF & Public Funds" && p.statement_date === latestForCat("ETF & Public Funds")),
-      ];
+      // Include ALL active positions regardless of statement date so all mandates are shown.
+      // Different mandates can have different statement dates (e.g. Advisory Apr 6, Managed Mar 11).
+      const filteredPub = pubData;
       const latestCash = cashData.length ? cashData[0].statement_date : null;
       setPubPositions(filteredPub);
       setCashPositions(latestCash ? cashData.filter(c => c.statement_date === latestCash) : []);
