@@ -6,16 +6,17 @@ import { toSAR } from "../../utils/fxConversion";
 // ── Palette shared across all three charts ───────────────────────────────────
 const PALETTE = ["#003770","#1565c0","#7b1fa2","#b45309","#00695c","#c62828","#00838f","#558b2f","#6a1b9a","#37474f"];
 
-// ── Donut chart — device-pixel-ratio aware for sharp rendering ───────────────
+// ── Interactive Donut chart — hover to zoom slice + show amount ──────────────
 function DonutChart({ data, title }) {
   const canvasRef    = useRef(null);
   const containerRef = useRef(null);
+  const hoveredRef   = useRef(-1);   // index of hovered slice, -1 = none
+  const rafRef       = useRef(null);
 
   const legendRows = Math.ceil(data.length / 2);
-  // Logical (CSS) dimensions
-  const CSS_H = 210 + legendRows * 18 + 10;
+  const CSS_H = 220 + legendRows * 20 + 10;
 
-  useEffect(() => {
+  const draw = (hoveredIdx) => {
     const canvas    = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container || !data.length) return;
@@ -24,15 +25,13 @@ function DonutChart({ data, title }) {
     const cssW = container.clientWidth || 280;
     const cssH = CSS_H;
 
-    // Set physical backing-store size
     canvas.width  = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
-    // Keep CSS display size unchanged
     canvas.style.width  = cssW + "px";
     canvas.style.height = cssH + "px";
 
     const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);          // all subsequent draws are in CSS px
+    ctx.scale(dpr, dpr);
 
     const W  = cssW;
     const H  = cssH;
@@ -40,6 +39,7 @@ function DonutChart({ data, title }) {
     const cy = H * 0.40;
     const R  = Math.min(W * 0.38, cy * 0.82);
     const r  = R * 0.55;
+    const EXPLODE = R * 0.10;   // how far a slice pops out on hover
 
     const total = data.reduce((s, d) => s + d.value, 0);
     if (total === 0) return;
@@ -50,22 +50,40 @@ function DonutChart({ data, title }) {
     let angle = -Math.PI / 2;
     const slices = data.map((d, i) => {
       const sweep = (d.value / total) * 2 * Math.PI;
-      const s = { start: angle, sweep, color: PALETTE[i % PALETTE.length] };
+      const mid   = angle + sweep / 2;
+      const s = { start: angle, sweep, mid, color: PALETTE[i % PALETTE.length], idx: i };
       angle += sweep;
       return s;
     });
 
-    // Draw slices with thin white separator
-    slices.forEach(s => {
+    // Draw slices
+    slices.forEach((s, i) => {
+      const hovered = i === hoveredIdx;
+      const ox = hovered ? Math.cos(s.mid) * EXPLODE : 0;
+      const oy = hovered ? Math.sin(s.mid) * EXPLODE : 0;
+      const radius = hovered ? R * 1.06 : R;
+
+      ctx.save();
+      ctx.translate(ox, oy);
       ctx.beginPath();
       ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, R, s.start, s.start + s.sweep);
+      ctx.arc(cx, cy, radius, s.start, s.start + s.sweep);
       ctx.closePath();
       ctx.fillStyle = s.color;
       ctx.fill();
+
+      // Subtle shadow on hovered slice
+      if (hovered) {
+        ctx.shadowColor   = s.color + "66";
+        ctx.shadowBlur    = 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth   = 1.5;
+      ctx.lineWidth   = 2;
       ctx.stroke();
+      ctx.restore();
     });
 
     // Donut hole
@@ -74,48 +92,125 @@ function DonutChart({ data, title }) {
     ctx.fillStyle = "#ffffff";
     ctx.fill();
 
-    // Centre label
-    ctx.fillStyle    = "#003770";
-    ctx.font         = "600 12px DM Sans, sans-serif";
+    // Centre text — show hovered slice info or default
     ctx.textAlign    = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(data.length + (data.length === 1 ? " item" : " items"), cx, cy);
+    if (hoveredIdx >= 0 && data[hoveredIdx]) {
+      const d   = data[hoveredIdx];
+      const pct = (d.value / total * 100).toFixed(1);
+      // Percentage (large)
+      ctx.fillStyle = PALETTE[hoveredIdx % PALETTE.length];
+      ctx.font      = "700 15px DM Sans, sans-serif";
+      ctx.fillText(pct + "%", cx, cy - 10);
+      // SAR amount
+      ctx.fillStyle = "#003770";
+      ctx.font      = "600 10px DM Sans, sans-serif";
+      const amtStr  = "SAR " + Number(d.value).toLocaleString("en-US", { maximumFractionDigits: 0 });
+      ctx.fillText(amtStr, cx, cy + 6);
+    } else {
+      ctx.fillStyle = "#003770";
+      ctx.font      = "600 12px DM Sans, sans-serif";
+      ctx.fillText(data.length + (data.length === 1 ? " item" : " items"), cx, cy);
+    }
 
     // Legend
-    const legendY = cy + R + 18;
+    const legendY = cy + R + EXPLODE + 18;
     const colW    = W / 2;
 
     data.forEach((d, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const lx  = col === 0 ? 8 : W / 2 + 6;
-      const ly  = legendY + row * 18;
+      const ly  = legendY + row * 20;
       const pct = (d.value / total * 100).toFixed(1);
+      const isHov = i === hoveredIdx;
+
+      // Highlight legend row on hover
+      if (isHov) {
+        ctx.fillStyle = PALETTE[i % PALETTE.length] + "18";
+        ctx.beginPath();
+        ctx.roundRect(lx - 2, ly, colW - 6, 16, 4);
+        ctx.fill();
+      }
 
       // Colour swatch
-      ctx.fillStyle   = PALETTE[i % PALETTE.length];
+      ctx.fillStyle = PALETTE[i % PALETTE.length];
       ctx.beginPath();
-      ctx.roundRect(lx, ly + 3, 9, 9, 2);
+      ctx.roundRect(lx, ly + 3.5, 9, 9, 2);
       ctx.fill();
 
-      // Label — truncate to fit
-      const maxLabelW = colW - 38;
-      ctx.font         = "400 11px DM Sans, sans-serif";
+      // Label
+      const maxLabelW = colW - 40;
+      ctx.font         = isHov ? "600 11px DM Sans, sans-serif" : "400 11px DM Sans, sans-serif";
       ctx.textAlign    = "start";
       ctx.textBaseline = "middle";
-      ctx.fillStyle    = "#212529";
+      ctx.fillStyle    = isHov ? "#003770" : "#212529";
       let label = d.label;
       while (ctx.measureText(label).width > maxLabelW && label.length > 4)
         label = label.slice(0, -2) + "…";
-      ctx.fillText(label, lx + 13, ly + 7.5);
+      ctx.fillText(label, lx + 13, ly + 8);
 
-      // Percentage — right-aligned in its column
+      // Percentage
       ctx.font      = "600 10px DM Sans, sans-serif";
-      ctx.fillStyle = "#6c757d";
+      ctx.fillStyle = isHov ? PALETTE[i % PALETTE.length] : "#6c757d";
       ctx.textAlign = "end";
-      ctx.fillText(pct + "%", col === 0 ? W / 2 - 4 : W - 4, ly + 7.5);
+      ctx.fillText(pct + "%", col === 0 ? W / 2 - 4 : W - 4, ly + 8);
     });
-  }, [data, CSS_H]);
+  };
+
+  // Initial draw and redraw on data change
+  useEffect(() => { draw(hoveredRef.current); }, [data, CSS_H]);
+
+  // Hit-test: which slice is the mouse over?
+  const hitTest = (e) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !data.length) return -1;
+
+    const rect = canvas.getBoundingClientRect();
+    const mx   = e.clientX - rect.left;
+    const my   = e.clientY - rect.top;
+    const cssW = container.clientWidth || 280;
+    const cx   = cssW / 2;
+    const cy   = CSS_H * 0.40;
+    const R    = Math.min(cssW * 0.38, cy * 0.82);
+    const r    = R * 0.55;
+
+    const dx = mx - cx;
+    const dy = my - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Must be within donut ring
+    if (dist < r || dist > R * 1.12) return -1;
+
+    // Find angle and match to slice
+    const total = data.reduce((s, d) => s + d.value, 0);
+    let rawAngle = Math.atan2(dy, dx);
+    // Normalise to start from -π/2
+    if (rawAngle < -Math.PI / 2) rawAngle += 2 * Math.PI;
+    let startAngle = -Math.PI / 2;
+    for (let i = 0; i < data.length; i++) {
+      const sweep = (data[i].value / total) * 2 * Math.PI;
+      if (rawAngle >= startAngle && rawAngle < startAngle + sweep) return i;
+      startAngle += sweep;
+    }
+    return -1;
+  };
+
+  const onMouseMove = (e) => {
+    const idx = hitTest(e);
+    if (idx !== hoveredRef.current) {
+      hoveredRef.current = idx;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => draw(idx));
+    }
+  };
+
+  const onMouseLeave = () => {
+    hoveredRef.current = -1;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => draw(-1));
+  };
 
   return (
     <div ref={containerRef} style={{ flex: 1, minWidth: 220, maxWidth: 340 }}>
@@ -124,7 +219,12 @@ function DonutChart({ data, title }) {
       </div>
       {data.length === 0
         ? <div style={{ textAlign: "center", color: "#adb5bd", fontSize: "0.82rem", padding: "2rem 0" }}>No data</div>
-        : <canvas ref={canvasRef} style={{ width: "100%", display: "block" }} />
+        : <canvas
+            ref={canvasRef}
+            style={{ width: "100%", display: "block", cursor: "default" }}
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+          />
       }
     </div>
   );
