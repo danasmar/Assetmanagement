@@ -30,14 +30,13 @@ const S = {
 export default function InvestorPortfolio({ session }) {
   const [activeCategory, setActiveCategory] = useState("equities");
   const [investments, setInvestments]         = useState([]);
-  const [positions, setPositions]             = useState([]);       // public_markets_positions
-  const [privatePositions, setPrivatePositions] = useState([]);     // private no deal
+  const [positions, setPositions]             = useState([]);
+  const [privatePositions, setPrivatePositions] = useState([]);
   const [cashPositions, setCashPositions]     = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [distByDeal, setDistByDeal]           = useState({});
   const [fx, setFx] = useState({ usd_to_sar: 3.75, eur_to_sar: 4.35, gbp_to_sar: 4.98, aed_to_sar: 1.02, chf_to_sar: 4.12 });
 
-  // Filters
   const [search, setSearch]               = useState("");
   const [filterMandate, setFilterMandate] = useState("");
   const [selectedDate, setSelectedDate]   = useState("");
@@ -82,25 +81,39 @@ export default function InvestorPortfolio({ session }) {
     load();
   }, [session.user.id]);
 
-  // ── Derived: per-category latest date, each filtered independently ────────
-  // Helper: latest date for a given category
   const latestDateFor = (cat) => {
     const dates = [...new Set(positions.filter(p => p.category === cat).map(p => p.statement_date).filter(Boolean))]
       .sort((a, b) => new Date(b) - new Date(a));
     return dates[0] || null;
   };
 
-  // All unique dates for the active category — drives the date dropdown
   const activeCatLabel = activeCategory === "equities" ? "Public Equities"
     : activeCategory === "fi"  ? "Fixed Income"
     : activeCategory === "etf" ? "ETF & Public Funds"
+    : activeCategory === "alts" ? "Alternatives"
+    : activeCategory === "cash" ? "Cash & Deposits"
     : null;
-  const allDates = activeCatLabel
-    ? [...new Set(positions.filter(p => p.category === activeCatLabel).map(p => p.statement_date).filter(Boolean))]
-        .sort((a, b) => new Date(b) - new Date(a))
-    : [];
 
-  // Each category uses its own latest date (or the user-selected date if it matches)
+  // Build date list based on active category — pull from the right source
+  const allDates = (() => {
+    if (["equities","fi","etf"].includes(activeCategory) && activeCatLabel) {
+      return [...new Set(positions.filter(p => p.category === activeCatLabel).map(p => p.statement_date).filter(Boolean))]
+        .sort((a, b) => new Date(b) - new Date(a));
+    }
+    if (activeCategory === "alts") {
+      const altDates = [
+        ...investments.map(i => i.statement_date).filter(Boolean),
+        ...privatePositions.map(p => p.statement_date).filter(Boolean),
+      ];
+      return [...new Set(altDates)].sort((a, b) => new Date(b) - new Date(a));
+    }
+    if (activeCategory === "cash") {
+      return [...new Set(cashPositions.map(c => c.statement_date).filter(Boolean))]
+        .sort((a, b) => new Date(b) - new Date(a));
+    }
+    return [];
+  })();
+
   const equityLatest = selectedDate && positions.some(p => p.category === "Public Equities" && p.statement_date === selectedDate)
     ? selectedDate : latestDateFor("Public Equities");
   const fiLatest     = selectedDate && positions.some(p => p.category === "Fixed Income" && p.statement_date === selectedDate)
@@ -108,8 +121,6 @@ export default function InvestorPortfolio({ session }) {
   const etfLatest    = selectedDate && positions.some(p => p.category === "ETF & Public Funds" && p.statement_date === selectedDate)
     ? selectedDate : latestDateFor("ETF & Public Funds");
 
-  // Show all positions for each category regardless of date.
-  // Only apply date filter if the user has explicitly selected a specific date via the dropdown.
   const equityRows = selectedDate
     ? positions.filter(p => p.category === "Public Equities" && p.statement_date === selectedDate)
     : positions.filter(p => p.category === "Public Equities");
@@ -120,18 +131,18 @@ export default function InvestorPortfolio({ session }) {
     ? positions.filter(p => p.category === "ETF & Public Funds" && p.statement_date === selectedDate)
     : positions.filter(p => p.category === "ETF & Public Funds");
 
-  // displayByDate kept for AUM total — union of all per-category filtered rows
   const displayByDate = [...equityRows, ...fiRows, ...etfRows];
 
-  // ── Private ─────────────────────────────────────────────────────────────
   const latestPrivDate  = privatePositions[0]?.statement_date || null;
-  const displayPrivate  = latestPrivDate ? privatePositions.filter(p => p.statement_date === latestPrivDate) : [];
+  const displayPrivate  = selectedDate && activeCategory === "alts"
+    ? privatePositions.filter(p => p.statement_date === selectedDate)
+    : latestPrivDate ? privatePositions.filter(p => p.statement_date === latestPrivDate) : [];
 
-  // ── Cash ────────────────────────────────────────────────────────────────
   const latestCashDate  = cashPositions[0]?.statement_date || null;
-  const displayCash     = latestCashDate ? cashPositions.filter(p => p.statement_date === latestCashDate) : [];
+  const displayCash     = selectedDate && activeCategory === "cash"
+    ? cashPositions.filter(p => p.statement_date === selectedDate)
+    : latestCashDate ? cashPositions.filter(p => p.statement_date === latestCashDate) : [];
 
-  // ── AUM totals ───────────────────────────────────────────────────────────
   const privateNAV = investments.reduce((s, i) => {
     const sorted = (i.deals?.nav_updates || []).slice().sort((a,b) => {
       const dateDiff = new Date(b.effective_date) - new Date(a.effective_date);
@@ -144,7 +155,6 @@ export default function InvestorPortfolio({ session }) {
   const totalCash       = displayCash.reduce((s,c) => s + toSAR(c.balance||0, c.currency, fx), 0);
   const totalAUM        = privateNAV + totalPublicMV + totalCash;
 
-  // ── Filter helpers ───────────────────────────────────────────────────────
   const applyFilters = (arr) => arr.filter(p => {
     if (filterMandate && p.mandate_type !== filterMandate) return false;
     if (!search.trim()) return true;
@@ -168,7 +178,6 @@ export default function InvestorPortfolio({ session }) {
     return flags[ccy] || "🏳️";
   };
 
-  // ── Mandate badge (mirrors admin mandateColors) ──────────────────────────
   const mandateColors = {
     "Managed Account":  { bg:"#e8f0fe", color:"#1a56db" },
     "Discretionary":    { bg:"#e8f5e9", color:"#2e7d32" },
@@ -183,7 +192,6 @@ export default function InvestorPortfolio({ session }) {
       : <span style={{ color:"#adb5bd" }}>—</span>;
   };
 
-  // ── Shared table footer total ────────────────────────────────────────────
   const TableFooter = ({ rows, colSpanLeft, colSpanRight=0 }) => {
     const total = rows.reduce((s,p) => s + toSAR(p.market_value||0, p.currency, fx), 0);
     return (
@@ -202,9 +210,6 @@ export default function InvestorPortfolio({ session }) {
     );
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TABLE: Public Equities  (mirrors admin TABLE_COLUMNS["Public Equities"])
-  // ════════════════════════════════════════════════════════════════════════
   const sortedEquity = doSort(applyFilters(equityRows));
   const EquityTable = () => (
     <Card style={{ overflowX:"auto", padding:0 }}>
@@ -274,9 +279,6 @@ export default function InvestorPortfolio({ session }) {
     </Card>
   );
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TABLE: Fixed Income  (mirrors admin TABLE_COLUMNS["Fixed Income"])
-  // ════════════════════════════════════════════════════════════════════════
   const sortedFI = applyFilters(fiRows);
   const FITable = () => (
     <Card style={{ overflowX:"auto", padding:0 }}>
@@ -354,9 +356,6 @@ export default function InvestorPortfolio({ session }) {
     </Card>
   );
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TABLE: ETF & Public Funds  (mirrors admin TABLE_COLUMNS["ETF & Public Funds"])
-  // ════════════════════════════════════════════════════════════════════════
   const sortedETF = doSort(applyFilters(etfRows));
   const ETFTable = () => (
     <Card style={{ overflowX:"auto", padding:0 }}>
@@ -435,9 +434,6 @@ export default function InvestorPortfolio({ session }) {
     </Card>
   );
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TABLE: Alternatives  (mirrors admin TABLE_COLUMNS["Alternatives"])
-  // ════════════════════════════════════════════════════════════════════════
   const altRows = [
     ...investments.map(inv => {
       const navSorted = (inv.deals?.nav_updates||[]).slice().sort((a,b)=>{
@@ -506,6 +502,7 @@ export default function InvestorPortfolio({ session }) {
   ];
 
   const filteredAlts = altRows.filter(r => {
+    if (filterMandate && r.mandate_type !== filterMandate) return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (r.security_name||"").toLowerCase().includes(q) || (r.manager_gp||"").toLowerCase().includes(q);
@@ -607,10 +604,8 @@ export default function InvestorPortfolio({ session }) {
     </Card>
   );
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TABLE: Cash & Deposits
-  // ════════════════════════════════════════════════════════════════════════
   const filteredCash = displayCash.filter(c => {
+    if (filterMandate && filterMandate !== "Cash") return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (c.description||"").toLowerCase().includes(q)||(c.source_bank||"").toLowerCase().includes(q);
@@ -687,7 +682,6 @@ export default function InvestorPortfolio({ session }) {
         </div>
   );
 
-  // ── Count per category for the cards ────────────────────────────────────
   const categoryCounts = {
     equities: equityRows.length,
     fi:       fiRows.length,
@@ -696,7 +690,6 @@ export default function InvestorPortfolio({ session }) {
     cash:     displayCash.length,
   };
 
-  // ── AUM per category for the cards ──────────────────────────────────────
   const categoryAUM = {
     equities: equityRows.reduce((s,p)=>s+toSAR(p.market_value||0,p.currency,fx),0),
     fi:       fiRows.reduce((s,p)=>s+toSAR(p.market_value||0,p.currency,fx),0),
@@ -705,16 +698,10 @@ export default function InvestorPortfolio({ session }) {
     cash:     totalCash,
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════════════
   return (
     <div>
       <PageHeader title="My Investments" subtitle="Your complete investment portfolio" />
 
-
-
-      {/* ── Category Cards — MIRRORS ADMIN EXACTLY ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
         {CATEGORIES.map(cat => (
           <Card
@@ -747,40 +734,32 @@ export default function InvestorPortfolio({ session }) {
         ))}
       </div>
 
-      {/* ── Filter Bar — mirrors admin filter bar ── */}
       <Card style={{ marginBottom:"1rem" }}>
         <div style={S.filterBar}>
-          {/* Statement date — only relevant for public markets */}
-          {["equities","fi","etf"].includes(activeCategory) && (
-            <select style={S.filterSelect} value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}>
-              {allDates.length===0 && <option value="">No data</option>}
-              {allDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
-            </select>
-          )}
+          <select style={S.filterSelect} value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}>
+            {allDates.length===0 && <option value="">No data</option>}
+            {allDates.map(d => <option key={d} value={d}>{fmt.date(d)}</option>)}
+          </select>
           <input
             style={S.filterInput}
             placeholder="Search name, ticker, ISIN, issuer..."
             value={search}
             onChange={e=>setSearch(e.target.value)}
           />
-          {["equities","fi","etf"].includes(activeCategory) && (
-            <select style={S.filterSelect} value={filterMandate} onChange={e=>setFilterMandate(e.target.value)}>
-              <option value="">All Mandates</option>
-              <option value="Advisory">Advisory</option>
-              <option value="Managed Account">Managed Account</option>
-              <option value="Discretionary">Discretionary</option>
-              <option value="Execution Only">Execution Only</option>
-            </select>
-          )}
+          <select style={S.filterSelect} value={filterMandate} onChange={e=>setFilterMandate(e.target.value)}>
+            <option value="">All Mandates</option>
+            <option value="Advisory">Advisory</option>
+            <option value="Managed Account">Managed Account</option>
+            <option value="Discretionary">Discretionary</option>
+            <option value="Execution Only">Execution Only</option>
+          </select>
         </div>
-        {/* Stats row */}
         <div style={{ display:"flex", gap:"2rem", fontSize:"0.82rem", color:"#6c757d" }}>
           <span><strong>{categoryCounts[activeCategory]}</strong> positions</span>
           <span>Total Value: <strong>{fmt.currency(categoryAUM[activeCategory])}</strong> <span style={{ fontSize:"0.72rem" }}>SAR</span></span>
         </div>
       </Card>
 
-      {/* ── Content ── */}
       {loading
         ? <div style={{ textAlign:"center", padding:"2rem", color:"#6c757d" }}>Loading positions...</div>
         : <>
