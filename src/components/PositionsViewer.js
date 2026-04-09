@@ -8,11 +8,11 @@ import { supabase } from "../supabaseClient";
 import { Card, Btn, Input, Select, Modal, PageHeader } from "./shared";
 
 const CATEGORIES = [
-  { key: "Public Equities",   label: "Public Equities",   icon: "📈", table: "public_markets_positions" },
-  { key: "Fixed Income",      label: "Fixed Income",      icon: "🏦", table: "public_markets_positions" },
-  { key: "ETF & Public Funds",label: "ETF & Public Funds",icon: "📊", table: "public_markets_positions" },
-  { key: "Alternatives",      label: "Alternatives",      icon: "🏗️", table: "private_markets_positions" },
-  { key: "Cash & Deposits",    label: "Cash & Deposits",   icon: "💰", table: "cash_positions" },
+  { key: "Public Equities",   label: "Public Equities",   icon: "📈", table: "public_equities" },
+  { key: "Fixed Income",      label: "Fixed Income",      icon: "🏦", table: "fixed_income" },
+  { key: "ETF & Public Funds",label: "ETF & Public Funds",icon: "📊", table: "etf_public_funds" },
+  { key: "Alternatives",      label: "Alternatives",      icon: "🏗️", table: "alternatives" },
+  { key: "Cash & Deposits",    label: "Cash & Deposits",   icon: "💰", table: "cash_deposits" },
 ];
 
 const INVESTOR_SPECIFIC_FIELDS = new Set([
@@ -655,13 +655,13 @@ export default function PositionsViewer({ session, investorId }) {
     if (activeCategory === "Alternatives") {
       // Join deals (with moic) — nav_updates fetched separately below to avoid deep join issues
       query = supabase
-        .from("private_markets_positions")
+        .from("alternatives")
         .select("*, deals(id, name, current_nav, currency, moic, liquidity, lock_up_period, strategy, fund_vehicle, manager_gp, vintage_year, target_irr_pct)");
     } else if (activeCategory === "Cash & Deposits") {
       // cash_positions uses balance not market_value, and has no category column
-      query = supabase.from("cash_positions").select("*");
+      query = supabase.from("cash_deposits").select("*");
     } else {
-      query = supabase.from(cat.table).select("*").eq("category", activeCategory);
+      query = supabase.from(cat.table).select("*");
     }
 
     if (selectedInvestor) query = query.eq("investor_id", selectedInvestor);
@@ -775,8 +775,8 @@ export default function PositionsViewer({ session, investorId }) {
         statement_date: formData.statement_date || null,
         status:         formData.status         || "active",
       };
-      if (editingRow) await supabase.from("cash_positions").update(payload).eq("id", editingRow.id);
-      else            await supabase.from("cash_positions").insert([payload]);
+      if (editingRow) await supabase.from("cash_deposits").update(payload).eq("id", editingRow.id);
+      else            await supabase.from("cash_deposits").insert([payload]);
       setSaving(false); closeModal(); loadPositions();
       return;
     }
@@ -835,9 +835,8 @@ export default function PositionsViewer({ session, investorId }) {
 
   const handleDelete = async (row) => {
     if (!window.confirm("Delete this position?")) return;
-    const table = activeCategory === "Cash & Deposits" ? "cash_positions"
-                : activeCategory === "Alternatives"    ? "private_markets_positions"
-                : "public_markets_positions";
+    const catObj = CATEGORIES.find(c => c.key === activeCategory);
+    const table = catObj ? catObj.table : "public_equities";
     await supabase.from(table).delete().eq("id", row.id);
     loadPositions();
   };
