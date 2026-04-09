@@ -73,11 +73,12 @@ export default function PortfolioUpload() {
 
     const posPayload = { investor_id: queueEditItem.investor_id, security_name: queueEditForm.security_name || "Unknown", ticker: queueEditForm.ticker || null, isin: queueEditForm.isin || null, asset_type: queueEditForm.asset_class || "Equity", quantity: toNumQ(queueEditForm.quantity), price: toNumQ(queueEditForm.price), market_value: toNumQ(queueEditForm.market_value) || toNumQ(queueEditForm.quantity) * toNumQ(queueEditForm.price), currency: queueEditForm.currency || "USD", statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: "active" };
     if (isCash) {
-      await supabase.from("cash_positions").insert({ investor_id: queueEditItem.investor_id, currency: queueEditForm.currency || "USD", balance: toNumQ(queueEditForm.cash_balance) || toNumQ(queueEditForm.market_value), description: queueEditForm.security_name || "Cash", statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: "active" });
+      await supabase.from("cash_deposits").insert({ investor_id: queueEditItem.investor_id, currency: queueEditForm.currency || "USD", balance: toNumQ(queueEditForm.cash_balance) || toNumQ(queueEditForm.market_value), description: queueEditForm.security_name || "Cash", statement_date: queueEditItem.statement_date, source_bank: queueEditItem.source_bank, status: "active" });
     } else if (queueEditForm.classification === "private_markets") {
-      await supabase.from("private_markets_positions").insert(posPayload);
+      await supabase.from("alternatives").insert(posPayload);
     } else {
-      await supabase.from("public_markets_positions").insert(posPayload);
+      const pubTbl = (posPayload.category === "Fixed Income") ? "fixed_income" : (posPayload.category === "ETF & Public Funds") ? "etf_public_funds" : "public_equities";
+      await supabase.from(pubTbl).insert(posPayload);
     }
     await supabase.from("upload_review_queue").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", queueEditItem.id);
     setQueueSaving(false);
@@ -238,14 +239,17 @@ export default function PortfolioUpload() {
   };
 
   const computeInvestorDiff = async (mappedRows, investorId) => {
-    const [pubRes, privRes, cashRes] = await Promise.all([
-      supabase.from("public_markets_positions").select("id,isin,ticker,security_name,quantity,price,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
-      supabase.from("private_markets_positions").select("id,isin,ticker,security_name,quantity,price,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
-      supabase.from("cash_positions").select("id,description,currency,balance").eq("investor_id", investorId).eq("status", "active"),
+    const [eqRes, fiRes, etfRes, privRes, cashRes] = await Promise.all([
+      supabase.from("public_equities").select("id,isin,ticker,security_name,quantity,price,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
+      supabase.from("fixed_income").select("id,isin,ticker,security_name,quantity,price,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
+      supabase.from("etf_public_funds").select("id,isin,ticker,security_name,quantity,price,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
+      supabase.from("alternatives").select("id,security_name,quantity,market_value,currency").eq("investor_id", investorId).eq("status", "active"),
+      supabase.from("cash_deposits").select("id,description,currency,balance").eq("investor_id", investorId).eq("status", "active"),
     ]);
 
+    const existingPub = [...(eqRes.data||[]), ...(fiRes.data||[]), ...(etfRes.data||[])];
     const byPubIsin = {}, byPubTicker = {}, byPrivIsin = {}, byPrivTicker = {}, byCashKey = {};
-    (pubRes.data || []).forEach(p => { if (p.isin) byPubIsin[p.isin.toUpperCase()] = p; if (p.ticker) byPubTicker[p.ticker.toUpperCase()] = p; });
+    existingPub.forEach(p => { if (p.isin) byPubIsin[p.isin.toUpperCase()] = p; if (p.ticker) byPubTicker[p.ticker.toUpperCase()] = p; });
     (privRes.data || []).forEach(p => { if (p.isin) byPrivIsin[p.isin.toUpperCase()] = p; if (p.ticker) byPrivTicker[p.ticker.toUpperCase()] = p; });
     (cashRes.data || []).forEach(c => { const key = (c.description || "").toLowerCase() + "|" + (c.currency || "").toUpperCase(); byCashKey[key] = c; });
 
@@ -392,14 +396,19 @@ export default function PortfolioUpload() {
       const newPub = toInsert.filter(x => x.type === "position").map(x => buildPosPayload(x.row, investorId));
       const newPriv = toInsert.filter(x => x.type === "private_position").map(x => buildPosPayload(x.row, investorId));
       const newCash = toInsert.filter(x => x.type === "cash").map(x => buildCashPayload(x.row, investorId));
-      if (newPub.length) { const { error } = await supabase.from("public_markets_positions").insert(newPub); if (error) errors.push("Insert public: " + error.message); }
-      if (newPriv.length) { const { error } = await supabase.from("private_markets_positions").insert(newPriv); if (error) errors.push("Insert private: " + error.message); }
-      if (newCash.length) { const { error } = await supabase.from("cash_positions").insert(newCash); if (error) errors.push("Insert cash: " + error.message); }
+      const newEq = newPub.filter(r => r.category === "Public Equities");
+      const newFi = newPub.filter(r => r.category === "Fixed Income");
+      const newEtf = newPub.filter(r => r.category === "ETF & Public Funds");
+      if (newEq.length) { const { error } = await supabase.from("public_equities").insert(newEq); if (error) errors.push("Insert equities: " + error.message); }
+      if (newFi.length) { const { error } = await supabase.from("fixed_income").insert(newFi); if (error) errors.push("Insert FI: " + error.message); }
+      if (newEtf.length) { const { error } = await supabase.from("etf_public_funds").insert(newEtf); if (error) errors.push("Insert ETF: " + error.message); }
+      if (newPriv.length) { const { error } = await supabase.from("alternatives").insert(newPriv); if (error) errors.push("Insert private: " + error.message); }
+      if (newCash.length) { const { error } = await supabase.from("cash_deposits").insert(newCash); if (error) errors.push("Insert cash: " + error.message); }
 
       // UPDATE existing rows in correct table
       for (const u of toUpdate) {
         const payload = (u.type === "cash") ? buildCashPayload(u.row, investorId) : buildPosPayload(u.row, investorId);
-        const table = u.type === "position" ? "public_markets_positions" : u.type === "private_position" ? "private_markets_positions" : "cash_positions";
+        const table = u.type === "cash" ? "cash_deposits" : u.type === "private_position" ? "alternatives" : (u.category === "Fixed Income" ? "fixed_income" : u.category === "ETF & Public Funds" ? "etf_public_funds" : "public_equities");
         const { error } = await supabase.from(table).update(payload).eq("id", u.id);
         if (error) errors.push("Update " + table + ": " + error.message);
       }
@@ -408,9 +417,13 @@ export default function PortfolioUpload() {
       const pubToClose = toClosed.filter(x => x.type === "position").map(x => x.id);
       const privToClose = toClosed.filter(x => x.type === "private_position").map(x => x.id);
       const cashToClose = toClosed.filter(x => x.type === "cash").map(x => x.id);
-      if (pubToClose.length) { const { error } = await supabase.from("public_markets_positions").update({ status: "closed", closed_at: statementDate }).in("id", pubToClose); if (error) errors.push("Close public: " + error.message); }
-      if (privToClose.length) { const { error } = await supabase.from("private_markets_positions").update({ status: "closed", closed_at: statementDate }).in("id", privToClose); if (error) errors.push("Close private: " + error.message); }
-      if (cashToClose.length) { const { error } = await supabase.from("cash_positions").update({ status: "closed", closed_at: statementDate }).in("id", cashToClose); if (error) errors.push("Close cash: " + error.message); }
+      if (pubToClose.length) {
+        await supabase.from("public_equities").update({ status: "closed", closed_at: statementDate }).in("id", pubToClose);
+        await supabase.from("fixed_income").update({ status: "closed", closed_at: statementDate }).in("id", pubToClose);
+        await supabase.from("etf_public_funds").update({ status: "closed", closed_at: statementDate }).in("id", pubToClose);
+      }
+      if (privToClose.length) { const { error } = await supabase.from("alternatives").update({ status: "closed", closed_at: statementDate }).in("id", privToClose); if (error) errors.push("Close private: " + error.message); }
+      if (cashToClose.length) { const { error } = await supabase.from("cash_deposits").update({ status: "closed", closed_at: statementDate }).in("id", cashToClose); if (error) errors.push("Close cash: " + error.message); }
 
       // QUEUE unmatched rows (no ISIN, no ticker)
       const queued = toQueue.map(x => buildQueuePayload(x.row, investorId));
