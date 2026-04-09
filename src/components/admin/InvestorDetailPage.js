@@ -114,7 +114,7 @@ function FS({ label, fk, f, sf, options, blank=false }) {
 }
 const G2 = ({ children }) => <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 0.75rem' }}>{children}</div>;
 
-// ─── Detect category from a public_markets_positions row ──────────────────────
+// ─── Detect category from a position row ──────────────────────────────────────
 function detectCat(row) {
   if (row.category && row.category !== 'Alternatives') return row.category;
   if (row.bond_type || row.coupon_rate != null || row.ytm != null) return 'Fixed Income';
@@ -639,14 +639,20 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
   const load = async () => {
     setLoading(true);
-    const [pubRes, privRes, cashRes, assumpRes] = await Promise.all([
-      supabase.from('public_markets_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('private_markets_positions').select('*,deals(name,current_nav,currency,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
-      supabase.from('cash_positions').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+    const [eqRes, fiRes, etfRes, privRes, cashRes, assumpRes] = await Promise.all([
+      supabase.from('public_equities').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('fixed_income').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('etf_public_funds').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('alternatives').select('*,deals(name,current_nav,currency,moic,liquidity,lock_up_period,strategy,fund_vehicle,manager_gp,vintage_year,target_irr_pct)').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
+      supabase.from('cash_deposits').select('*').eq('investor_id', investor.id).order('statement_date',{ascending:false}),
       supabase.from('assumptions').select('*').order('updated_at',{ascending:false}).limit(1),
     ]);
     if (assumpRes.data?.[0]) setFx(assumpRes.data[0]);
-    const pub  = pubRes.data  || [];
+    const pubData = [
+      ...(eqRes.data||[]).map(r => ({...r, category: 'Public Equities'})),
+      ...(fiRes.data||[]).map(r => ({...r, category: 'Fixed Income'})),
+      ...(etfRes.data||[]).map(r => ({...r, category: 'ETF & Public Funds'})),
+    ];
     let priv   = privRes.data || [];
 
     // Fetch latest nav_updates per deal separately to avoid deep join issues
@@ -663,9 +669,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
     }
 
     setRows({
-      'Public Equities':    pub.filter(r => (r.category || detectCat(r)) === 'Public Equities'),
-      'Fixed Income':       pub.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
-      'ETF & Public Funds': pub.filter(r => (r.category || detectCat(r)) === 'ETF & Public Funds'),
+      'Public Equities':    pubData.filter(r => (r.category || detectCat(r)) === 'Public Equities'),
+      'Fixed Income':       pubData.filter(r => (r.category || detectCat(r)) === 'Fixed Income'),
+      'ETF & Public Funds': pubData.filter(r => (r.category || detectCat(r)) === 'ETF & Public Funds'),
       'Alternatives':       priv,
       'Cash & Deposits':    cashRes.data || [],
     });
@@ -783,8 +789,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         payload.avg_cost_price = payload.avg_cost_price || nav;
       }
 
-      if (isEdit) await supabase.from('private_markets_positions').update(payload).eq('id', form.id);
-      else        await supabase.from('private_markets_positions').insert(payload);
+      if (isEdit) await supabase.from('alternatives').update(payload).eq('id', form.id);
+      else        await supabase.from('alternatives').insert(payload);
 
     } else if (cat === 'Cash & Deposits') {
       const payload = {
@@ -797,8 +803,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         statement_date: form.statement_date || today,
         status:         form.status         || 'active',
       };
-      if (isEdit) await supabase.from('cash_positions').update(payload).eq('id', form.id);
-      else        await supabase.from('cash_positions').insert(payload);
+      if (isEdit) await supabase.from('cash_deposits').update(payload).eq('id', form.id);
+      else        await supabase.from('cash_deposits').insert(payload);
 
     } else {
       // Public Equities / Fixed Income / ETF & Public Funds
@@ -875,8 +881,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           portfolio_weight:    toN(form.portfolio_weight),
         });
       }
-      if (isEdit) await supabase.from('public_markets_positions').update(base).eq('id', form.id);
-      else        await supabase.from('public_markets_positions').insert(base);
+      const pubTable = cat === 'Fixed Income' ? 'fixed_income' : cat === 'ETF & Public Funds' ? 'etf_public_funds' : 'public_equities';
+      if (isEdit) await supabase.from(pubTable).update(base).eq('id', form.id);
+      else        await supabase.from(pubTable).insert(base);
     }
 
     closeModal();
@@ -886,9 +893,11 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
   const deletePos = async (cat, id) => {
     if (!window.confirm('Delete this position?')) return;
-    const table = cat === 'Alternatives' ? 'private_markets_positions'
-                : cat === 'Cash & Deposits' ? 'cash_positions'
-                : 'public_markets_positions';
+    const table = cat === 'Alternatives' ? 'alternatives'
+                : cat === 'Cash & Deposits' ? 'cash_deposits'
+                : cat === 'Fixed Income' ? 'fixed_income'
+                : cat === 'ETF & Public Funds' ? 'etf_public_funds'
+                : 'public_equities';
     await supabase.from(table).delete().eq('id', id);
     load();
   };
