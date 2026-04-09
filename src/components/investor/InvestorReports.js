@@ -11,7 +11,7 @@ export default function InvestorReports({ session }) {
    const load = async () => {
      // First get the deals this investor is invested in
      const { data: investments } = await supabase
-       .from('private_markets_positions')
+       .from('alternatives')
        .select('deal_id')
        .eq('investor_id', session.user.id)
        .not('deal_id', 'is', null);
