@@ -243,15 +243,23 @@ export default function InvestorDashboard({ session, onPage }) {
 
   useEffect(() => {
     const load = async () => {
-      const [pubRes, altRes, cashRes, updRes, assumpRes] = await Promise.all([
-        supabase.from("public_markets_positions")
-          .select("category, market_value, currency, custodian, source_bank, security_name, quantity, avg_cost_price, price, statement_date, mandate_type, country, sector, industry, nav_per_unit, fund_type, geographic_focus, asset_class_focus")
+      const [eqRes, fiRes, etfRes, altRes, cashRes, updRes, assumpRes] = await Promise.all([
+        supabase.from("public_equities")
+          .select("market_value, currency, custodian, source_bank, security_name, quantity, avg_cost_price, price, statement_date, mandate_type, country, sector, industry")
           .eq("investor_id", session.user.id).eq("status","active")
           .order("statement_date", { ascending: false }),
-        supabase.from("private_markets_positions")
+        supabase.from("fixed_income")
+          .select("market_value, currency, custodian, source_bank, security_name, statement_date, mandate_type")
+          .eq("investor_id", session.user.id).eq("status","active")
+          .order("statement_date", { ascending: false }),
+        supabase.from("etf_public_funds")
+          .select("market_value, currency, custodian, source_bank, security_name, quantity, avg_cost_price, nav_per_unit, statement_date, mandate_type, fund_type, geographic_focus, asset_class_focus")
+          .eq("investor_id", session.user.id).eq("status","active")
+          .order("statement_date", { ascending: false }),
+        supabase.from("alternatives")
           .select("*, deals(name, current_nav, currency)")
           .eq("investor_id", session.user.id).eq("status","active"),
-        supabase.from("cash_positions")
+        supabase.from("cash_deposits")
           .select("balance, currency, statement_date, description, source_bank")
           .eq("investor_id", session.user.id).eq("status","active")
           .order("statement_date", { ascending: false }),
@@ -263,7 +271,11 @@ export default function InvestorDashboard({ session, onPage }) {
       setUpdates(updRes.data || []);
       setAltPositions(altRes.data || []);
 
-      const pubData  = pubRes.data  || [];
+      const pubData = [
+        ...(eqRes.data||[]).map(r => ({...r, category: "Public Equities"})),
+        ...(fiRes.data||[]).map(r => ({...r, category: "Fixed Income"})),
+        ...(etfRes.data||[]).map(r => ({...r, category: "ETF & Public Funds"})),
+      ];
       const cashData = cashRes.data || [];
       const filteredPub = pubData;
       const latestCash = cashData.length ? cashData[0].statement_date : null;
