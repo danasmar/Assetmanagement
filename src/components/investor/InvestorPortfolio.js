@@ -44,27 +44,38 @@ export default function InvestorPortfolio({ session }) {
 
   useEffect(() => {
     const load = async () => {
-      const [invRes, distRes, posRes, privPosRes, cashRes, assumpRes] = await Promise.all([
-        supabase.from("private_markets_positions")
+      const [invRes, distRes, eqRes, fiRes, etfRes, privPosRes, cashRes, assumpRes] = await Promise.all([
+        supabase.from("alternatives")
           .select("*, deals(*, nav_updates(current_nav, effective_date, created_at))")
           .eq("investor_id", session.user.id).not("deal_id","is",null).eq("status","active"),
         supabase.from("investor_distributions")
           .select("*, distributions(deal_id, deals(currency))")
           .eq("investor_id", session.user.id),
-        supabase.from("public_markets_positions")
+        supabase.from("public_equities")
           .select("*").eq("investor_id", session.user.id).eq("status","active")
           .order("statement_date", { ascending: false }),
-        supabase.from("private_markets_positions")
+        supabase.from("fixed_income")
+          .select("*").eq("investor_id", session.user.id).eq("status","active")
+          .order("statement_date", { ascending: false }),
+        supabase.from("etf_public_funds")
+          .select("*").eq("investor_id", session.user.id).eq("status","active")
+          .order("statement_date", { ascending: false }),
+        supabase.from("alternatives")
           .select("*").eq("investor_id", session.user.id).is("deal_id", null).eq("status","active")
           .order("statement_date", { ascending: false }),
-        supabase.from("cash_positions")
+        supabase.from("cash_deposits")
           .select("*").eq("investor_id", session.user.id).eq("status","active")
           .order("statement_date", { ascending: false }),
         supabase.from("assumptions").select("*").order("updated_at", { ascending: false }).limit(1),
       ]);
 
       setInvestments(invRes.data || []);
-      setPositions(posRes.data || []);
+      const allPubPositions = [
+        ...(eqRes.data||[]).map(r => ({...r, category: "Public Equities"})),
+        ...(fiRes.data||[]).map(r => ({...r, category: "Fixed Income"})),
+        ...(etfRes.data||[]).map(r => ({...r, category: "ETF & Public Funds"})),
+      ];
+      setPositions(allPubPositions);
       setPrivatePositions(privPosRes.data || []);
       setCashPositions(cashRes.data || []);
       if (assumpRes.data?.[0]) setFx(assumpRes.data[0]);
