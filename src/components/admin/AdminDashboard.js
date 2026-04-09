@@ -22,19 +22,25 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const load = async () => {
-      const [dealsRes, invRes, intrRes, pubRes, privRes, cashRes, assumpRes] = await Promise.all([
+      const [dealsRes, invRes, intrRes, eqRes, fiRes, etfRes, privRes, cashRes, assumpRes] = await Promise.all([
         supabase.from("deals").select("*"),
         supabase.from("investors").select("id, full_name, status"),
         supabase.from("interest_submissions")
           .select("*, investors(full_name), deals(name)")
           .order("created_at", { ascending: false }).limit(5),
-        supabase.from("public_markets_positions")
-          .select("investor_id, security_name, category, market_value, currency, custodian, source_bank")
+        supabase.from("public_equities")
+          .select("investor_id, security_name, market_value, currency, custodian, source_bank")
           .eq("status", "active"),
-        supabase.from("private_markets_positions")
+        supabase.from("fixed_income")
+          .select("investor_id, security_name, market_value, currency, custodian, source_bank")
+          .eq("status", "active"),
+        supabase.from("etf_public_funds")
+          .select("investor_id, security_name, market_value, currency, custodian, source_bank")
+          .eq("status", "active"),
+        supabase.from("alternatives")
           .select("investor_id, security_name, quantity, currency, custodian, source_bank, deals(name, current_nav, currency)")
           .eq("status", "active"),
-        supabase.from("cash_positions")
+        supabase.from("cash_deposits")
           .select("investor_id, balance, currency, source_bank")
           .eq("status", "active"),
         supabase.from("assumptions").select("*").order("updated_at", { ascending: false }).limit(1),
@@ -42,7 +48,11 @@ export default function AdminDashboard() {
 
       const allDeals  = dealsRes.data  || [];
       const investors = invRes.data    || [];
-      const pubPos    = pubRes.data    || [];
+      const pubPos    = [
+        ...(eqRes.data||[]).map(r => ({...r, category: "Public Equities"})),
+        ...(fiRes.data||[]).map(r => ({...r, category: "Fixed Income"})),
+        ...(etfRes.data||[]).map(r => ({...r, category: "ETF & Public Funds"})),
+      ];
       const privPos   = privRes.data   || [];
       const cashPos   = cashRes.data   || [];
       const fx = assumpRes.data?.[0] || { usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 };
