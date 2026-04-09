@@ -341,17 +341,26 @@ function PortfolioNewsCard(props) {
       if (!session || !session.user || !session.user.id) return;
       setLoading(true);
 
-      var pubRes  = await supabase
-        .from("public_markets_positions")
-        .select("ticker, isin, security_name")
-        .eq("investor_id", session.user.id)
-        .eq("status", "active");
+      var [eqRes, fiRes, etfRes, privRes] = await Promise.all([
+        supabase.from("public_equities")
+          .select("ticker, isin, security_name")
+          .eq("investor_id", session.user.id)
+          .eq("status", "active"),
+        supabase.from("fixed_income")
+          .select("ticker, isin, security_name")
+          .eq("investor_id", session.user.id)
+          .eq("status", "active"),
+        supabase.from("etf_public_funds")
+          .select("ticker, isin, security_name")
+          .eq("investor_id", session.user.id)
+          .eq("status", "active"),
+        supabase.from("alternatives")
+          .select("security_name")
+          .eq("investor_id", session.user.id)
+          .eq("status", "active"),
+      ]);
 
-      var privRes = await supabase
-        .from("private_markets_positions")
-        .select("ticker, isin, security_name")
-        .eq("investor_id", session.user.id)
-        .eq("status", "active");
+      var pubRes = { data: [...(eqRes.data||[]), ...(fiRes.data||[]), ...(etfRes.data||[])], error: eqRes.error && fiRes.error && etfRes.error ? eqRes.error : null };
 
       if (pubRes.error && privRes.error) {
         setError("Could not load portfolio positions.");
