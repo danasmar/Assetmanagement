@@ -467,47 +467,49 @@ function PortfolioNewsCard(props) {
       if (!session || !session.user || !session.user.id) return;
       setLoading(true);
 
-      var pubRes  = await supabase
-        .from("public_markets_positions")
-        .select("ticker, isin, security_name, category")
-        .eq("investor_id", session.user.id)
-        .eq("status", "active");
+      var uid = session.user.id;
 
-      var privRes = await supabase
-        .from("private_markets_positions")
+      // Query all 4 real position tables
+      var eqRes   = await supabase.from("public_equities")
         .select("ticker, isin, security_name")
-        .eq("investor_id", session.user.id)
-        .eq("status", "active");
+        .eq("investor_id", uid).eq("status", "active");
 
-      if (pubRes.error && privRes.error) {
-        setError("Could not load portfolio positions.");
-        setLoading(false);
-        return;
-      }
+      var fiRes   = await supabase.from("fixed_income")
+        .select("ticker, isin, security_name")
+        .eq("investor_id", uid).eq("status", "active");
 
+      var etfRes  = await supabase.from("etf_public_funds")
+        .select("ticker, isin, security_name")
+        .eq("investor_id", uid).eq("status", "active");
+
+      var altRes  = await supabase.from("alternatives")
+        .select("security_name")
+        .eq("investor_id", uid).eq("status", "active");
+
+      // Build deduped identifier list — ticker first, then ISIN, then security_name
       var seen = {};
       var identifiers = [];
-      var pubRows  = pubRes.data  || [];
-      var privRows = privRes.data || [];
 
-      for (var i = 0; i < pubRows.length; i++) {
-        var p = pubRows[i];
-        var id = p.ticker || p.isin;
-        if (id && !seen[id]) {
-          seen[id] = true;
-          identifiers.push({ id: id, name: p.security_name || id, assetClass: p.category || null });
-        }
-      }
-      for (var j = 0; j < privRows.length; j++) {
-        var q = privRows[j];
-        var id2 = q.ticker || q.isin;
-        if (id2 && !seen[id2]) {
-          seen[id2] = true;
-          identifiers.push({ id: id2, name: q.security_name || id2, assetClass: "Alternatives" });
+      function addRows(rows, assetClass) {
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          // Prefer ticker, fall back to ISIN, fall back to security_name
+          var id = (r.ticker && r.ticker.trim()) || (r.isin && r.isin.trim()) || (r.security_name && r.security_name.trim());
+          var name = r.security_name || id;
+          if (id && !seen[id]) {
+            seen[id] = true;
+            identifiers.push({ id: id, name: name, assetClass: assetClass });
+          }
         }
       }
 
-      var limited = identifiers.slice(0, 6);
+      addRows(eqRes.data  || [], "Public Equities");
+      addRows(fiRes.data  || [], "Fixed Income");
+      addRows(etfRes.data || [], "ETF & Public Funds");
+      addRows(altRes.data || [], "Alternatives");
+
+      // Limit to 8 to stay within Finnhub rate limits
+      var limited = identifiers.slice(0, 8);
       setSecCount(limited.length);
 
       if (limited.length === 0) {
@@ -516,15 +518,33 @@ function PortfolioNewsCard(props) {
         return;
       }
 
+      // Fetch news per identifier — skip if 0 results (non-US tickers)
       var allArticles = [];
       for (var k = 0; k < limited.length; k++) {
         var item = limited[k];
         var res = await getCompanyNews(item.id);
         var articles = res.data || [];
+        // If no articles and we have an ISIN, try resolving via Finnhub search
+        if (articles.length === 0 && item.id.length > 6) {
+          var searchRes = await getQuote(""); // no-op placeholder
+          var sRes = await fetch(
+            "https://finnhub.io/api/v1/search?q=" +
+            encodeURIComponent(item.id) +
+            "&token=" + (process.env.REACT_APP_FINNHUB_API_KEY || "")
+          ).then(function(r) { return r.json(); }).catch(function() { return {}; });
+          var hits = (sRes.result || []).filter(function(r) {
+            return r.type === "Common Stock" && !r.symbol.includes(".");
+          });
+          if (hits.length > 0) {
+            var resolved = await getCompanyNews(hits[0].symbol);
+            articles = resolved.data || [];
+          }
+        }
         for (var m = 0; m < Math.min(articles.length, 3); m++) {
           allArticles.push({ article: articles[m], tag: item.name, assetClass: item.assetClass });
         }
       }
+
       allArticles.sort(function(a, b) { return b.article.datetime - a.article.datetime; });
       setAll(allArticles.slice(0, 15));
       setUpdated(nowTime());
@@ -545,7 +565,7 @@ function PortfolioNewsCard(props) {
       {loading && <Loading />}
       {error   && <Err msg={error} />}
       {!loading && !error && all.length === 0 && (
-        <Empty msg="No identifiable securities found in your portfolio, or no recent coverage available." />
+        <Empty msg="No recent coverage found for your portfolio securities." />
       )}
       {!loading && !error && visible.map(function(item, i) {
         return <Article key={i} article={item.article} tag={item.tag} assetClass={item.assetClass} />;
