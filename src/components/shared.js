@@ -107,6 +107,11 @@ const nav = {
     color: colors.gold,
     borderLeft: "3px solid " + colors.gold,
   },
+  itemHover: {
+    background: "rgba(201,168,76,0.06)",
+    color: colors.gold,
+    fontWeight: "700",
+  },
   footer: { borderTop: "1px solid rgba(255,255,255,0.06)", padding: "0.75rem 1.25rem" },
   userRow: { display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", position: "relative" },
   avatar: {
@@ -160,6 +165,26 @@ const nav = {
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 150 },
 };
 
+// ─── NavItem (sidebar button with hover effect) ──────────────────────────────
+function NavItem({ item, isActive, onClick }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...nav.item,
+        ...(isActive ? nav.itemActive : {}),
+        ...(hover && !isActive ? nav.itemHover : {}),
+      }}
+    >
+      <span style={{ fontSize: "1rem", width: "20px", textAlign: "center" }}>{item.icon}</span>
+      {item.label}
+    </button>
+  );
+}
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 export function Layout({ children, page, onPageChange, session, onLogout, navItems }) {
   const width = useWindowWidth();
@@ -190,14 +215,12 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
           item.section ? (
             <div key={i} style={nav.section}>{item.section}</div>
           ) : (
-            <button
+            <NavItem
               key={item.key}
+              item={item}
+              isActive={page === item.key}
               onClick={() => { onPageChange(item.key); setMobileOpen(false); }}
-              style={{ ...nav.item, ...(page === item.key ? nav.itemActive : {}) }}
-            >
-              <span style={{ fontSize: "1rem", width: "20px", textAlign: "center" }}>{item.icon}</span>
-              {item.label}
-            </button>
+            />
           )
         )}
       </div>
@@ -248,7 +271,7 @@ export function Layout({ children, page, onPageChange, session, onLogout, navIte
 // ─── Navigation item arrays ───────────────────────────────────────────────────
 export const INVESTOR_NAV = [
   { key: "dashboard",     icon: "⊞", label: "Dashboard" },
-  { key: "market",        icon: "⊟", label: "News & Insights" },
+  { key: "market",        icon: "⊟", label: "Market Insights" },
   { key: "portfolio",     icon: "◈", label: "My Investments" },
   { key: "opportunities", icon: "◉", label: "Opportunities" },
   { section: "Account" },
