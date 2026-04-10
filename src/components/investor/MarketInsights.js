@@ -726,7 +726,7 @@ function EconomicCalendarCard() {
   );
 }
 
-// ── Card 6: House Views — with author field (3.3) ─────────────────────────────
+// ── Card 6: House Views ────────────────────────────────────────────────────────
 function HouseViewsCard() {
   var [items,   setItems]   = useState([]);
   var [loading, setLoading] = useState(true);
@@ -763,7 +763,6 @@ function HouseViewsCard() {
             padding: "0.8rem 0",
             borderBottom: i < items.length - 1 ? "1px solid " + GREY200 : "none",
           }}>
-            {/* Author badge */}
             {u.author && (
               <div style={{
                 display: "inline-block", marginBottom: "0.3rem",
@@ -775,7 +774,6 @@ function HouseViewsCard() {
                 {u.author}
               </div>
             )}
-            {/* Title + date */}
             <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.25rem" }}>
               <div style={{ fontSize: "0.88rem", fontWeight: "700", color: NAVY, fontFamily: FONT, lineHeight: "1.4" }}>
                 {u.title}
@@ -784,7 +782,6 @@ function HouseViewsCard() {
                 {fmtD(u.created_at)}
               </span>
             </div>
-            {/* Content — 3 line clamp */}
             {u.content && (
               <div style={{
                 fontSize: "0.82rem", color: GREY600, fontFamily: FONT, lineHeight: "1.55",
@@ -794,6 +791,520 @@ function HouseViewsCard() {
                 {u.content}
               </div>
             )}
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+// ── Card 7: Earnings Calendar (live from Finnhub) ─────────────────────────────
+function EarningsCalendarCard() {
+  var [events,  setEvents]  = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error,   setError]   = useState(null);
+  var [updated, setUpdated] = useState(null);
+
+  useEffect(function() {
+    var load = async function() {
+      setLoading(true);
+      try {
+        var today = new Date();
+        var from  = today.toISOString().split("T")[0];
+        var toDate = new Date(today);
+        toDate.setDate(today.getDate() + 14);
+        var to = toDate.toISOString().split("T")[0];
+
+        var res = await fetch(
+          "https://finnhub.io/api/v1/calendar/earnings?from=" + from + "&to=" + to +
+          "&token=" + (process.env.REACT_APP_FINNHUB_API_KEY || "")
+        );
+        var data = await res.json();
+        var all = data.earningsCalendar || [];
+
+        // Filter to companies with revenue estimates > 1B — most relevant for investors
+        var major = all.filter(function(e) {
+          return e.revenueEstimate && e.revenueEstimate > 1000000000;
+        });
+        major.sort(function(a, b) {
+          if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+          return (b.revenueEstimate || 0) - (a.revenueEstimate || 0);
+        });
+
+        setEvents(major.slice(0, 12));
+        setUpdated(nowTime());
+      } catch (e) {
+        setError("Could not load earnings calendar.");
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  function fmtRev(val) {
+    if (!val) return "";
+    if (val >= 1e12) return (val / 1e12).toFixed(1) + "T";
+    if (val >= 1e9)  return (val / 1e9).toFixed(1) + "B";
+    if (val >= 1e6)  return (val / 1e6).toFixed(1) + "M";
+    return val;
+  }
+
+  function HourBadge(props) {
+    var map = { bmo: { label: "Pre-mkt",  bg: "#e8f5e9", color: "#2e7d32" },
+                amc: { label: "After-mkt", bg: "#fff8e1", color: "#b45309" } };
+    var s = map[props.hour];
+    if (!s) return null;
+    return (
+      <span style={{
+        fontSize: "0.62rem", fontWeight: "700", padding: "1px 6px",
+        borderRadius: "10px", fontFamily: FONT,
+        background: s.bg, color: s.color, whiteSpace: "nowrap",
+      }}>
+        {s.label}
+      </span>
+    );
+  }
+
+  return (
+    <Card>
+      <CardTitle title="Earnings Calendar" right={<Badge label="Next 14 days" />} />
+      <Updated time={updated} />
+      {loading && <Loading />}
+      {error   && <Err msg={error} />}
+      {!loading && !error && events.length === 0 && <Empty msg="No major earnings in the next 14 days." />}
+      {!loading && !error && events.map(function(ev, i) {
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: "0.6rem",
+            padding: "0.6rem 0",
+            borderBottom: i < events.length - 1 ? "1px solid " + GREY200 : "none",
+          }}>
+            <div style={{
+              minWidth: "40px", textAlign: "center", fontSize: "0.68rem",
+              fontWeight: "700", color: WHITE, background: NAVY,
+              borderRadius: "6px", padding: "3px 4px", fontFamily: FONT, lineHeight: "1.4",
+            }}>
+              {fmtCalDate(ev.date)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <span style={{
+                  fontSize: "0.84rem", fontWeight: "700", color: NAVY,
+                  fontFamily: FONT, fontVariantNumeric: "tabular-nums",
+                }}>
+                  {ev.symbol}
+                </span>
+                <HourBadge hour={ev.hour} />
+              </div>
+              <div style={{ fontSize: "0.7rem", color: GREY500, fontFamily: FONT }}>
+                Rev est: {fmtRev(ev.revenueEstimate)}
+                {ev.epsEstimate ? "  |  EPS est: $" + ev.epsEstimate.toFixed(2) : ""}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+// ── Card 8: Analyst Consensus ─────────────────────────────────────────────────
+// Shows Buy/Hold/Sell consensus for investor's equity holdings
+function AnalystConsensusCard(props) {
+  var session = props.session;
+  var [rows,    setRows]    = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error,   setError]   = useState(null);
+  var [updated, setUpdated] = useState(null);
+
+  useEffect(function() {
+    var load = async function() {
+      if (!session || !session.user || !session.user.id) return;
+      setLoading(true);
+
+      // Fetch tickers from public_equities and etf_public_funds
+      var eqRes  = await supabase.from("public_equities")
+        .select("ticker, security_name")
+        .eq("investor_id", session.user.id)
+        .eq("status", "active")
+        .not("ticker", "is", null);
+
+      var etfRes = await supabase.from("etf_public_funds")
+        .select("ticker, security_name")
+        .eq("investor_id", session.user.id)
+        .eq("status", "active")
+        .not("ticker", "is", null);
+
+      var tickers = [];
+      var seen = {};
+      var allRows = (eqRes.data || []).concat(etfRes.data || []);
+      for (var i = 0; i < allRows.length; i++) {
+        var t = allRows[i].ticker;
+        if (t && !seen[t]) {
+          seen[t] = true;
+          tickers.push({ ticker: t, name: allRows[i].security_name || t });
+        }
+      }
+
+      if (tickers.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch analyst recommendations for each ticker
+      var results = [];
+      var limited = tickers.slice(0, 8);
+      for (var k = 0; k < limited.length; k++) {
+        var item = limited[k];
+        try {
+          var res = await fetch(
+            "https://finnhub.io/api/v1/stock/recommendation?symbol=" + item.ticker +
+            "&token=" + (process.env.REACT_APP_FINNHUB_API_KEY || "")
+          );
+          var data = await res.json();
+          if (data && data.length > 0) {
+            var latest = data[0];
+            var total = (latest.strongBuy || 0) + (latest.buy || 0) + (latest.hold || 0) +
+                        (latest.sell || 0) + (latest.strongSell || 0);
+            if (total > 0) {
+              var bullish = ((latest.strongBuy || 0) + (latest.buy || 0)) / total;
+              results.push({
+                ticker: item.ticker,
+                name:   item.name,
+                strongBuy:  latest.strongBuy  || 0,
+                buy:        latest.buy        || 0,
+                hold:       latest.hold       || 0,
+                sell:       latest.sell       || 0,
+                strongSell: latest.strongSell || 0,
+                total:      total,
+                bullish:    bullish,
+              });
+            }
+          }
+        } catch (e) { /* skip this ticker */ }
+      }
+
+      results.sort(function(a, b) { return b.bullish - a.bullish; });
+      setRows(results);
+      setUpdated(nowTime());
+      setLoading(false);
+    };
+    load();
+  }, [session]);
+
+  function ConsensusBar(props) {
+    var r = props.row;
+    var sbPct  = r.total > 0 ? (r.strongBuy  / r.total * 100) : 0;
+    var bPct   = r.total > 0 ? (r.buy        / r.total * 100) : 0;
+    var hPct   = r.total > 0 ? (r.hold       / r.total * 100) : 0;
+    var sPct   = r.total > 0 ? ((r.sell + r.strongSell) / r.total * 100) : 0;
+    var label  = r.bullish >= 0.6 ? "Buy" : r.bullish <= 0.3 ? "Sell" : "Hold";
+    var lcolor = r.bullish >= 0.6 ? GREEN : r.bullish <= 0.3 ? RED : GREY600;
+
+    return (
+      <div style={{ padding: "0.65rem 0", borderBottom: "1px solid " + GREY200 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{
+              fontSize: "0.82rem", fontWeight: "700", color: NAVY,
+              fontFamily: FONT, minWidth: "48px",
+            }}>
+              {r.ticker}
+            </span>
+            <span style={{ fontSize: "0.75rem", color: GREY600, fontFamily: FONT }}>
+              {r.total} analysts
+            </span>
+          </div>
+          <span style={{
+            fontSize: "0.72rem", fontWeight: "700", padding: "2px 8px",
+            borderRadius: "20px", fontFamily: FONT,
+            color: lcolor,
+            background: r.bullish >= 0.6 ? "#f0fff4" : r.bullish <= 0.3 ? "#fff5f5" : GREY100,
+          }}>
+            {label}
+          </span>
+        </div>
+        {/* Stacked bar: Strong Buy | Buy | Hold | Sell */}
+        <div style={{ display: "flex", height: "6px", borderRadius: "3px", overflow: "hidden", gap: "1px" }}>
+          {sbPct > 0 && <div style={{ width: sbPct + "%", background: "#1a7a4a" }} />}
+          {bPct  > 0 && <div style={{ width: bPct  + "%", background: GREEN    }} />}
+          {hPct  > 0 && <div style={{ width: hPct  + "%", background: GREY300  }} />}
+          {sPct  > 0 && <div style={{ width: sPct  + "%", background: RED      }} />}
+        </div>
+        <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.25rem" }}>
+          {[
+            { label: "Strong Buy", val: r.strongBuy,          color: "#1a7a4a" },
+            { label: "Buy",        val: r.buy,                color: GREEN     },
+            { label: "Hold",       val: r.hold,               color: GREY600   },
+            { label: "Sell",       val: r.sell + r.strongSell, color: RED      },
+          ].filter(function(x) { return x.val > 0; }).map(function(x) {
+            return (
+              <span key={x.label} style={{ fontSize: "0.65rem", color: x.color, fontFamily: FONT }}>
+                {x.val} {x.label}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardTitle title="Analyst Consensus" right={<Badge label="Your holdings" />} />
+      <Updated time={updated} />
+      {loading && <Loading />}
+      {error   && <Err msg={error} />}
+      {!loading && !error && rows.length === 0 && (
+        <Empty msg="No analyst data available for your holdings." />
+      )}
+      {!loading && !error && rows.map(function(r, i) {
+        return <ConsensusBar key={r.ticker} row={r} />;
+      })}
+    </Card>
+  );
+}
+
+// ── Card 9: IPO Watch ─────────────────────────────────────────────────────────
+function IpoWatchCard() {
+  var [ipos,    setIpos]    = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error,   setError]   = useState(null);
+  var [updated, setUpdated] = useState(null);
+
+  useEffect(function() {
+    var load = async function() {
+      setLoading(true);
+      try {
+        var today = new Date();
+        var from  = today.toISOString().split("T")[0];
+        var toDate = new Date(today);
+        toDate.setDate(today.getDate() + 30);
+        var to = toDate.toISOString().split("T")[0];
+
+        var res  = await fetch(
+          "https://finnhub.io/api/v1/calendar/ipo?from=" + from + "&to=" + to +
+          "&token=" + (process.env.REACT_APP_FINNHUB_API_KEY || "")
+        );
+        var data = await res.json();
+        var all  = (data.ipoCalendar || []).slice(0, 10);
+        setIpos(all);
+        setUpdated(nowTime());
+      } catch (e) {
+        setError("Could not load IPO calendar.");
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  function fmtVal(val) {
+    if (!val) return "";
+    if (val >= 1e9)  return "$" + (val / 1e9).toFixed(1) + "B";
+    if (val >= 1e6)  return "$" + (val / 1e6).toFixed(0) + "M";
+    return "$" + val;
+  }
+
+  function StatusBadge(props) {
+    var map = {
+      expected: { bg: "#e8f0fe", color: "#1a56db" },
+      priced:   { bg: "#e8f5e9", color: "#2e7d32" },
+      filed:    { bg: "#fff8e1", color: "#b45309" },
+    };
+    var s = map[props.status] || map.filed;
+    return (
+      <span style={{
+        fontSize: "0.62rem", fontWeight: "700", padding: "1px 6px",
+        borderRadius: "10px", fontFamily: FONT,
+        background: s.bg, color: s.color, textTransform: "capitalize",
+        whiteSpace: "nowrap",
+      }}>
+        {props.status}
+      </span>
+    );
+  }
+
+  return (
+    <Card>
+      <CardTitle title="IPO Watch" right={<Badge label="Next 30 days" />} />
+      <Updated time={updated} />
+      {loading && <Loading />}
+      {error   && <Err msg={error} />}
+      {!loading && !error && ipos.length === 0 && <Empty msg="No upcoming IPOs in the next 30 days." />}
+      {!loading && !error && ipos.map(function(ipo, i) {
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "flex-start", gap: "0.6rem",
+            padding: "0.65rem 0",
+            borderBottom: i < ipos.length - 1 ? "1px solid " + GREY200 : "none",
+          }}>
+            <div style={{
+              minWidth: "40px", textAlign: "center", fontSize: "0.68rem",
+              fontWeight: "700", color: WHITE, background: NAVY,
+              borderRadius: "6px", padding: "3px 4px", fontFamily: FONT, lineHeight: "1.4",
+              flexShrink: 0,
+            }}>
+              {fmtCalDate(ipo.date)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.84rem", fontWeight: "700", color: GREY900, fontFamily: FONT }}>
+                  {ipo.name}
+                </span>
+                <StatusBadge status={ipo.status} />
+              </div>
+              <div style={{ fontSize: "0.7rem", color: GREY500, fontFamily: FONT, marginTop: "2px" }}>
+                {ipo.exchange}
+                {ipo.price ? "  |  Price: $" + ipo.price : ""}
+                {ipo.totalSharesValue ? "  |  Size: " + fmtVal(ipo.totalSharesValue) : ""}
+              </div>
+            </div>
+            <span style={{
+              fontSize: "0.72rem", fontWeight: "700", color: NAVY,
+              fontFamily: FONT, fontVariantNumeric: "tabular-nums",
+              flexShrink: 0,
+            }}>
+              {ipo.symbol}
+            </span>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+// ── Card 10: Insider Activity ─────────────────────────────────────────────────
+function InsiderActivityCard(props) {
+  var session = props.session;
+  var [rows,    setRows]    = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error,   setError]   = useState(null);
+  var [updated, setUpdated] = useState(null);
+
+  useEffect(function() {
+    var load = async function() {
+      if (!session || !session.user || !session.user.id) return;
+      setLoading(true);
+
+      // Get tickers from public_equities
+      var eqRes = await supabase.from("public_equities")
+        .select("ticker, security_name")
+        .eq("investor_id", session.user.id)
+        .eq("status", "active")
+        .not("ticker", "is", null);
+
+      var tickers = [];
+      var seen = {};
+      var eqRows = eqRes.data || [];
+      for (var i = 0; i < eqRows.length; i++) {
+        var t = eqRows[i].ticker;
+        if (t && !seen[t]) {
+          seen[t] = true;
+          tickers.push({ ticker: t, name: eqRows[i].security_name || t });
+        }
+      }
+
+      if (tickers.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      var allTxns = [];
+      var limited = tickers.slice(0, 6);
+      for (var k = 0; k < limited.length; k++) {
+        var item = limited[k];
+        try {
+          var res = await fetch(
+            "https://finnhub.io/api/v1/stock/insider-transactions?symbol=" + item.ticker +
+            "&token=" + (process.env.REACT_APP_FINNHUB_API_KEY || "")
+          );
+          var data = await res.json();
+          var txns = (data.data || []).filter(function(t) {
+            return !t.isDerivative && (t.transactionCode === "P" || t.transactionCode === "S");
+          }).slice(0, 3);
+          for (var m = 0; m < txns.length; m++) {
+            allTxns.push({ txn: txns[m], securityName: item.name, ticker: item.ticker });
+          }
+        } catch (e) { /* skip */ }
+      }
+
+      // Sort by most recent filing date
+      allTxns.sort(function(a, b) {
+        return a.txn.filingDate < b.txn.filingDate ? 1 : -1;
+      });
+
+      setRows(allTxns.slice(0, 12));
+      setUpdated(nowTime());
+      setLoading(false);
+    };
+    load();
+  }, [session]);
+
+  function txnLabel(code) {
+    return code === "P" ? "Bought" : "Sold";
+  }
+
+  function txnColor(code) {
+    return code === "P" ? GREEN : RED;
+  }
+
+  function fmtShares(n) {
+    if (!n) return "";
+    var abs = Math.abs(n);
+    if (abs >= 1e6) return (abs / 1e6).toFixed(1) + "M shares";
+    if (abs >= 1e3) return (abs / 1e3).toFixed(1) + "K shares";
+    return abs.toLocaleString() + " shares";
+  }
+
+  return (
+    <Card>
+      <CardTitle title="Insider Activity" right={<Badge label="Your holdings" />} />
+      <Updated time={updated} />
+      {loading && <Loading />}
+      {error   && <Err msg={error} />}
+      {!loading && !error && rows.length === 0 && (
+        <Empty msg="No recent insider transactions for your holdings." />
+      )}
+      {!loading && !error && rows.map(function(item, i) {
+        var t = item.txn;
+        var isBuy = t.transactionCode === "P";
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "flex-start", gap: "0.6rem",
+            padding: "0.65rem 0",
+            borderBottom: i < rows.length - 1 ? "1px solid " + GREY200 : "none",
+          }}>
+            {/* Buy/Sell indicator dot */}
+            <div style={{
+              width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, marginTop: "5px",
+              background: isBuy ? GREEN : RED,
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: "700", color: NAVY, fontFamily: FONT }}>
+                  {item.ticker}
+                </span>
+                <span style={{
+                  fontSize: "0.72rem", fontWeight: "700",
+                  color: txnColor(t.transactionCode), fontFamily: FONT,
+                }}>
+                  {txnLabel(t.transactionCode)}
+                </span>
+                <span style={{ fontSize: "0.72rem", color: GREY600, fontFamily: FONT }}>
+                  {fmtShares(t.change)}
+                </span>
+                {t.transactionPrice > 0 && (
+                  <span style={{ fontSize: "0.72rem", color: GREY500, fontFamily: FONT }}>
+                    @ ${t.transactionPrice.toFixed(2)}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: GREY500, fontFamily: FONT, marginTop: "2px" }}>
+                {t.name}  {t.transactionDate ? " — " + fmtRelTime(new Date(t.transactionDate).getTime() / 1000) : ""}
+              </div>
+            </div>
           </div>
         );
       })}
@@ -840,13 +1351,25 @@ export default function MarketInsights(props) {
     <div>
       <Header />
       <MarketSnapshotCard />
+
+      {/* Row 1: News cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.25rem", marginBottom: "1.25rem" }}>
         <PortfolioNewsCard session={session} />
         <MenaNewsCard />
         <GlobalNewsCard />
       </div>
+
+      {/* Row 2: Intelligence cards — personalized */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.25rem", marginBottom: "1.25rem" }}>
+        <AnalystConsensusCard session={session} />
+        <InsiderActivityCard session={session} />
+        <EarningsCalendarCard />
+      </div>
+
+      {/* Row 3: Market + Editorial */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.25rem" }}>
         <EconomicCalendarCard />
+        <IpoWatchCard />
         <HouseViewsCard />
       </div>
     </div>
