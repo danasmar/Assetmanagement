@@ -5,13 +5,14 @@ import { fmt } from "../../utils/formatters";
 
 // ── Shared form modal used by both sections ───────────────────────────────────
 function EntryModal(props) {
-  var title   = props.title;
-  var form    = props.form;
-  var setForm = props.setForm;
-  var saving  = props.saving;
-  var onSave  = props.onSave;
-  var onClose = props.onClose;
-  var btnLabel = props.btnLabel || "Publish";
+  var title      = props.title;
+  var form       = props.form;
+  var setForm    = props.setForm;
+  var saving     = props.saving;
+  var onSave     = props.onSave;
+  var onClose    = props.onClose;
+  var btnLabel   = props.btnLabel || "Publish";
+  var showAuthor = props.showAuthor || false;
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -21,6 +22,14 @@ function EntryModal(props) {
         onChange={function(e) { setForm({ ...form, title: e.target.value }); }}
         placeholder="Enter a title..."
       />
+      {showAuthor && (
+        <Input
+          label="Author / Team (e.g. CIO Office, Fixed Income Team)"
+          value={form.author || ""}
+          onChange={function(e) { setForm({ ...form, author: e.target.value }); }}
+          placeholder="Audi Capital Research"
+        />
+      )}
       <div style={{ marginBottom: "1rem" }}>
         <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "600", color: "#495057", marginBottom: "5px" }}>
           Content
@@ -58,6 +67,11 @@ function EntryRow(props) {
         <div style={{ fontWeight: "700", color: "#212529", fontSize: "0.9rem", marginBottom: "4px" }}>
           {u.title}
         </div>
+        {u.author && (
+          <div style={{ fontSize: "0.72rem", fontWeight: "700", color: "#003770", marginBottom: "4px" }}>
+            {u.author}
+          </div>
+        )}
         <div style={{ fontSize: "0.82rem", color: "#6c757d", lineHeight: "1.5" }}>
           {u.content}
         </div>
@@ -162,9 +176,9 @@ export default function UpdatesMgmt() {
   var saveView = async function() {
     setVwSaving(true);
     if (vwModal === "new") {
-      await supabase.from("house_views").insert({ title: vwForm.title, content: vwForm.content });
+      await supabase.from("house_views").insert({ title: vwForm.title, content: vwForm.content, author: vwForm.author || "Audi Capital Research" });
     } else {
-      await supabase.from("house_views").update({ title: vwForm.title, content: vwForm.content }).eq("id", vwModal.id);
+      await supabase.from("house_views").update({ title: vwForm.title, content: vwForm.content, author: vwForm.author || "Audi Capital Research" }).eq("id", vwModal.id);
     }
     setVwSaving(false);
     setVwModal(null);
@@ -263,6 +277,7 @@ export default function UpdatesMgmt() {
           onSave={saveView}
           onClose={function() { setVwModal(null); setVwForm({}); }}
           btnLabel="Publish View"
+          showAuthor={true}
         />
       )}
     </div>
