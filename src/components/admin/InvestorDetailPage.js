@@ -456,6 +456,33 @@ function AltFields({ f, sf, deals, isAdd }) {
     : null;
 
   return <>
+    {/* Deal link selector — at top of form, only shown when adding */}
+    {isAdd && (
+      <div style={{ marginBottom:'1rem', paddingBottom:'0.75rem', borderBottom:'1px solid #f1f3f5' }}>
+        <label style={LS}>Link to Deal (optional)</label>
+        <select value={f.deal_id ?? ''} onChange={e => {
+            const dealId = e.target.value || null;
+            const d = deals?.find(x => x.id === dealId);
+            sf(p => ({
+              ...p,
+              deal_id: dealId,
+              _dealMoic: d?.moic ?? null,
+              // Auto-fill security name from the deal's name when one is selected
+              security_name: d ? (d.name || p.security_name) : p.security_name,
+            }));
+          }}
+          style={{ ...IS, background:'#fff' }}>
+          <option value="">No linked deal</option>
+          {deals && deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        {f.deal_id && linkedDeal && linkedDeal.current_nav > 0 && (
+          <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>
+            Current NAV: <strong>{fmt.currency(linkedDeal.current_nav, linkedDeal.currency||'SAR')}</strong> per unit
+          </div>
+        )}
+      </div>
+    )}
+
     <FI label="Security / Fund Name *"         fk="security_name"        f={f} sf={sf} />
     <G2>
       {isDealLinked ? (
@@ -575,28 +602,7 @@ function AltFields({ f, sf, deals, isAdd }) {
       <FS label="Status"                       fk="status"               f={f} sf={sf} options={OPT.status} />
     </G2>
 
-    {/* Deal link selector — only shown when adding */}
-    {isAdd && (
-      <div style={{ marginBottom:'1rem', paddingTop:'0.5rem', borderTop:'1px solid #f1f3f5' }}>
-        <label style={LS}>Link to Deal (optional)</label>
-        <select value={f.deal_id ?? ''} onChange={e => {
-            const dealId = e.target.value || null;
-            const d = deals?.find(x => x.id === dealId);
-            sf(p => ({ ...p, deal_id: dealId, _dealMoic: d?.moic ?? null }));
-          }}
-          style={{ ...IS, background:'#fff' }}>
-          <option value="">No linked deal</option>
-          {deals && deals.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        {f.deal_id && linkedDeal && linkedDeal.current_nav > 0 && (
-          <div style={{ marginTop:'6px', fontSize:'0.78rem', color:'#6c757d' }}>
-            Current NAV: <strong>{fmt.currency(linkedDeal.current_nav, linkedDeal.currency||'SAR')}</strong> per unit
-          </div>
-        )}
-      </div>
-    )}
-
-    {/* Deal info banner — shown when editing a deal-linked position */}
+  {/* Deal info banner — shown when editing a deal-linked position */}
     {!isAdd && isDealLinked && (
       <div style={{ background:'#f0f4fa', borderRadius:'8px', padding:'0.65rem 1rem', fontSize:'0.82rem', color:'#003770', marginTop:'0.5rem' }}>
         🔗 Linked to deal: <strong>{linkedDeal?.name || f.deal_id}</strong>
