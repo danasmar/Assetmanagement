@@ -591,8 +591,10 @@ export default function InvestorDashboard({ session, onPage }) {
         const ytdBaseline = sorted.find(s => new Date(s.snapshot_date) >= yearStart) || null;
 
         // Use snapshot value if we have one, otherwise fall back to live computed totalAUM
-        const heroAUM = latest ? Number(latest.total_aum) : totalAUM;
-        const heroDate = latest ? new Date(latest.snapshot_date).toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" }) : "Live";
+        // Hero AUM is ALWAYS the live computed value (today's positions × today's prices),
+        // never a frozen snapshot. Snapshots are only used for the performance pills below.
+        const heroAUM = totalAUM;
+        const heroDate = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" });
 
         let deltaVal = null, deltaPct = null;
         if (latest && previous) {
@@ -637,7 +639,7 @@ export default function InvestorDashboard({ session, onPage }) {
                 <div style={{ fontSize:"2.4rem", fontWeight:"700", color:"#C9A84C", fontFamily:"DM Serif Display, serif", lineHeight:1.1, fontVariantNumeric:"tabular-nums" }}>
                   {Number(heroAUM || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </div>
-                <div style={{ fontSize:"0.72rem", color:"rgba(255,255,255,0.5)", marginTop:"6px" }}>As of {heroDate}</div>
+                <div style={{ fontSize:"0.72rem", color:"rgba(255,255,255,0.5)", marginTop:"6px" }}>Live — {heroDate}</div>
               </div>
               <div style={{ display:"flex", gap:"1.5rem", flex:"1 1 320px", justifyContent:"flex-end", flexWrap:"wrap" }}>
                 {renderPill("Since Last Statement", deltaVal, deltaPct, "One snapshot so far")}
