@@ -606,7 +606,7 @@ export default function InvestorDashboard({ session, onPage }) {
           ytdPct = ytdBaseline.total_aum > 0 ? (ytdVal / ytdBaseline.total_aum * 100) : null;
         }
 
-        const Pill = ({ label, val, pct, sub }) => {
+        const renderPill = (label, val, pct, sub) => {
           if (val === null || pct === null) {
             return (
               <div style={{ flex:1, minWidth:"160px" }}>
@@ -640,8 +640,8 @@ export default function InvestorDashboard({ session, onPage }) {
                 <div style={{ fontSize:"0.72rem", color:"rgba(255,255,255,0.5)", marginTop:"6px" }}>As of {heroDate}</div>
               </div>
               <div style={{ display:"flex", gap:"1.5rem", flex:"1 1 320px", justifyContent:"flex-end", flexWrap:"wrap" }}>
-                <Pill label="Since Last Statement" val={deltaVal} pct={deltaPct} sub="One snapshot so far" />
-                <Pill label="Year to Date" val={ytdVal} pct={ytdPct} sub="Available next year" />
+                {renderPill("Since Last Statement", deltaVal, deltaPct, "One snapshot so far")}
+                {renderPill("Year to Date", ytdVal, ytdPct, "Available next year")}
               </div>
             </div>
           </div>
