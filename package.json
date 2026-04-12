@@ -8,6 +8,7 @@
     "react-scripts": "5.0.1",
     "@supabase/supabase-js": "^2.39.0",
     "recharts": "^2.10.0"
+    "pdfmake": "^0.2.10",
   },
   "scripts": {
     "start": "react-scripts start",
