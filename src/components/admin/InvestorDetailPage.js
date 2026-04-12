@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../../supabaseClient";
 import { Card, Badge, Btn, Modal } from "../shared";
 import { fmt } from "../../utils/formatters";
+import { createSnapshot } from "../../services/snapshotService";
 
 // ─── Option lists — mirrors PositionsViewer exactly ──────────────────────────
 const CUSTODIANS = ['Bank Audi Suisse', 'Audi Capital', 'JP Morgan', 'UBS', 'Jadwa', 'MEFIC', 'GII', 'Riyad Capital', 'Jazeera Capital'];
@@ -634,6 +635,8 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   const [modal, setModal]     = useState(null);
   const [form, setForm]       = useState({});
   const [saving, setSaving]   = useState(false);
+  const [snapshotSaving, setSnapshotSaving] = useState(false);
+  const [snapshotMsg, setSnapshotMsg]       = useState("");
 
   const [fx, setFx] = useState({ usd_to_sar:3.75, eur_to_sar:4.35, gbp_to_sar:4.98, aed_to_sar:1.02, chf_to_sar:4.12 });
 
@@ -679,6 +682,37 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
   };
 
   useEffect(() => { load(); }, [investor.id]);
+
+  const handleCreateSnapshot = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const dateStr = window.prompt(
+      "Create a portfolio snapshot for this investor.\n\n" +
+      "Enter the snapshot date (YYYY-MM-DD).\n" +
+      "This will capture the current AUM totals as of that date.",
+      today
+    );
+    if (!dateStr) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      alert("Invalid date format. Please use YYYY-MM-DD.");
+      return;
+    }
+    setSnapshotSaving(true);
+    setSnapshotMsg("");
+    const result = await createSnapshot({
+      investorId: investor.id,
+      snapshotDate: dateStr,
+      source: "manual",
+    });
+    setSnapshotSaving(false);
+    if (result.success) {
+      setSnapshotMsg("✓ Snapshot saved for " + dateStr +
+        " — Total AUM: SAR " +
+        Number(result.snapshot.total_aum).toLocaleString("en-US", { maximumFractionDigits: 0 }));
+      setTimeout(() => setSnapshotMsg(""), 6000);
+    } else {
+      alert("Failed to create snapshot: " + result.error);
+    }
+  };
 
   const toSAR = (amount, currency) => {
     if (!currency || currency === 'SAR') return amount || 0;
@@ -932,11 +966,20 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
           </div>
         </div>
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+          <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={handleCreateSnapshot} disabled={snapshotSaving}>
+            {snapshotSaving ? "Saving..." : "📸 Create Snapshot"}
+          </Btn>
           <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={onEdit}>Edit Profile</Btn>
           {investor.status !== 'Approved'  && <Btn variant="gold"   style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id,'Approved')}>Approve</Btn>}
           {investor.status !== 'Suspended' && <Btn variant="danger" style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id,'Suspended')}>Suspend</Btn>}
         </div>
       </div>
+
+      {snapshotMsg && (
+        <div style={{ background:'#f0fff4', border:'1px solid #c6f6d5', borderRadius:'8px', padding:'0.75rem 1rem', color:'#276749', fontSize:'0.85rem', marginBottom:'1rem', fontWeight:'600' }}>
+          {snapshotMsg}
+        </div>
+      )}
 
       {/* Summary cards — one per category, aligned above the category cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'1rem', marginBottom:'0.5rem' }}>
