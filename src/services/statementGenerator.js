@@ -14,7 +14,7 @@
 
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
-import { LOGO_SRC } from "../components/shared";
+import { LOGO_PDF } from "../components/shared";
 
 pdfMake.vfs = pdfFonts.pdfMake ? pdfFonts.pdfMake.vfs : pdfFonts.vfs;
 
@@ -63,7 +63,7 @@ function buildStatementNumber(investorId, snapshotDate) {
 
 function buildCoverPage(investor, snapshot, statementNumber) {
   return [
-    { image: LOGO_SRC, width: 180, alignment: "center", margin: [0, 100, 0, 30] },
+    { image: LOGO_PDF, width: 180, alignment: "center", margin: [0, 100, 0, 30] },
     { text: "PORTFOLIO STATEMENT", style: "coverTitle", alignment: "center" },
     { canvas: [{ type: "line", x1: 100, y1: 5, x2: 415, y2: 5, lineWidth: 1, lineColor: GOLD }], margin: [0, 8, 0, 30] },
     { text: investor.full_name || "Investor", style: "coverInvestor", alignment: "center" },
@@ -321,7 +321,7 @@ export function generateStatement({ investor, snapshot, prevSnapshot, positions,
       if (currentPage === 1) return null; // no header on cover
       return {
         columns: [
-          { image: LOGO_SRC, width: 60, margin: [40, 20, 0, 0] },
+          { image: LOGO_PDF, width: 60, margin: [40, 20, 0, 0] },
           { text: "Portfolio Statement", style: "pageHeader", alignment: "right", margin: [0, 30, 40, 0] },
         ],
       };
