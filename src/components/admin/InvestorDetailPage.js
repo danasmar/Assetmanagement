@@ -689,12 +689,15 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
   useEffect(() => { load(); }, [investor.id]);
 
+  // ── Auto-compute snapshot — captures live AUM totals from current positions
+  // via the create_snapshots_for_date RPC. Use this for "snapshot today's state"
+  // (or any date where you want the system to compute totals from active positions).
   const handleCreateSnapshot = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const dateStr = window.prompt(
-      "Create a portfolio snapshot for this investor.\n\n" +
+      "Capture an automatic portfolio snapshot for this investor.\n\n" +
       "Enter the snapshot date (YYYY-MM-DD).\n" +
-      "This will capture the current AUM totals as of that date.",
+      "The system will compute AUM totals from current active positions.",
       today
     );
     if (!dateStr) return;
@@ -715,9 +718,85 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         " — Total AUM: SAR " +
         Number(result.snapshot.total_aum).toLocaleString("en-US", { maximumFractionDigits: 0 }));
       setTimeout(() => setSnapshotMsg(""), 6000);
+      load();
     } else {
       alert("Failed to create snapshot: " + result.error);
     }
+  };
+
+  // ── Manual historical snapshot — for backfilling AUM values from past dates
+  // where you don't have the underlying position data, but you do remember (or
+  // can look up) the total AUM. Stores total only; per-category fields = 0.
+  const handleAddHistoricalSnapshot = async () => {
+    // Default date = last day of previous month (most common backfill case)
+    const now = new Date();
+    const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const defaultDate = lastDayPrevMonth.toISOString().slice(0, 10);
+
+    const dateStr = window.prompt(
+      "Add a historical portfolio snapshot for this investor.\n\n" +
+      "Step 1 of 2: Enter the snapshot date (YYYY-MM-DD).\n" +
+      "Defaults to the last day of the previous month.",
+      defaultDate
+    );
+    if (!dateStr) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      alert("Invalid date format. Please use YYYY-MM-DD.");
+      return;
+    }
+
+    const aumStr = window.prompt(
+      "Step 2 of 2: Enter the Total AUM in SAR for " + dateStr + ".\n\n" +
+      "Numbers only, no commas or currency symbols.\n" +
+      "Example: 208849026",
+      ""
+    );
+    if (!aumStr) return;
+    const aum = parseFloat(aumStr.replace(/[^0-9.\-]/g, ""));
+    if (isNaN(aum) || aum < 0) {
+      alert("Invalid AUM amount. Please enter a positive number.");
+      return;
+    }
+
+    setSnapshotSaving(true);
+    setSnapshotMsg("");
+
+    // Direct upsert into portfolio_snapshots — bypasses the auto-compute RPC
+    // because this is a manual historical entry, not a live computation.
+    // Per-category fields default to 0; total_aum is the meaningful value.
+    const { data, error } = await supabase
+      .from("portfolio_snapshots")
+      .upsert(
+        {
+          investor_id:     investor.id,
+          snapshot_date:   dateStr,
+          total_equities:  0,
+          total_fi:        0,
+          total_etf:       0,
+          total_alts:      0,
+          total_cash:      0,
+          total_aum:       aum,
+          source:          "manual_backfill",
+          fx_rates:        fx || null,
+        },
+        { onConflict: "investor_id,snapshot_date" }
+      )
+      .select()
+      .single();
+
+    setSnapshotSaving(false);
+
+    if (error) {
+      alert("Failed to save snapshot: " + error.message);
+      return;
+    }
+    setSnapshotMsg(
+      "✓ Snapshot saved for " + dateStr +
+      " — Total AUM: SAR " +
+      Number(aum).toLocaleString("en-US", { maximumFractionDigits: 0 })
+    );
+    setTimeout(() => setSnapshotMsg(""), 6000);
+    load();
   };
 
   const toSAR = (amount, currency) => {
@@ -990,6 +1069,9 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
           <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={handleCreateSnapshot} disabled={snapshotSaving}>
             {snapshotSaving ? "Saving..." : "📸 Create Snapshot"}
+          </Btn>
+          <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={handleAddHistoricalSnapshot} disabled={snapshotSaving}>
+            {snapshotSaving ? "Saving..." : "🕰️ Add Historical Snapshot"}
           </Btn>
           <Btn variant="outline" style={{ fontSize:'0.78rem', padding:'0.35rem 0.8rem' }} onClick={onEdit}>Edit Profile</Btn>
           {investor.status !== 'Approved'  && <Btn variant="gold"   style={{ fontSize:'0.78rem', padding:'0.35rem 0.7rem' }} onClick={() => onUpdateStatus(investor.id,'Approved')}>Approve</Btn>}
