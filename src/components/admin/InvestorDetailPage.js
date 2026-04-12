@@ -797,7 +797,6 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         commitment_amount:   toN(form.commitment_amount),
         called_capital:      toN(form.called_capital),
         distributions_paid:  toN(form.distributions_paid),
-        amount_invested:     toN(form.amount_invested),
         market_value:        computedMV != null ? computedMV : toN(form.market_value),
         quantity:            toN(form.quantity),
         avg_cost_price:      toN(form.avg_cost_price),
@@ -827,6 +826,7 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         : await supabase.from('alternatives').insert(payload);
       if (altRes.error) {
         alert("Could not save alternative: " + altRes.error.message);
+        setSaving(false);
         return;
       }
 
