@@ -847,14 +847,19 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         statement_date: form.statement_date || today,
         status:         form.status         || 'active',
       };
-      if (isEdit) await supabase.from('cash_deposits').update(payload).eq('id', form.id);
-      else        await supabase.from('cash_deposits').insert(payload);
+      const cashRes = isEdit
+        ? await supabase.from('cash_deposits').update(payload).eq('id', form.id)
+        : await supabase.from('cash_deposits').insert(payload);
+      if (cashRes.error) {
+        alert("Could not save cash position: " + cashRes.error.message);
+        setSaving(false);
+        return;
+      }
 
     } else {
       // Public Equities / Fixed Income / ETF & Public Funds
       const base = {
         investor_id:      investor.id,
-        category:         cat,
         security_name:    form.security_name    || '',
         ticker:           form.ticker           || null,
         isin:             form.isin             || null,
@@ -926,8 +931,14 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         });
       }
       const pubTable = cat === 'Fixed Income' ? 'fixed_income' : cat === 'ETF & Public Funds' ? 'etf_public_funds' : 'public_equities';
-      if (isEdit) await supabase.from(pubTable).update(base).eq('id', form.id);
-      else        await supabase.from(pubTable).insert(base);
+      const pubRes = isEdit
+        ? await supabase.from(pubTable).update(base).eq('id', form.id)
+        : await supabase.from(pubTable).insert(base);
+      if (pubRes.error) {
+        alert("Could not save " + cat + ": " + pubRes.error.message);
+        setSaving(false);
+        return;
+      }
     }
 
     closeModal();
