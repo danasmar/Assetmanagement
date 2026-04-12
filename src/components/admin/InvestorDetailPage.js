@@ -787,7 +787,6 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
 
       const payload = {
         investor_id:         investor.id,
-        category:            'Alternatives',
         security_name:       form.security_name       || 'Private Position',
         fund_vehicle:        deal ? (deal.fund_vehicle   || null) : (form.fund_vehicle  || null),
         strategy:            deal ? (deal.strategy       || null) : (form.strategy      || null),
@@ -823,8 +822,13 @@ export default function InvestorDetailPage({ investor, deals, onBack, onUpdateSt
         payload.avg_cost_price = payload.avg_cost_price || nav;
       }
 
-      if (isEdit) await supabase.from('alternatives').update(payload).eq('id', form.id);
-      else        await supabase.from('alternatives').insert(payload);
+      const altRes = isEdit
+        ? await supabase.from('alternatives').update(payload).eq('id', form.id)
+        : await supabase.from('alternatives').insert(payload);
+      if (altRes.error) {
+        alert("Could not save alternative: " + altRes.error.message);
+        return;
+      }
 
     } else if (cat === 'Cash & Deposits') {
       const payload = {
