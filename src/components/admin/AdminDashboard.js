@@ -13,7 +13,7 @@ const catColor = {
 };
 
 export default function AdminDashboard() {
-  const [stats,     setStats]     = useState({ aum: 0, funds: 0, investors: 0 });
+  const [stats,     setStats]     = useState({ funds: 0, investors: 0 });
   const [deals,     setDeals]     = useState([]);
   const [interests, setInterests] = useState([]);
   const [topClients,  setTopClients]  = useState([]);
@@ -21,7 +21,7 @@ export default function AdminDashboard() {
   const [custodyAUM,  setCustodyAUM]  = useState({ audiCapital: 0, bankAudi: 0, others: 0 });
 
   useEffect(() => {
-    const load = async () => {
+    async function load() {
       const [dealsRes, invRes, intrRes, eqRes, fiRes, etfRes, privRes, cashRes, assumpRes] = await Promise.all([
         supabase.from("deals").select("*"),
         supabase.from("investors").select("id, full_name, status"),
@@ -58,9 +58,7 @@ export default function AdminDashboard() {
       const fx = assumpRes.data?.[0] || { usd_to_sar: 3.75, eur_to_sar: 4.10, gbp_to_sar: 4.73, aed_to_sar: 1.02 };
 
       // ── Top-level stats ─────────────────────────────────────────────────
-      const aum = allDeals.reduce((s, x) => s + (x.amount_raised || 0), 0);
       setStats({
-        aum,
         funds:     allDeals.filter(x => x.status !== "Closed").length,
         investors: investors.filter(x => x.status === "Approved").length,
       });
@@ -81,14 +79,12 @@ export default function AdminDashboard() {
       setTopClients(clientAUM);
 
       // ── Top 5 investments by SAR value ───────────────────────────────────
-      // Aggregate public positions by security+category
       const pubMap = {};
       pubPos.forEach(p => {
         const key = `${p.security_name}||${p.category}`;
         if (!pubMap[key]) pubMap[key] = { name: p.security_name, category: p.category, valueSAR: 0 };
         pubMap[key].valueSAR += toSAR(p.market_value || 0, p.currency, fx);
       });
-      // Aggregate alts by deal
       const altMap = {};
       privPos.forEach(p => {
         const key = p.deals?.name || p.security_name || "Unknown";
@@ -122,11 +118,12 @@ export default function AdminDashboard() {
         cAUM[bucket] += toSAR(c.balance || 0, c.currency, fx);
       });
       setCustodyAUM(cAUM);
-    };
+    }
     load();
   }, []);
 
-  // Grand total AUM for percentage bars
+  // Grand totals
+  const totalAUM        = custodyAUM.audiCapital + custodyAUM.bankAudi + custodyAUM.others;
   const totalClientAUM  = topClients.reduce((s, c) => s + c.aum, 0);
   const totalInvestAUM  = topInvest.reduce((s, i) => s + i.valueSAR, 0);
 
@@ -137,7 +134,7 @@ export default function AdminDashboard() {
       {/* ── Summary stats ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px,1fr))", gap:"1rem", marginBottom:"1.5rem" }}>
         {[
-          { label:"Total AUM",                    value: stats.aum,               color:"#003770" },
+          { label:"Total AUM",                    value: totalAUM,                 color:"#003770" },
           { label:"Total AUM — Audi Capital",     value: custodyAUM.audiCapital,   color:"#003770" },
           { label:"Total AUM — Bank Audi Suisse", value: custodyAUM.bankAudi,      color:"#185FA5" },
           { label:"Total AUM — Others",           value: custodyAUM.others,        color:"#5F5E5A" },
